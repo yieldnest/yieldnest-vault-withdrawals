@@ -383,12 +383,12 @@ contract WithdrawalRequestManagerTest is Test {
     }
 
     function testConvertToAssets() public view {
-        assertEq(manager.convertToAssets(address(asset), 0), 0);
-        assertEq(manager.convertToAssets(address(asset), 10 ether), 10 ether);
+        assertEq(viewer.convertToAssets(manager, address(asset), 0), 0);
+        assertEq(viewer.convertToAssets(manager, address(asset), 10 ether), 10 ether);
     }
 
     function testFuzzConvertToAssetsReturnsAssetsForShares(uint128 shares) public view {
-        assertEq(manager.convertToAssets(address(asset), shares), shares);
+        assertEq(viewer.convertToAssets(manager, address(asset), shares), shares);
     }
 
     function testPausePreventsRequestWithdrawal() public {
@@ -464,11 +464,14 @@ contract WithdrawalRequestManagerTest is Test {
         assertEq(ynToken.processAccountingCalls(), 1);
     }
 
-    function testFulfillWithdrawalRequestMaxWithdrawsMaxAssetsForLockedShares() public {
+    function testViewerMaxFulfillmentAssetsCanBeUsedToFulfillLockedShares() public {
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, user);
 
         WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(id);
+        uint256 maxAssets = viewer.maxFulfillmentAssets(manager, id, address(asset));
+
+        assertEq(maxAssets, 10 ether);
 
         vm.expectEmit(true, true, true, true, address(manager));
         emit WithdrawalRequestManager.WithdrawalRequestFulfilled(
@@ -476,10 +479,9 @@ contract WithdrawalRequestManagerTest is Test {
         );
 
         vm.prank(fulfiller);
-        (uint256 amountBurned, uint256 assetsWithdrawn) = manager.fulfillWithdrawalRequestMax(id, address(asset));
+        uint256 amountBurned = manager.fulfillWithdrawalRequest(id, address(asset), maxAssets);
 
         assertEq(amountBurned, 10 ether);
-        assertEq(assetsWithdrawn, 10 ether);
 
         request = manager.requests(id);
         assertEq(asset.balanceOf(request.bag), 10 ether);
@@ -491,19 +493,20 @@ contract WithdrawalRequestManagerTest is Test {
         assertEq(asset.balanceOf(user), 10 ether);
     }
 
-    function testFuzzFulfillWithdrawalRequestMaxWithdrawsMaxAssetsForLockedShares(uint96 lockedAmount) public {
+    function testFuzzViewerMaxFulfillmentAssetsCanBeUsedToFulfillLockedShares(uint96 lockedAmount) public {
         lockedAmount = uint96(bound(lockedAmount, minimumAmountToLock, ynToken.balanceOf(user)));
 
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(lockedAmount, user);
+        uint256 maxAssets = viewer.maxFulfillmentAssets(manager, id, address(asset));
 
         vm.prank(fulfiller);
-        (uint256 amountBurned, uint256 assetsWithdrawn) = manager.fulfillWithdrawalRequestMax(id, address(asset));
+        uint256 amountBurned = manager.fulfillWithdrawalRequest(id, address(asset), maxAssets);
 
         WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(id);
 
         assertEq(amountBurned, lockedAmount);
-        assertEq(assetsWithdrawn, lockedAmount);
+        assertEq(maxAssets, lockedAmount);
         assertEq(request.amountLocked, 0);
         assertEq(ynToken.balanceOf(address(manager)), 0);
         assertEq(asset.balanceOf(request.bag), lockedAmount);

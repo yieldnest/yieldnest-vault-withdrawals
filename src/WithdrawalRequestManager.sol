@@ -6,11 +6,8 @@ import {
 } from "lib/openzeppelin-contracts-upgradeable/contracts/access/AccessControlUpgradeable.sol";
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {Initializable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
-import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {PausableUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
 import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IProvider} from "lib/yieldnest-vault/src/interface/IProvider.sol";
-import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
 import {IBag} from "src/interface/IBag.sol";
 import {IBeaconProxyFactory} from "src/interface/IBeaconProxyFactory.sol";
 
@@ -18,9 +15,6 @@ interface IWithdrawAssetVault is IERC20 {
     function withdrawAsset(address asset_, uint256 assets, address receiver, address owner)
         external
         returns (uint256 shares);
-    function totalBaseAssets() external view returns (uint256);
-    function provider() external view returns (address);
-    function getAsset(address asset_) external view returns (IVault.AssetParams memory);
     function processAccounting() external;
 }
 
@@ -28,7 +22,6 @@ interface IWithdrawAssetVault is IERC20 {
 /// @notice Custodies one yn-token type and tracks permissioned fulfilment of withdrawal requests.
 contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, PausableUpgradeable {
     using SafeERC20 for IERC20;
-    using Math for uint256;
 
     string public constant VERSION = "0.1.0";
 
@@ -167,30 +160,6 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
         (amountBurned,) = _fulfillWithdrawalRequest(id, asset, assets);
     }
 
-    /// @notice Fulfils as much of a request as possible for a given asset using the currently locked shares.
-    /// @dev Requests store only shares, and the fulfiller chooses the withdrawal asset at fulfilment.
-    /// @param id Request id to fulfil.
-    /// @param asset Asset to withdraw from the yn-token.
-    /// @return amountBurned Amount of locked yn-token shares burned by the withdrawal.
-    /// @return assetsWithdrawn Amount of `asset` transferred to the request bag.
-    function fulfillWithdrawalRequestMax(uint256 id, address asset)
-        external
-        onlyRole(FULFILLER_ROLE)
-        returns (uint256 amountBurned, uint256 assetsWithdrawn)
-    {
-        if (asset == address(0)) revert ZeroAddress();
-
-        WithdrawalRequest memory request = requests(id);
-
-        // Asset pricing depends on provider/oracle rates, which may be stale or incorrect. If an asset is
-        // underpriced, requesters can receive more real value than the burned shares represent, diluting
-        // remaining depositors. Inventory limits and operator diligence mitigate, but do not remove, this risk.
-        // Assumes asset withdrawals from the configured yn-token are feeless.
-        // Rounds down so max fulfilment does not intentionally request assets requiring more shares than are locked.
-        uint256 assets = convertToAssets(asset, request.amountLocked);
-        (amountBurned, assetsWithdrawn) = _fulfillWithdrawalRequest(id, asset, assets);
-    }
-
     function _fulfillWithdrawalRequest(uint256 id, address asset, uint256 assets)
         internal
         returns (uint256 amountBurned, uint256 assetsWithdrawn)
@@ -281,21 +250,6 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
 
     function _requestExists(WithdrawalRequest memory request) internal pure returns (bool) {
         return request.owner != address(0);
-    }
-
-    /// @notice Converts yn-token shares into the maximum amount of a given asset withdrawable from the configured token.
-    /// @param asset Asset to convert into.
-    /// @param shares Amount of yn-token shares to convert.
-    /// @return assets Amount of `asset` represented by `shares`.
-    function convertToAssets(address asset, uint256 shares) public view returns (uint256 assets) {
-        IWithdrawAssetVault token_ = _getWithdrawalRequestManagerStorage().token;
-        uint256 totalSupply = token_.totalSupply();
-        uint256 totalBaseAssets = token_.totalBaseAssets();
-        uint256 baseAssets = shares.mulDiv(totalBaseAssets + 1, totalSupply + 1, Math.Rounding.Floor);
-
-        IVault.AssetParams memory assetParams = token_.getAsset(asset);
-        uint256 rate = IProvider(token_.provider()).getRate(asset);
-        assets = baseAssets.mulDiv(10 ** assetParams.decimals, rate, Math.Rounding.Floor);
     }
 
     // --- Pause ---
