@@ -143,11 +143,11 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
         WithdrawalRequestManagerStorage storage $ = _getWithdrawalRequestManagerStorage();
         if (amount < $.minimumAmountToLock) revert AmountBelowMinimum(amount, $.minimumAmountToLock);
 
+        IERC20(address($.token)).safeTransferFrom(msg.sender, address(this), amount);
+
         id = $.nextRequestId++;
         address bag = $.beaconFactory.create(abi.encodeCall(IBag.initialize, (receiver, id)));
         $.requests[id] = WithdrawalRequest({owner: bag, bag: bag, amountLocked: amount});
-
-        IERC20(address($.token)).safeTransferFrom(msg.sender, address(this), amount);
 
         emit WithdrawalRequested(id, bag, address($.token), bag, amount);
     }
@@ -198,8 +198,8 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
         if (asset == address(0)) revert ZeroAddress();
 
         WithdrawalRequestManagerStorage storage $ = _getWithdrawalRequestManagerStorage();
-        requests(id);
         WithdrawalRequest storage request = $.requests[id];
+        if (!_requestExists(request)) revert RequestNotFound(id);
 
         if (assets == 0) revert ZeroAmount();
 
@@ -267,7 +267,7 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
     /// @return The stored withdrawal request.
     function requests(uint256 id) public view returns (WithdrawalRequest memory) {
         WithdrawalRequest memory request = _getWithdrawalRequestManagerStorage().requests[id];
-        if (request.owner == address(0)) revert RequestNotFound(id);
+        if (!_requestExists(request)) revert RequestNotFound(id);
 
         return request;
     }
@@ -276,7 +276,11 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
     /// @param id Request id to query.
     /// @return True if the request exists.
     function requestExists(uint256 id) public view returns (bool) {
-        return _getWithdrawalRequestManagerStorage().requests[id].owner != address(0);
+        return _requestExists(_getWithdrawalRequestManagerStorage().requests[id]);
+    }
+
+    function _requestExists(WithdrawalRequest memory request) internal pure returns (bool) {
+        return request.owner != address(0);
     }
 
     /// @notice Converts yn-token shares into the maximum amount of a given asset withdrawable from the configured token.
