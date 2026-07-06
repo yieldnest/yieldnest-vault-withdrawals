@@ -6,9 +6,9 @@ import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/E
 import {Strings} from "lib/openzeppelin-contracts/contracts/utils/Strings.sol";
 import {MainnetActors} from "lib/yieldnest-vault/script/Actors.sol";
 import {MainnetContracts as MC} from "lib/yieldnest-vault/script/Contracts.sol";
-import {Bag} from "src/withdrawal/Bag.sol";
-import {BeaconProxyFactory} from "src/withdrawal/BeaconProxyFactory.sol";
-import {WithdrawalRequestManager} from "src/withdrawal/WithdrawalRequestManager.sol";
+import {Bag} from "src/Bag.sol";
+import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
+import {WithdrawalRequestManager} from "src/WithdrawalRequestManager.sol";
 
 contract DeployWithdrawalRequestManager is Script {
     uint256 public constant MINIMUM_AMOUNT_TO_LOCK = 10 ether;

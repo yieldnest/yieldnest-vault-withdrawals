@@ -8,9 +8,9 @@ import {ERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol"
 import {PausableUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
 import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
 import {IBag} from "src/interface/IBag.sol";
-import {Bag} from "src/withdrawal/Bag.sol";
-import {BeaconProxyFactory} from "src/withdrawal/BeaconProxyFactory.sol";
-import {WithdrawalRequestManager} from "src/withdrawal/WithdrawalRequestManager.sol";
+import {Bag} from "src/Bag.sol";
+import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
+import {WithdrawalRequestManager} from "src/WithdrawalRequestManager.sol";
 
 contract MockWithdrawAssetVault is ERC20 {
     uint256 public burnMultiplier = 1;

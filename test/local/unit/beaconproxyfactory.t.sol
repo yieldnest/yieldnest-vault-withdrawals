@@ -6,8 +6,8 @@ import {IAccessControl} from "lib/openzeppelin-contracts/contracts/access/IAcces
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {Initializable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import {IBag} from "src/interface/IBag.sol";
-import {Bag} from "src/withdrawal/Bag.sol";
-import {BeaconProxyFactory} from "src/withdrawal/BeaconProxyFactory.sol";
+import {Bag} from "src/Bag.sol";
+import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
 
 interface IBagV2 {
     function version2() external pure returns (string memory);

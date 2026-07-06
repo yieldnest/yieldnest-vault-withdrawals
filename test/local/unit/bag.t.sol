@@ -8,7 +8,7 @@ import {ERC721} from "lib/openzeppelin-contracts/contracts/token/ERC721/ERC721.s
 import {IERC721Receiver} from "lib/openzeppelin-contracts/contracts/token/ERC721/IERC721Receiver.sol";
 import {Initializable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import {IBag} from "src/interface/IBag.sol";
-import {Bag} from "src/withdrawal/Bag.sol";
+import {Bag} from "src/Bag.sol";
 
 contract BagERC20Mock is ERC20 {
     constructor() ERC20("Token", "TKN") {}

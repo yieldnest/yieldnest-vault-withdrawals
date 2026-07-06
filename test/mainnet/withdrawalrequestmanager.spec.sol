@@ -10,9 +10,9 @@ import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
 import {MainnetActors as Actors} from "lib/yieldnest-vault/script/Actors.sol";
 import {MainnetContracts as MC} from "lib/yieldnest-vault/script/Contracts.sol";
 import {IBag} from "src/interface/IBag.sol";
-import {Bag} from "src/withdrawal/Bag.sol";
-import {BeaconProxyFactory} from "src/withdrawal/BeaconProxyFactory.sol";
-import {WithdrawalRequestManager} from "src/withdrawal/WithdrawalRequestManager.sol";
+import {Bag} from "src/Bag.sol";
+import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
+import {WithdrawalRequestManager} from "src/WithdrawalRequestManager.sol";
 
 contract WithdrawalRequestManagerMainnetTest is Test, Actors {
     BaseVault public vault;
