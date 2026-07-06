@@ -11,12 +11,14 @@ import {IBag} from "src/interface/IBag.sol";
 import {Bag} from "src/Bag.sol";
 import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
 import {WithdrawalRequestManager} from "src/WithdrawalRequestManager.sol";
+import {WithdrawalRequestViewer} from "views/WithdrawalRequestViewer.sol";
 
 contract MockWithdrawAssetVault is ERC20 {
     uint256 public burnMultiplier = 1;
     uint256 public returnAmountOffset;
     uint256 public transferShortfall;
     uint256 public processAccountingCalls;
+    address[] internal assetList;
 
     constructor() ERC20("ynToken", "ynT") {}
 
@@ -34,6 +36,13 @@ contract MockWithdrawAssetVault is ERC20 {
 
     function setTransferShortfall(uint256 transferShortfall_) external {
         transferShortfall = transferShortfall_;
+    }
+
+    function setAssets(address[] memory assets_) external {
+        delete assetList;
+        for (uint256 i = 0; i < assets_.length; ++i) {
+            assetList.push(assets_[i]);
+        }
     }
 
     function withdrawAsset(address asset_, uint256 assets, address receiver, address owner)
@@ -59,6 +68,10 @@ contract MockWithdrawAssetVault is ERC20 {
         return IVault.AssetParams({index: 0, active: true, decimals: 18});
     }
 
+    function getAssets() external view returns (address[] memory) {
+        return assetList;
+    }
+
     function getRate(address) external pure returns (uint256) {
         return 1 ether;
     }
@@ -80,6 +93,8 @@ contract WithdrawalRequestManagerTest is Test {
     WithdrawalRequestManager manager;
     MockWithdrawAssetVault ynToken;
     WithdrawalAssetMock asset;
+    WithdrawalAssetMock secondAsset;
+    WithdrawalRequestViewer viewer;
     Bag bagImplementation;
     BeaconProxyFactory beaconFactoryImplementation;
     BeaconProxyFactory beaconFactory;
@@ -95,6 +110,8 @@ contract WithdrawalRequestManagerTest is Test {
     function setUp() public {
         ynToken = new MockWithdrawAssetVault();
         asset = new WithdrawalAssetMock();
+        secondAsset = new WithdrawalAssetMock();
+        viewer = new WithdrawalRequestViewer();
         bagImplementation = new Bag();
         beaconFactoryImplementation = new BeaconProxyFactory();
         ERC1967Proxy beaconFactoryProxy = new ERC1967Proxy(
@@ -126,6 +143,11 @@ contract WithdrawalRequestManagerTest is Test {
 
         ynToken.mint(user, 100 ether);
         asset.mint(address(ynToken), 100 ether);
+        secondAsset.mint(address(ynToken), 100 ether);
+        address[] memory assets = new address[](2);
+        assets[0] = address(asset);
+        assets[1] = address(secondAsset);
+        ynToken.setAssets(assets);
 
         vm.prank(user);
         ynToken.approve(address(manager), type(uint256).max);
@@ -183,6 +205,44 @@ contract WithdrawalRequestManagerTest is Test {
         assertEq(request.owner, request.bag);
         assertEq(IBag(request.bag).ownerOf(IBag(request.bag).TOKEN_ID()), receiver);
         assertEq(IBag(request.bag).id(), id);
+    }
+
+    function testViewerReturnsFullRequestPicture() public {
+        vm.prank(user);
+        uint256 id = manager.requestWithdrawal(10 ether, receiver);
+
+        WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(id);
+        WithdrawalRequestViewer.RequestView memory view_ = viewer.getRequest(manager, id);
+
+        assertEq(view_.owner, receiver);
+        assertEq(view_.bag, request.bag);
+        assertEq(view_.token, address(ynToken));
+        assertEq(view_.amountLocked, 10 ether);
+        assertEq(view_.tokenBalance, 10 ether);
+        assertEq(view_.assetBalances.length, 2);
+        assertEq(view_.assetBalances[0].asset, address(asset));
+        assertEq(view_.assetBalances[0].balance, 0);
+        assertEq(view_.assetBalances[1].asset, address(secondAsset));
+        assertEq(view_.assetBalances[1].balance, 0);
+    }
+
+    function testViewerReturnsBagAssetBalancesAfterFulfillment() public {
+        vm.prank(user);
+        uint256 id = manager.requestWithdrawal(10 ether, receiver);
+
+        vm.prank(fulfiller);
+        manager.fulfillWithdrawalRequest(id, address(asset), 4 ether);
+
+        WithdrawalRequestViewer.RequestView memory view_ = viewer.getRequest(manager, id);
+
+        assertEq(view_.owner, receiver);
+        assertEq(view_.amountLocked, 6 ether);
+        assertEq(view_.tokenBalance, 6 ether);
+        assertEq(view_.assetBalances.length, 2);
+        assertEq(view_.assetBalances[0].asset, address(asset));
+        assertEq(view_.assetBalances[0].balance, 4 ether);
+        assertEq(view_.assetBalances[1].asset, address(secondAsset));
+        assertEq(view_.assetBalances[1].balance, 0);
     }
 
     function testFuzzRequestWithdrawalTransfersTokenAndMintsBagToReceiver(uint96 amount, address receiver_) public {
