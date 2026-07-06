@@ -5,4 +5,3 @@ lib/forge-std/src=lib/forge-std/src
 lib/yieldnest-vault:src=lib/yieldnest-vault/src
 lib/yieldnest-vault:test=lib/yieldnest-vault/test
 lib/yieldnest-vault:script=lib/yieldnest-vault/script
-lib/wrapped-token/=lib/wrapped-token/

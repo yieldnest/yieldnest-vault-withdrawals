@@ -10,6 +10,3 @@
 [submodule "lib/yieldnest-vault"]
 	path = lib/yieldnest-vault
 	url = https://github.com/yieldnest/yieldnest-vault
-[submodule "lib/wrapped-token"]
-	path = lib/wrapped-token
-	url = https://github.com/yieldnest/wrapped-token
