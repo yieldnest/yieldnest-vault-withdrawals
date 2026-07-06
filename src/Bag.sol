@@ -6,13 +6,15 @@ import {IERC721} from "lib/openzeppelin-contracts/contracts/token/ERC721/IERC721
 import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Address} from "lib/openzeppelin-contracts/contracts/utils/Address.sol";
 import {Strings} from "lib/openzeppelin-contracts/contracts/utils/Strings.sol";
-import {ERC721Upgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC721/ERC721Upgradeable.sol";
+import {
+    ERC721EnumerableUpgradeable
+} from "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
 import {Initializable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import {IBag} from "src/interface/IBag.sol";
 
 /// @title Bag
 /// @notice Per-request NFT container whose token owner can claim received assets.
-contract Bag is Initializable, ERC721Upgradeable, IBag {
+contract Bag is Initializable, ERC721EnumerableUpgradeable, IBag {
     using SafeERC20 for IERC20;
     using Address for address payable;
 
@@ -55,6 +57,7 @@ contract Bag is Initializable, ERC721Upgradeable, IBag {
 
         string memory idString = Strings.toString(id_);
         __ERC721_init(string.concat("YieldNest Withdrawal Bag #", idString), string.concat("ynBAG-", idString));
+        __ERC721Enumerable_init();
         _mint(owner_, TOKEN_ID);
     }
 
