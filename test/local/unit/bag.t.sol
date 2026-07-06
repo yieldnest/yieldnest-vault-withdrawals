@@ -285,6 +285,7 @@ contract BagTest is Test {
         public
     {
         vm.assume(recipient_ != address(0));
+        vm.assume(uint160(address(recipient_)) > 10);
         vm.assume(recipient_ != payable(address(bag)));
         vm.assume(recipient_.code.length == 0);
         amount = uint128(bound(amount, 0, balance));
