@@ -96,6 +96,7 @@ contract WithdrawalRequestViewerTest is Test {
     address pauser = address(0xAA05E);
     address user = address(0xB0B);
     address receiver = address(0xCA11);
+    address other = address(0xCAFE);
 
     function setUp() public {
         ynToken = new ViewerVaultMock();
@@ -168,6 +169,7 @@ contract WithdrawalRequestViewerTest is Test {
         WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(id);
         WithdrawalRequestViewer.RequestView memory view_ = viewer.getRequest(manager, id);
 
+        assertEq(view_.id, id);
         assertEq(view_.owner, receiver);
         assertEq(view_.bag, request.bag);
         assertEq(view_.token, address(ynToken));
@@ -179,6 +181,36 @@ contract WithdrawalRequestViewerTest is Test {
         assertEq(view_.assetBalances[1].asset, address(secondAsset));
         assertEq(view_.assetBalances[1].balance, 0);
         assertEq(IBag(view_.bag).ownerOf(IBag(view_.bag).TOKEN_ID()), receiver);
+    }
+
+    function testGetInProgressRequestsForOwnerReturnsCurrentOwnerRequests() public {
+        vm.startPrank(user);
+        uint256 completedId = manager.requestWithdrawal(10 ether, receiver);
+        uint256 otherId = manager.requestWithdrawal(11 ether, other);
+        uint256 transferredId = manager.requestWithdrawal(12 ether, receiver);
+        vm.stopPrank();
+
+        vm.prank(fulfiller);
+        manager.fulfillWithdrawalRequest(completedId, address(asset), 10 ether);
+
+        WithdrawalRequestManager.WithdrawalRequest memory transferredRequest = manager.requests(transferredId);
+        uint256 tokenId = IBag(transferredRequest.bag).TOKEN_ID();
+        vm.prank(receiver);
+        IBag(transferredRequest.bag).transferFrom(receiver, other, tokenId);
+
+        WithdrawalRequestViewer.RequestView[] memory receiverRequests =
+            viewer.getInProgressRequestsForOwner(manager, receiver);
+        assertEq(receiverRequests.length, 0);
+
+        WithdrawalRequestViewer.RequestView[] memory otherRequests =
+            viewer.getInProgressRequestsForOwner(manager, other);
+        assertEq(otherRequests.length, 2);
+        assertEq(otherRequests[0].id, otherId);
+        assertEq(otherRequests[0].owner, other);
+        assertEq(otherRequests[0].amountLocked, 11 ether);
+        assertEq(otherRequests[1].id, transferredId);
+        assertEq(otherRequests[1].owner, other);
+        assertEq(otherRequests[1].amountLocked, 12 ether);
     }
 
     function testConvertToAssetsUsesVaultRateAndDecimals() public view {

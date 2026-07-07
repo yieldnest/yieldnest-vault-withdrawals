@@ -26,6 +26,7 @@ contract WithdrawalRequestViewer {
     }
 
     struct RequestView {
+        uint256 id;
         address owner;
         address bag;
         address token;
@@ -39,12 +40,48 @@ contract WithdrawalRequestViewer {
         IWithdrawalRequestViewerVault token = IWithdrawalRequestViewerVault(address(manager.token()));
         address[] memory assets = token.getAssets();
 
+        view_ = _getRequest(id, request, token, assets, manager);
+    }
+
+    /// @notice Returns in-progress requests currently owned by `owner`.
+    /// @dev Iterates request ids from 1 to `nextRequestId() - 1`; intended for offchain/UI reads.
+    function getInProgressRequestsForOwner(WithdrawalRequestManager manager, address owner)
+        external
+        view
+        returns (RequestView[] memory requests_)
+    {
+        IWithdrawalRequestViewerVault token = IWithdrawalRequestViewerVault(address(manager.token()));
+        address[] memory assets = token.getAssets();
+        uint256 nextRequestId = manager.nextRequestId();
+        uint256 count;
+
+        for (uint256 id = 1; id < nextRequestId; ++id) {
+            if (_matchesOwner(manager, id, owner)) count++;
+        }
+
+        requests_ = new RequestView[](count);
+        uint256 index;
+        for (uint256 id = 1; id < nextRequestId; ++id) {
+            if (_matchesOwner(manager, id, owner)) {
+                requests_[index++] = _getRequest(id, manager.requests(id), token, assets, manager);
+            }
+        }
+    }
+
+    function _getRequest(
+        uint256 id,
+        WithdrawalRequestManager.WithdrawalRequest memory request,
+        IWithdrawalRequestViewerVault token,
+        address[] memory assets,
+        WithdrawalRequestManager manager
+    ) internal view returns (RequestView memory view_) {
         AssetBalance[] memory assetBalances = new AssetBalance[](assets.length);
         for (uint256 i = 0; i < assets.length; ++i) {
             assetBalances[i] = AssetBalance({asset: assets[i], balance: IERC20(assets[i]).balanceOf(request.bag)});
         }
 
         view_ = RequestView({
+            id: id,
             owner: IBag(request.bag).ownerOf(IBag(request.bag).TOKEN_ID()),
             bag: request.bag,
             token: address(token),
@@ -52,6 +89,15 @@ contract WithdrawalRequestViewer {
             tokenBalance: token.balanceOf(address(manager)),
             assetBalances: assetBalances
         });
+    }
+
+    function _matchesOwner(WithdrawalRequestManager manager, uint256 id, address owner) internal view returns (bool) {
+        if (!manager.requestExists(id)) return false;
+
+        WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(id);
+        if (request.amountLocked == 0) return false;
+
+        return IBag(request.bag).ownerOf(IBag(request.bag).TOKEN_ID()) == owner;
     }
 
     /// @notice Converts yn-token shares into the maximum amount of a vault asset withdrawable from the configured token.
