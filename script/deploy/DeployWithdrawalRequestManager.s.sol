@@ -9,6 +9,7 @@ import {MainnetContracts as MC} from "lib/yieldnest-vault/script/Contracts.sol";
 import {Bag} from "src/Bag.sol";
 import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
 import {WithdrawalRequestManager} from "src/WithdrawalRequestManager.sol";
+import {WithdrawalRequestViewer} from "views/WithdrawalRequestViewer.sol";
 
 contract DeployWithdrawalRequestManager is Script {
     uint256 public constant MINIMUM_AMOUNT_TO_LOCK = 10 ether;
@@ -19,6 +20,7 @@ contract DeployWithdrawalRequestManager is Script {
     BeaconProxyFactory public beaconFactory;
     WithdrawalRequestManager public implementation;
     WithdrawalRequestManager public withdrawalRequestManager;
+    WithdrawalRequestViewer public viewer;
     ERC1967Proxy public beaconFactoryProxy;
     ERC1967Proxy public proxy;
 
@@ -33,7 +35,7 @@ contract DeployWithdrawalRequestManager is Script {
     function run() public {
         actors = new MainnetActors();
 
-        deployer = msg.sender;
+        deployer = tx.origin;
         token = MC.YNETHX;
         defaultAdmin = actors.ADMIN();
         fulfiller = actors.ADMIN();
@@ -73,6 +75,8 @@ contract DeployWithdrawalRequestManager is Script {
         withdrawalRequestManager = WithdrawalRequestManager(address(proxy));
         require(address(withdrawalRequestManager) == predictedProxy, "unexpected proxy address");
 
+        viewer = new WithdrawalRequestViewer();
+
         vm.stopBroadcast();
 
         saveDeployment();
@@ -96,6 +100,7 @@ contract DeployWithdrawalRequestManager is Script {
         vm.serializeAddress(label(), "proxy", address(proxy));
         vm.serializeAddress(label(), "predictedProxy", predictedProxy);
         vm.serializeAddress(label(), "withdrawalRequestManager", address(withdrawalRequestManager));
+        vm.serializeAddress(label(), "viewer", address(viewer));
         vm.serializeAddress(label(), "token", token);
         vm.serializeUint(label(), "minimumAmountToLock", MINIMUM_AMOUNT_TO_LOCK);
         vm.serializeAddress(label(), "defaultAdmin", defaultAdmin);
