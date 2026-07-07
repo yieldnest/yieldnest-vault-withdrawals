@@ -5,7 +5,6 @@ import "forge-std/Test.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {ERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 import {ERC721} from "lib/openzeppelin-contracts/contracts/token/ERC721/ERC721.sol";
-import {IERC721Enumerable} from "lib/openzeppelin-contracts/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
 import {IERC721Receiver} from "lib/openzeppelin-contracts/contracts/token/ERC721/IERC721Receiver.sol";
 import {Initializable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import {IBag} from "src/interface/IBag.sol";
@@ -68,13 +67,6 @@ contract BagTest is Test {
         assertEq(bag.symbol(), "ynBAG-42");
         assertEq(bag.ownerOf(bag.TOKEN_ID()), owner);
         assertEq(bag.balanceOf(owner), 1);
-    }
-
-    function testInitializeMintsEnumerableToken() public view {
-        assertTrue(bag.supportsInterface(type(IERC721Enumerable).interfaceId));
-        assertEq(bag.totalSupply(), 1);
-        assertEq(bag.tokenByIndex(0), bag.TOKEN_ID());
-        assertEq(bag.tokenOfOwnerByIndex(owner, 0), bag.TOKEN_ID());
     }
 
     function testInitializeSupportsZeroRequestIdMetadata() public {
@@ -200,7 +192,6 @@ contract BagTest is Test {
         vm.prank(owner);
         bag.transferFrom(owner, other, tokenId);
 
-        assertEq(bag.tokenOfOwnerByIndex(other, 0), tokenId);
         vm.expectRevert(abi.encodeWithSelector(IBag.NotBagOwner.selector, owner));
         vm.prank(owner);
         bag.claimERC20(address(token), recipient, 1 ether);

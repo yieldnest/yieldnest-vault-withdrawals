@@ -2,9 +2,8 @@
 pragma solidity ^0.8.24;
 
 import {IERC721Metadata} from "lib/openzeppelin-contracts/contracts/token/ERC721/extensions/IERC721Metadata.sol";
-import {IERC721Enumerable} from "lib/openzeppelin-contracts/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
 
-interface IBag is IERC721Metadata, IERC721Enumerable {
+interface IBag is IERC721Metadata {
     error ZeroAddress();
     error NotBagOwner(address caller);
 
