@@ -96,21 +96,6 @@ contract Bag is Initializable, ERC721Upgradeable, IBag {
         return amounts;
     }
 
-    /// @notice Claims an amount of an ERC20 asset from this bag.
-    /// @param asset Asset to claim.
-    /// @param recipient Receiver of the claimed asset.
-    /// @param amount Amount to claim.
-    /// @return amount Amount claimed.
-    function claimERC20(address asset, address recipient, uint256 amount) external onlyNFTOwner returns (uint256) {
-        if (asset == address(0) || recipient == address(0)) revert ZeroAddress();
-
-        IERC20(asset).safeTransfer(recipient, amount);
-
-        emit ERC20Claimed(msg.sender, recipient, asset, amount);
-
-        return amount;
-    }
-
     /// @notice Claims an ERC721 token held by this bag.
     /// @param asset ERC721 asset to claim.
     /// @param recipient Receiver of the claimed token.
@@ -121,19 +106,5 @@ contract Bag is Initializable, ERC721Upgradeable, IBag {
         IERC721(asset).safeTransferFrom(address(this), recipient, tokenId);
 
         emit ERC721Claimed(msg.sender, recipient, asset, tokenId);
-    }
-
-    /// @notice Claims an amount of native ETH from this bag.
-    /// @param recipient Receiver of the claimed native ETH.
-    /// @param amount Amount to claim.
-    /// @return amount Amount claimed.
-    function claimNative(address payable recipient, uint256 amount) external onlyNFTOwner returns (uint256) {
-        if (recipient == address(0)) revert ZeroAddress();
-
-        recipient.sendValue(amount);
-
-        emit NativeClaimed(msg.sender, recipient, amount);
-
-        return amount;
     }
 }

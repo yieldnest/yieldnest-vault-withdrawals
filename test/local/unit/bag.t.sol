@@ -41,6 +41,8 @@ contract NativeRejector {
 }
 
 contract BagTest is Test {
+    address internal constant NATIVE_ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+
     Bag implementation;
     Bag bag;
     BagERC20Mock token;
@@ -67,6 +69,30 @@ contract BagTest is Test {
                         new ERC1967Proxy(address(implementation), abi.encodeCall(Bag.initialize, (owner_, id_)))
                     ))
             );
+    }
+
+    function _claimSingleERC20(Bag bag_, address asset, address recipient_, uint256 amount)
+        internal
+        returns (uint256[] memory)
+    {
+        address[] memory assets = new address[](1);
+        assets[0] = asset;
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = amount;
+
+        return bag_.claim(assets, payable(recipient_), amounts);
+    }
+
+    function _claimSingleNative(Bag bag_, address payable recipient_, uint256 amount)
+        internal
+        returns (uint256[] memory)
+    {
+        address[] memory assets = new address[](1);
+        assets[0] = NATIVE_ETH;
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = amount;
+
+        return bag_.claim(assets, recipient_, amounts);
     }
 
     function testInitializeMintsExpectedNFTMetadataAndConstants() public {
@@ -209,86 +235,88 @@ contract BagTest is Test {
         bag.claim(assets, payable(address(rejector)), amounts);
     }
 
-    function testClaimERC20TransfersSpecifiedAmountAndEmits() public {
+    function testClaimSingleERC20TransfersSpecifiedAmountAndEmits() public {
         token.mint(address(bag), 12 ether);
 
         vm.expectEmit(true, true, true, true, address(bag));
         emit IBag.ERC20Claimed(owner, recipient, address(token), 5 ether);
 
         vm.prank(owner);
-        uint256 amount = bag.claimERC20(address(token), recipient, 5 ether);
+        uint256 amount = _claimSingleERC20(bag, address(token), recipient, 5 ether)[0];
 
         assertEq(amount, 5 ether);
         assertEq(token.balanceOf(recipient), 5 ether);
         assertEq(token.balanceOf(address(bag)), 7 ether);
     }
 
-    function testFuzzClaimERC20TransfersSpecifiedAmount(address recipient_, uint128 balance, uint128 amount) public {
+    function testFuzzClaimSingleERC20TransfersSpecifiedAmount(address recipient_, uint128 balance, uint128 amount)
+        public
+    {
         vm.assume(recipient_ != address(0));
         vm.assume(recipient_ != address(bag));
         amount = uint128(bound(amount, 0, balance));
         token.mint(address(bag), balance);
 
         vm.prank(owner);
-        uint256 amountClaimed = bag.claimERC20(address(token), recipient_, amount);
+        uint256 amountClaimed = _claimSingleERC20(bag, address(token), recipient_, amount)[0];
 
         assertEq(amountClaimed, amount);
         assertEq(token.balanceOf(recipient_), amount);
         assertEq(token.balanceOf(address(bag)), uint256(balance) - amount);
     }
 
-    function testClaimERC20AllowsZeroAmountClaim() public {
+    function testClaimSingleERC20AllowsZeroAmountClaim() public {
         token.mint(address(bag), 12 ether);
 
         vm.expectEmit(true, true, true, true, address(bag));
         emit IBag.ERC20Claimed(owner, recipient, address(token), 0);
 
         vm.prank(owner);
-        uint256 amount = bag.claimERC20(address(token), recipient, 0);
+        uint256 amount = _claimSingleERC20(bag, address(token), recipient, 0)[0];
 
         assertEq(amount, 0);
         assertEq(token.balanceOf(recipient), 0);
         assertEq(token.balanceOf(address(bag)), 12 ether);
     }
 
-    function testClaimERC20RevertsWhenAmountExceedsBalance() public {
+    function testClaimSingleERC20RevertsWhenAmountExceedsBalance() public {
         token.mint(address(bag), 12 ether);
 
         vm.expectRevert();
         vm.prank(owner);
-        bag.claimERC20(address(token), recipient, 12 ether + 1);
+        _claimSingleERC20(bag, address(token), recipient, 12 ether + 1);
     }
 
-    function testFuzzClaimERC20RevertsWhenAmountExceedsBalance(uint128 balance, uint128 excess) public {
+    function testFuzzClaimSingleERC20RevertsWhenAmountExceedsBalance(uint128 balance, uint128 excess) public {
         excess = uint128(bound(excess, 1, type(uint128).max));
         token.mint(address(bag), balance);
 
         vm.expectRevert();
         vm.prank(owner);
-        bag.claimERC20(address(token), recipient, uint256(balance) + excess);
+        _claimSingleERC20(bag, address(token), recipient, uint256(balance) + excess);
     }
 
-    function testClaimERC20RevertsWhenCallerIsNotNFTOwner() public {
+    function testClaimSingleERC20RevertsWhenCallerIsNotNFTOwner() public {
         token.mint(address(bag), 12 ether);
 
         vm.expectRevert(abi.encodeWithSelector(IBag.NotBagOwner.selector, other));
         vm.prank(other);
-        bag.claimERC20(address(token), recipient, 1 ether);
+        _claimSingleERC20(bag, address(token), recipient, 1 ether);
     }
 
-    function testClaimERC20RevertsForZeroAssetOrRecipient() public {
+    function testClaimSingleERC20RevertsForZeroAssetOrRecipient() public {
         vm.startPrank(owner);
 
         vm.expectRevert(IBag.ZeroAddress.selector);
-        bag.claimERC20(address(0), recipient, 1 ether);
+        _claimSingleERC20(bag, address(0), recipient, 1 ether);
 
         vm.expectRevert(IBag.ZeroAddress.selector);
-        bag.claimERC20(address(token), address(0), 1 ether);
+        _claimSingleERC20(bag, address(token), address(0), 1 ether);
 
         vm.stopPrank();
     }
 
-    function testClaimERC20FollowsCurrentNFTOwnerAfterTransfer() public {
+    function testClaimSingleERC20FollowsCurrentNFTOwnerAfterTransfer() public {
         token.mint(address(bag), 12 ether);
         uint256 tokenId = bag.TOKEN_ID();
 
@@ -297,16 +325,16 @@ contract BagTest is Test {
 
         vm.expectRevert(abi.encodeWithSelector(IBag.NotBagOwner.selector, owner));
         vm.prank(owner);
-        bag.claimERC20(address(token), recipient, 1 ether);
+        _claimSingleERC20(bag, address(token), recipient, 1 ether);
 
         vm.prank(other);
-        uint256 amount = bag.claimERC20(address(token), recipient, 12 ether);
+        uint256 amount = _claimSingleERC20(bag, address(token), recipient, 12 ether)[0];
 
         assertEq(amount, 12 ether);
         assertEq(token.balanceOf(recipient), 12 ether);
     }
 
-    function testFuzzClaimERC20FollowsCurrentNFTOwnerAfterTransfer(uint128 balance, uint128 amount) public {
+    function testFuzzClaimSingleERC20FollowsCurrentNFTOwnerAfterTransfer(uint128 balance, uint128 amount) public {
         amount = uint128(bound(amount, 0, balance));
         token.mint(address(bag), balance);
         uint256 tokenId = bag.TOKEN_ID();
@@ -316,10 +344,10 @@ contract BagTest is Test {
 
         vm.expectRevert(abi.encodeWithSelector(IBag.NotBagOwner.selector, owner));
         vm.prank(owner);
-        bag.claimERC20(address(token), recipient, amount);
+        _claimSingleERC20(bag, address(token), recipient, amount);
 
         vm.prank(other);
-        uint256 amountClaimed = bag.claimERC20(address(token), recipient, amount);
+        uint256 amountClaimed = _claimSingleERC20(bag, address(token), recipient, amount)[0];
 
         assertEq(amountClaimed, amount);
         assertEq(token.balanceOf(recipient), amount);
@@ -369,7 +397,7 @@ contract BagTest is Test {
         vm.stopPrank();
     }
 
-    function testClaimNativeTransfersSpecifiedAmountAndEmits() public {
+    function testClaimSingleNativeTransfersSpecifiedAmountAndEmits() public {
         vm.deal(address(bag), 3 ether);
         uint256 recipientBalanceBefore = recipient.balance;
 
@@ -377,16 +405,18 @@ contract BagTest is Test {
         emit IBag.NativeClaimed(owner, recipient, 1 ether);
 
         vm.prank(owner);
-        uint256 amount = bag.claimNative(payable(recipient), 1 ether);
+        uint256 amount = _claimSingleNative(bag, payable(recipient), 1 ether)[0];
 
         assertEq(amount, 1 ether);
         assertEq(recipient.balance - recipientBalanceBefore, 1 ether);
         assertEq(address(bag).balance, 2 ether);
     }
 
-    function testFuzzClaimNativeTransfersSpecifiedAmount(address payable recipient_, uint128 balance, uint128 amount)
-        public
-    {
+    function testFuzzClaimSingleNativeTransfersSpecifiedAmount(
+        address payable recipient_,
+        uint128 balance,
+        uint128 amount
+    ) public {
         vm.assume(recipient_ != address(0));
         vm.assume(uint160(address(recipient_)) > 10);
         vm.assume(recipient_ != payable(0x000000000000000000636F6e736F6c652e6c6f67));
@@ -397,64 +427,64 @@ contract BagTest is Test {
         uint256 recipientBalanceBefore = recipient_.balance;
 
         vm.prank(owner);
-        uint256 amountClaimed = bag.claimNative(recipient_, amount);
+        uint256 amountClaimed = _claimSingleNative(bag, recipient_, amount)[0];
 
         assertEq(amountClaimed, amount);
         assertEq(recipient_.balance - recipientBalanceBefore, amount);
         assertEq(address(bag).balance, uint256(balance) - amount);
     }
 
-    function testClaimNativeAllowsZeroAmountClaim() public {
+    function testClaimSingleNativeAllowsZeroAmountClaim() public {
         vm.deal(address(bag), 3 ether);
 
         vm.expectEmit(true, true, true, true, address(bag));
         emit IBag.NativeClaimed(owner, recipient, 0);
 
         vm.prank(owner);
-        uint256 amount = bag.claimNative(payable(recipient), 0);
+        uint256 amount = _claimSingleNative(bag, payable(recipient), 0)[0];
 
         assertEq(amount, 0);
         assertEq(address(bag).balance, 3 ether);
     }
 
-    function testClaimNativeRevertsWhenAmountExceedsBalance() public {
+    function testClaimSingleNativeRevertsWhenAmountExceedsBalance() public {
         vm.deal(address(bag), 3 ether);
 
         vm.expectRevert();
         vm.prank(owner);
-        bag.claimNative(payable(recipient), 3 ether + 1);
+        _claimSingleNative(bag, payable(recipient), 3 ether + 1);
     }
 
-    function testFuzzClaimNativeRevertsWhenAmountExceedsBalance(uint128 balance, uint128 excess) public {
+    function testFuzzClaimSingleNativeRevertsWhenAmountExceedsBalance(uint128 balance, uint128 excess) public {
         excess = uint128(bound(excess, 1, type(uint128).max));
         vm.deal(address(bag), balance);
 
         vm.expectRevert();
         vm.prank(owner);
-        bag.claimNative(payable(recipient), uint256(balance) + excess);
+        _claimSingleNative(bag, payable(recipient), uint256(balance) + excess);
     }
 
-    function testClaimNativeRevertsWhenCallerIsNotNFTOwner() public {
+    function testClaimSingleNativeRevertsWhenCallerIsNotNFTOwner() public {
         vm.deal(address(bag), 3 ether);
 
         vm.expectRevert(abi.encodeWithSelector(IBag.NotBagOwner.selector, other));
         vm.prank(other);
-        bag.claimNative(payable(recipient), 1 ether);
+        _claimSingleNative(bag, payable(recipient), 1 ether);
     }
 
-    function testClaimNativeRevertsForZeroRecipient() public {
+    function testClaimSingleNativeRevertsForZeroRecipient() public {
         vm.expectRevert(IBag.ZeroAddress.selector);
         vm.prank(owner);
-        bag.claimNative(payable(address(0)), 1 ether);
+        _claimSingleNative(bag, payable(address(0)), 1 ether);
     }
 
-    function testClaimNativeRevertsWhenRecipientRejectsNativeTransfer() public {
+    function testClaimSingleNativeRevertsWhenRecipientRejectsNativeTransfer() public {
         NativeRejector rejector = new NativeRejector();
         vm.deal(address(bag), 3 ether);
 
         vm.expectRevert(bytes("reject native"));
         vm.prank(owner);
-        bag.claimNative(payable(address(rejector)), 1 ether);
+        _claimSingleNative(bag, payable(address(rejector)), 1 ether);
     }
 
     function testReceiveAcceptsNativeETH() public {

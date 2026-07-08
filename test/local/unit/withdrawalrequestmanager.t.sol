@@ -90,6 +90,8 @@ contract WithdrawalAssetMock is ERC20 {
 }
 
 contract WithdrawalRequestManagerTest is Test {
+    address internal constant NATIVE_ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+
     WithdrawalRequestManager manager;
     MockWithdrawAssetVault ynToken;
     WithdrawalAssetMock asset;
@@ -151,6 +153,30 @@ contract WithdrawalRequestManagerTest is Test {
 
         vm.prank(user);
         ynToken.approve(address(manager), type(uint256).max);
+    }
+
+    function _claimSingleERC20(address bag, address asset_, address recipient_, uint256 amount)
+        internal
+        returns (uint256[] memory)
+    {
+        address[] memory assets = new address[](1);
+        assets[0] = asset_;
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = amount;
+
+        return IBag(bag).claim(assets, payable(recipient_), amounts);
+    }
+
+    function _claimSingleNative(address bag, address payable recipient_, uint256 amount)
+        internal
+        returns (uint256[] memory)
+    {
+        address[] memory assets = new address[](1);
+        assets[0] = NATIVE_ETH;
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = amount;
+
+        return IBag(bag).claim(assets, recipient_, amounts);
     }
 
     function testRequestWithdrawalTransfersTokenAndRecordsRequest() public {
@@ -294,17 +320,17 @@ contract WithdrawalRequestManagerTest is Test {
         asset.mint(request.bag, 4 ether);
 
         vm.expectRevert(abi.encodeWithSelector(IBag.NotBagOwner.selector, address(this)));
-        IBag(request.bag).claimERC20(address(asset), user, 4 ether);
+        _claimSingleERC20(request.bag, address(asset), user, 4 ether);
 
         vm.prank(user);
-        uint256 amountClaimed = IBag(request.bag).claimERC20(address(asset), user, 4 ether);
+        uint256 amountClaimed = _claimSingleERC20(request.bag, address(asset), user, 4 ether)[0];
 
         assertEq(amountClaimed, 4 ether);
         assertEq(asset.balanceOf(user), 4 ether);
         assertEq(asset.balanceOf(request.bag), 0);
     }
 
-    function testBagClaimNativeRequiresBagOwner() public {
+    function testBagClaimSingleNativeRequiresBagOwner() public {
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, user);
 
@@ -312,12 +338,12 @@ contract WithdrawalRequestManagerTest is Test {
         vm.deal(request.bag, 4 ether);
 
         vm.expectRevert(abi.encodeWithSelector(IBag.NotBagOwner.selector, address(this)));
-        IBag(request.bag).claimNative(payable(user), 4 ether);
+        _claimSingleNative(request.bag, payable(user), 4 ether);
 
         uint256 userBalanceBefore = user.balance;
 
         vm.prank(user);
-        uint256 amountClaimed = IBag(request.bag).claimNative(payable(user), 4 ether);
+        uint256 amountClaimed = _claimSingleNative(request.bag, payable(user), 4 ether)[0];
 
         assertEq(amountClaimed, 4 ether);
         assertEq(user.balance - userBalanceBefore, 4 ether);
@@ -435,7 +461,7 @@ contract WithdrawalRequestManagerTest is Test {
         assertEq(request.amountLocked, 6 ether);
 
         vm.prank(user);
-        assertEq(IBag(request.bag).claimERC20(address(asset), user, 4 ether), 4 ether);
+        assertEq(_claimSingleERC20(request.bag, address(asset), user, 4 ether)[0], 4 ether);
         assertEq(asset.balanceOf(user), 4 ether);
         assertEq(asset.balanceOf(request.bag), 0);
     }
@@ -489,7 +515,7 @@ contract WithdrawalRequestManagerTest is Test {
         assertEq(request.amountLocked, 0);
 
         vm.prank(user);
-        assertEq(IBag(request.bag).claimERC20(address(asset), user, 10 ether), 10 ether);
+        assertEq(_claimSingleERC20(request.bag, address(asset), user, 10 ether)[0], 10 ether);
         assertEq(asset.balanceOf(user), 10 ether);
     }
 
