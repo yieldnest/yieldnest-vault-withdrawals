@@ -112,7 +112,7 @@ contract BeaconProxyFactoryTest is Test {
 
         assertTrue(proxy != address(0));
         assertEq(IBag(proxy).ownerOf(IBag(proxy).TOKEN_ID()), owner);
-        assertEq(IBag(proxy).name(), "YieldNest Withdrawal Bag #9");
+        assertEq(IBag(proxy).name(), "Bag #9");
         assertEq(IBag(proxy).symbol(), "ynBAG-9");
         assertEq(IBag(proxy).id(), 9);
         assertEq(IBag(proxy).VERSION(), "0.1.0");
@@ -128,7 +128,7 @@ contract BeaconProxyFactoryTest is Test {
         IBag(proxy).initialize(owner, 10);
 
         assertEq(IBag(proxy).ownerOf(IBag(proxy).TOKEN_ID()), owner);
-        assertEq(IBag(proxy).name(), "YieldNest Withdrawal Bag #10");
+        assertEq(IBag(proxy).name(), "Bag #10");
         assertEq(IBag(proxy).id(), 10);
     }
 

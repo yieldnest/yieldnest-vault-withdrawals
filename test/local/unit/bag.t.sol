@@ -100,7 +100,7 @@ contract BagTest is Test {
         assertEq(bag.TOKEN_ID(), 1);
         assertEq(bag.NATIVE_ETH(), 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE);
         assertEq(bag.id(), requestId);
-        assertEq(bag.name(), "YieldNest Withdrawal Bag #42");
+        assertEq(bag.name(), "Bag #42");
         assertEq(bag.symbol(), "ynBAG-42");
         assertEq(bag.ownerOf(bag.TOKEN_ID()), owner);
         assertEq(bag.balanceOf(owner), 1);
@@ -109,7 +109,7 @@ contract BagTest is Test {
     function testInitializeSupportsZeroRequestIdMetadata() public {
         Bag zeroIdBag = _deployBag(owner, 0);
 
-        assertEq(zeroIdBag.name(), "YieldNest Withdrawal Bag #0");
+        assertEq(zeroIdBag.name(), "Bag #0");
         assertEq(zeroIdBag.symbol(), "ynBAG-0");
         assertEq(zeroIdBag.id(), 0);
         assertEq(zeroIdBag.ownerOf(zeroIdBag.TOKEN_ID()), owner);
@@ -122,7 +122,7 @@ contract BagTest is Test {
         string memory idString = vm.toString(id_);
 
         assertEq(fuzzBag.id(), id_);
-        assertEq(fuzzBag.name(), string.concat("YieldNest Withdrawal Bag #", idString));
+        assertEq(fuzzBag.name(), string.concat("Bag #", idString));
         assertEq(fuzzBag.symbol(), string.concat("ynBAG-", idString));
         assertEq(fuzzBag.ownerOf(fuzzBag.TOKEN_ID()), owner_);
         assertEq(fuzzBag.balanceOf(owner_), 1);

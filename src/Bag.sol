@@ -55,7 +55,7 @@ contract Bag is Initializable, ERC721Upgradeable, IBag {
         _getBagStorage().id = id_;
 
         string memory idString = Strings.toString(id_);
-        __ERC721_init(string.concat("YieldNest Withdrawal Bag #", idString), string.concat("ynBAG-", idString));
+        __ERC721_init(string.concat("Bag #", idString), string.concat("ynBAG-", idString));
         _mint(owner_, TOKEN_ID);
     }
 

@@ -198,7 +198,7 @@ contract WithdrawalRequestManagerTest is Test {
         assertTrue(request.bag != address(0));
         assertEq(request.owner, request.bag);
         assertEq(IBag(request.bag).ownerOf(IBag(request.bag).TOKEN_ID()), user);
-        assertEq(IBag(request.bag).name(), "YieldNest Withdrawal Bag #1");
+        assertEq(IBag(request.bag).name(), "Bag #1");
         assertEq(IBag(request.bag).symbol(), "ynBAG-1");
         assertEq(IBag(request.bag).id(), id);
         assertEq(request.amountLocked, 10 ether);
