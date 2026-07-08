@@ -200,7 +200,11 @@ contract WithdrawalRequestViewerTest is Test {
 
         WithdrawalRequestViewer.RequestView[] memory receiverRequests =
             viewer.getInProgressRequestsForOwner(manager, receiver);
-        assertEq(receiverRequests.length, 0);
+        assertEq(receiverRequests.length, 1);
+        assertEq(receiverRequests[0].id, completedId);
+        assertEq(receiverRequests[0].owner, receiver);
+        assertEq(receiverRequests[0].amountLocked, 0);
+        assertEq(receiverRequests[0].assetBalances[0].balance, 10 ether);
 
         WithdrawalRequestViewer.RequestView[] memory otherRequests =
             viewer.getInProgressRequestsForOwner(manager, other);

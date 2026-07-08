@@ -43,7 +43,7 @@ contract WithdrawalRequestViewer {
         view_ = _getRequest(id, request, token, assets, manager);
     }
 
-    /// @notice Returns in-progress requests currently owned by `owner`.
+    /// @notice Returns requests currently owned by `owner`.
     /// @dev Iterates request ids from 1 to `nextRequestId() - 1`; intended for offchain/UI reads.
     function getInProgressRequestsForOwner(WithdrawalRequestManager manager, address owner)
         external
@@ -95,8 +95,6 @@ contract WithdrawalRequestViewer {
         if (!manager.requestExists(id)) return false;
 
         WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(id);
-        if (request.amountLocked == 0) return false;
-
         return IBag(request.bag).ownerOf(IBag(request.bag).TOKEN_ID()) == owner;
     }
 
