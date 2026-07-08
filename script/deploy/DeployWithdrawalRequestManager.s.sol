@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {Script} from "lib/forge-std/src/Script.sol";
+import {TimelockController} from "lib/openzeppelin-contracts/contracts/governance/TimelockController.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {Strings} from "lib/openzeppelin-contracts/contracts/utils/Strings.sol";
 import {MainnetActors} from "lib/yieldnest-vault/script/Actors.sol";
@@ -13,8 +14,10 @@ import {WithdrawalRequestViewer} from "views/WithdrawalRequestViewer.sol";
 
 contract DeployWithdrawalRequestManager is Script {
     uint256 public constant MINIMUM_AMOUNT_TO_LOCK = 10 ether;
+    uint256 public constant TIMELOCK_MIN_DELAY = 1 days;
 
     MainnetActors public actors;
+    TimelockController public timelock;
     Bag public bagImplementation;
     BeaconProxyFactory public beaconFactoryImplementation;
     BeaconProxyFactory public beaconFactory;
@@ -30,6 +33,8 @@ contract DeployWithdrawalRequestManager is Script {
     address public fulfiller;
     address public configurationManager;
     address public pauser;
+    address public proposer;
+    address public executor;
     address public predictedProxy;
 
     function run() public {
@@ -37,15 +42,23 @@ contract DeployWithdrawalRequestManager is Script {
 
         deployer = tx.origin;
         token = MC.YNETHX;
-        defaultAdmin = actors.ADMIN();
+        proposer = actors.ADMIN();
+        executor = actors.ADMIN();
         fulfiller = actors.ADMIN();
-        configurationManager = actors.ADMIN();
         pauser = actors.PAUSER();
 
         vm.startBroadcast();
 
         uint256 nonce = vm.getNonce(deployer);
-        predictedProxy = vm.computeCreateAddress(deployer, nonce + 4);
+        predictedProxy = vm.computeCreateAddress(deployer, nonce + 5);
+
+        address[] memory proposers = new address[](1);
+        proposers[0] = proposer;
+        address[] memory executors = new address[](1);
+        executors[0] = executor;
+        timelock = new TimelockController(TIMELOCK_MIN_DELAY, proposers, executors, address(0));
+        defaultAdmin = address(timelock);
+        configurationManager = address(timelock);
 
         bagImplementation = new Bag();
         beaconFactoryImplementation = new BeaconProxyFactory();
@@ -92,6 +105,7 @@ contract DeployWithdrawalRequestManager is Script {
 
     function saveDeployment() internal {
         vm.serializeAddress(label(), "implementation", address(implementation));
+        vm.serializeAddress(label(), "timelock", address(timelock));
         vm.serializeAddress(label(), "bagImplementation", address(bagImplementation));
         vm.serializeAddress(label(), "beaconFactoryImplementation", address(beaconFactoryImplementation));
         vm.serializeAddress(label(), "beaconFactory", address(beaconFactory));
@@ -103,10 +117,13 @@ contract DeployWithdrawalRequestManager is Script {
         vm.serializeAddress(label(), "viewer", address(viewer));
         vm.serializeAddress(label(), "token", token);
         vm.serializeUint(label(), "minimumAmountToLock", MINIMUM_AMOUNT_TO_LOCK);
+        vm.serializeUint(label(), "timelockMinDelay", TIMELOCK_MIN_DELAY);
         vm.serializeAddress(label(), "defaultAdmin", defaultAdmin);
         vm.serializeAddress(label(), "fulfiller", fulfiller);
         vm.serializeAddress(label(), "configurationManager", configurationManager);
         vm.serializeAddress(label(), "pauser", pauser);
+        vm.serializeAddress(label(), "proposer", proposer);
+        vm.serializeAddress(label(), "executor", executor);
 
         string memory jsonOutput = vm.serializeAddress(label(), "deployer", deployer);
 
