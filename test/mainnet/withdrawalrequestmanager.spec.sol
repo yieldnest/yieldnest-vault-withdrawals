@@ -188,7 +188,7 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         assertEq(IERC20(asset).balanceOf(request.bag), withdrawAmount);
         assertEq(IERC20(asset).balanceOf(requester), 0);
         assertEq(IERC20(asset).balanceOf(address(manager)), managerAssetBalanceBefore);
-        assertEq(request.owner, request.bag);
+        assertEq(manager.ownerOf(requestId), requester);
         assertEq(request.amountLocked, depositedShares - burnedShares);
         assertGt(burnedShares, 0);
 
@@ -305,8 +305,8 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         assertFalse(manager.requestExists(requestId + 1));
         assertEq(address(manager.beaconFactory()), address(beaconFactory));
         assertTrue(request.bag != address(0));
-        assertEq(request.owner, request.bag);
-        assertEq(IBag(request.bag).ownerOf(IBag(request.bag).TOKEN_ID()), owner);
+        assertEq(manager.ownerOf(requestId), owner);
+        assertEq(IBag(request.bag).ownerRegistry(), address(manager));
         assertEq(request.amountLocked, amount);
         assertEq(IERC20(address(vault)).balanceOf(address(manager)), amount);
     }

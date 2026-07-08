@@ -5,11 +5,13 @@ import {
     AccessControlUpgradeable
 } from "lib/openzeppelin-contracts-upgradeable/contracts/access/AccessControlUpgradeable.sol";
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import {ERC721Upgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC721/ERC721Upgradeable.sol";
 import {Initializable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import {PausableUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
 import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IBag} from "src/interface/IBag.sol";
 import {IBeaconProxyFactory} from "src/interface/IBeaconProxyFactory.sol";
+import {IOwnerRegistry} from "src/interface/IOwnerRegistry.sol";
 
 interface IWithdrawAssetVault is IERC20 {
     function withdrawAsset(address asset_, uint256 assets, address receiver, address owner)
@@ -20,13 +22,18 @@ interface IWithdrawAssetVault is IERC20 {
 
 /// @title WithdrawalRequestManager
 /// @notice Custodies one yn-token type and tracks permissioned fulfilment of withdrawal requests.
-contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, PausableUpgradeable {
+contract WithdrawalRequestManager is
+    Initializable,
+    AccessControlUpgradeable,
+    ERC721Upgradeable,
+    PausableUpgradeable,
+    IOwnerRegistry
+{
     using SafeERC20 for IERC20;
 
     string public constant VERSION = "0.1.0";
 
     struct WithdrawalRequest {
-        address owner;
         address bag;
         uint256 amountLocked;
     }
@@ -99,6 +106,7 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
         }
 
         __AccessControl_init();
+        __ERC721_init("YieldNest Withdrawal Request", "ynWREQ");
         __Pausable_init();
 
         WithdrawalRequestManagerStorage storage $ = _getWithdrawalRequestManagerStorage();
@@ -127,7 +135,7 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
 
     /// @notice Locks yn-tokens in this contract and creates a withdrawal request.
     /// @param amount Amount of configured yn-token shares to lock.
-    /// @param receiver Receiver of the Bag NFT that controls claims.
+    /// @param receiver Receiver of the request NFT that controls claims.
     /// @return id Generated request id.
     function requestWithdrawal(uint256 amount, address receiver) external whenNotPaused returns (uint256 id) {
         if (amount == 0) revert ZeroAmount();
@@ -139,10 +147,11 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
         IERC20(address($.token)).safeTransferFrom(msg.sender, address(this), amount);
 
         id = $.nextRequestId++;
-        address bag = $.beaconFactory.create(abi.encodeCall(IBag.initialize, (receiver, id)));
-        $.requests[id] = WithdrawalRequest({owner: bag, bag: bag, amountLocked: amount});
+        address bag = $.beaconFactory.create(abi.encodeCall(IBag.initialize, (address(this), id)));
+        $.requests[id] = WithdrawalRequest({bag: bag, amountLocked: amount});
+        _mint(receiver, id);
 
-        emit WithdrawalRequested(id, bag, address($.token), bag, amount);
+        emit WithdrawalRequested(id, receiver, address($.token), bag, amount);
     }
 
     // --- Fulfillment ---
@@ -201,7 +210,7 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
         $.token.processAccounting();
 
         emit WithdrawalRequestFulfilled(
-            id, request.owner, address($.token), asset, assetsWithdrawn, amountBurned, request.amountLocked
+            id, ownerOf(id), address($.token), asset, assetsWithdrawn, amountBurned, request.amountLocked
         );
     }
 
@@ -249,7 +258,20 @@ contract WithdrawalRequestManager is Initializable, AccessControlUpgradeable, Pa
     }
 
     function _requestExists(WithdrawalRequest memory request) internal pure returns (bool) {
-        return request.owner != address(0);
+        return request.bag != address(0);
+    }
+
+    function ownerOf(uint256 id) public view override(ERC721Upgradeable, IOwnerRegistry) returns (address) {
+        return super.ownerOf(id);
+    }
+
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        override(AccessControlUpgradeable, ERC721Upgradeable)
+        returns (bool)
+    {
+        return super.supportsInterface(interfaceId);
     }
 
     // --- Pause ---

@@ -19,10 +19,23 @@ contract BagV2 is Bag {
     }
 }
 
+contract BeaconOwnerRegistryMock {
+    mapping(uint256 id => address owner) internal owners;
+
+    function setOwner(uint256 id, address owner) external {
+        owners[id] = owner;
+    }
+
+    function ownerOf(uint256 id) external view returns (address) {
+        return owners[id];
+    }
+}
+
 contract BeaconProxyFactoryTest is Test {
     BeaconProxyFactory implementation;
     BeaconProxyFactory factory;
     Bag bagImplementation;
+    BeaconOwnerRegistryMock ownerRegistry;
 
     address admin = address(0xA11CE);
     address creator = address(0xC0FFEE);
@@ -33,6 +46,7 @@ contract BeaconProxyFactoryTest is Test {
     function setUp() public {
         implementation = new BeaconProxyFactory();
         bagImplementation = new Bag();
+        ownerRegistry = new BeaconOwnerRegistryMock();
         factory = BeaconProxyFactory(
             address(
                 new ERC1967Proxy(
@@ -104,16 +118,16 @@ contract BeaconProxyFactoryTest is Test {
     }
 
     function testCreateDeploysBeaconProxyAndInitializesIt() public {
+        ownerRegistry.setOwner(9, owner);
+
         vm.expectEmit(false, false, false, false, address(factory));
         emit BeaconProxyFactory.ProxyCreated(address(0));
 
         vm.prank(creator);
-        address proxy = factory.create(abi.encodeCall(IBag.initialize, (owner, 9)));
+        address proxy = factory.create(abi.encodeCall(IBag.initialize, (address(ownerRegistry), 9)));
 
         assertTrue(proxy != address(0));
-        assertEq(IBag(proxy).ownerOf(IBag(proxy).TOKEN_ID()), owner);
-        assertEq(IBag(proxy).name(), "Bag #9");
-        assertEq(IBag(proxy).symbol(), "ynBAG-9");
+        assertEq(IBag(proxy).ownerRegistry(), address(ownerRegistry));
         assertEq(IBag(proxy).id(), 9);
         assertEq(IBag(proxy).VERSION(), "0.1.0");
     }
@@ -122,13 +136,9 @@ contract BeaconProxyFactoryTest is Test {
         vm.prank(creator);
         address proxy = factory.create("");
 
-        vm.expectRevert();
-        IBag(proxy).ownerOf(1);
+        IBag(proxy).initialize(address(ownerRegistry), 10);
 
-        IBag(proxy).initialize(owner, 10);
-
-        assertEq(IBag(proxy).ownerOf(IBag(proxy).TOKEN_ID()), owner);
-        assertEq(IBag(proxy).name(), "Bag #10");
+        assertEq(IBag(proxy).ownerRegistry(), address(ownerRegistry));
         assertEq(IBag(proxy).id(), 10);
     }
 
@@ -139,7 +149,7 @@ contract BeaconProxyFactoryTest is Test {
             )
         );
         vm.prank(other);
-        factory.create(abi.encodeCall(IBag.initialize, (owner, 9)));
+        factory.create(abi.encodeCall(IBag.initialize, (address(ownerRegistry), 9)));
     }
 
     function testCreateBubblesInitializationRevert() public {
@@ -162,7 +172,7 @@ contract BeaconProxyFactoryTest is Test {
 
     function testUpgradeImplementationAffectsExistingAndNewProxies() public {
         vm.prank(creator);
-        address existingProxy = factory.create(abi.encodeCall(IBag.initialize, (owner, 9)));
+        address existingProxy = factory.create(abi.encodeCall(IBag.initialize, (address(ownerRegistry), 9)));
 
         BagV2 newImplementation = new BagV2();
 
@@ -170,13 +180,13 @@ contract BeaconProxyFactoryTest is Test {
         factory.upgradeImplementation(address(newImplementation));
 
         assertEq(IBagV2(existingProxy).version2(), "v2");
-        assertEq(IBag(existingProxy).ownerOf(IBag(existingProxy).TOKEN_ID()), owner);
+        assertEq(IBag(existingProxy).ownerRegistry(), address(ownerRegistry));
 
         vm.prank(creator);
-        address newProxy = factory.create(abi.encodeCall(IBag.initialize, (other, 10)));
+        address newProxy = factory.create(abi.encodeCall(IBag.initialize, (address(ownerRegistry), 10)));
 
         assertEq(IBagV2(newProxy).version2(), "v2");
-        assertEq(IBag(newProxy).ownerOf(IBag(newProxy).TOKEN_ID()), other);
+        assertEq(IBag(newProxy).ownerRegistry(), address(ownerRegistry));
     }
 
     function testUpgradeImplementationRevertsForUnauthorizedManager() public {
@@ -205,9 +215,9 @@ contract BeaconProxyFactoryTest is Test {
         factory.grantRole(creatorRole, newCreator);
 
         vm.prank(newCreator);
-        address proxy = factory.create(abi.encodeCall(IBag.initialize, (owner, 11)));
+        address proxy = factory.create(abi.encodeCall(IBag.initialize, (address(ownerRegistry), 11)));
 
-        assertEq(IBag(proxy).ownerOf(IBag(proxy).TOKEN_ID()), owner);
+        assertEq(IBag(proxy).ownerRegistry(), address(ownerRegistry));
     }
 
     function testNonAdminCannotGrantRoles() public {

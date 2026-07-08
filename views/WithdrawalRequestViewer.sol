@@ -6,7 +6,6 @@ import {IERC20Metadata} from "lib/openzeppelin-contracts/contracts/token/ERC20/e
 import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {IProvider} from "lib/yieldnest-vault/src/interface/IProvider.sol";
 import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
-import {IBag} from "src/interface/IBag.sol";
 import {WithdrawalRequestManager} from "src/WithdrawalRequestManager.sol";
 
 interface IWithdrawalRequestViewerVault is IERC20, IERC20Metadata {
@@ -90,7 +89,7 @@ contract WithdrawalRequestViewer {
 
         view_ = RequestView({
             id: id,
-            owner: IBag(request.bag).ownerOf(IBag(request.bag).TOKEN_ID()),
+            owner: manager.ownerOf(id),
             bag: request.bag,
             token: address(token),
             amountLocked: request.amountLocked,
@@ -104,8 +103,7 @@ contract WithdrawalRequestViewer {
     function _matchesOwner(WithdrawalRequestManager manager, uint256 id, address owner) internal view returns (bool) {
         if (!manager.requestExists(id)) return false;
 
-        WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(id);
-        return IBag(request.bag).ownerOf(IBag(request.bag).TOKEN_ID()) == owner;
+        return manager.ownerOf(id) == owner;
     }
 
     /// @notice Returns true when the remaining locked yn-token amount is below the dust threshold.

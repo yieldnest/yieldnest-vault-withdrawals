@@ -196,10 +196,10 @@ contract WithdrawalRequestManagerTest is Test {
 
         WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(id);
         assertTrue(request.bag != address(0));
-        assertEq(request.owner, request.bag);
-        assertEq(IBag(request.bag).ownerOf(IBag(request.bag).TOKEN_ID()), user);
-        assertEq(IBag(request.bag).name(), "Bag #1");
-        assertEq(IBag(request.bag).symbol(), "ynBAG-1");
+        assertEq(manager.ownerOf(id), user);
+        assertEq(manager.name(), "YieldNest Withdrawal Request");
+        assertEq(manager.symbol(), "ynWREQ");
+        assertEq(IBag(request.bag).ownerRegistry(), address(manager));
         assertEq(IBag(request.bag).id(), id);
         assertEq(request.amountLocked, 10 ether);
     }
@@ -216,11 +216,13 @@ contract WithdrawalRequestManagerTest is Test {
         assertTrue(firstRequest.bag != address(0));
         assertTrue(secondRequest.bag != address(0));
         assertTrue(firstRequest.bag != secondRequest.bag);
-        assertEq(IBag(firstRequest.bag).ownerOf(IBag(firstRequest.bag).TOKEN_ID()), user);
-        assertEq(IBag(secondRequest.bag).ownerOf(IBag(secondRequest.bag).TOKEN_ID()), user);
+        assertEq(manager.ownerOf(firstId), user);
+        assertEq(manager.ownerOf(secondId), user);
+        assertEq(IBag(firstRequest.bag).ownerRegistry(), address(manager));
+        assertEq(IBag(secondRequest.bag).ownerRegistry(), address(manager));
     }
 
-    function testRequestWithdrawalMintsBagToReceiver() public {
+    function testRequestWithdrawalMintsRequestNFTToReceiver() public {
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, receiver);
 
@@ -228,8 +230,8 @@ contract WithdrawalRequestManagerTest is Test {
 
         assertEq(ynToken.balanceOf(user), 90 ether);
         assertEq(ynToken.balanceOf(address(manager)), 10 ether);
-        assertEq(request.owner, request.bag);
-        assertEq(IBag(request.bag).ownerOf(IBag(request.bag).TOKEN_ID()), receiver);
+        assertEq(manager.ownerOf(id), receiver);
+        assertEq(IBag(request.bag).ownerRegistry(), address(manager));
         assertEq(IBag(request.bag).id(), id);
     }
 
@@ -271,7 +273,9 @@ contract WithdrawalRequestManagerTest is Test {
         assertEq(view_.assetBalances[1].balance, 0);
     }
 
-    function testFuzzRequestWithdrawalTransfersTokenAndMintsBagToReceiver(uint96 amount, address receiver_) public {
+    function testFuzzRequestWithdrawalTransfersTokenAndMintsRequestNFTToReceiver(uint96 amount, address receiver_)
+        public
+    {
         amount = uint96(bound(amount, minimumAmountToLock, ynToken.balanceOf(user)));
         vm.assume(receiver_ != address(0));
 
@@ -288,9 +292,9 @@ contract WithdrawalRequestManagerTest is Test {
         assertFalse(manager.requestExists(id + 1));
         assertEq(ynToken.balanceOf(user), userBalanceBefore - amount);
         assertEq(ynToken.balanceOf(address(manager)), managerBalanceBefore + amount);
-        assertEq(request.owner, request.bag);
         assertEq(request.amountLocked, amount);
-        assertEq(IBag(request.bag).ownerOf(IBag(request.bag).TOKEN_ID()), receiver_);
+        assertEq(manager.ownerOf(id), receiver_);
+        assertEq(IBag(request.bag).ownerRegistry(), address(manager));
         assertEq(IBag(request.bag).id(), id);
     }
 
@@ -300,7 +304,7 @@ contract WithdrawalRequestManagerTest is Test {
             abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user, creatorRole)
         );
         vm.prank(user);
-        beaconFactory.create(abi.encodeCall(IBag.initialize, (user, 1)));
+        beaconFactory.create(abi.encodeCall(IBag.initialize, (address(manager), 1)));
     }
 
     function testBeaconFactoryUpgradesImplementation() public {
@@ -312,14 +316,14 @@ contract WithdrawalRequestManagerTest is Test {
         assertEq(beaconFactory.implementation(), address(newImplementation));
     }
 
-    function testBagClaimRequiresBagOwner() public {
+    function testBagClaimRequiresRequestOwner() public {
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, user);
 
         WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(id);
         asset.mint(request.bag, 4 ether);
 
-        vm.expectRevert(abi.encodeWithSelector(IBag.NotBagOwner.selector, address(this)));
+        vm.expectRevert(abi.encodeWithSelector(IBag.NotRequestOwner.selector, address(this)));
         _claimSingleERC20(request.bag, address(asset), user, 4 ether);
 
         vm.prank(user);
@@ -330,14 +334,14 @@ contract WithdrawalRequestManagerTest is Test {
         assertEq(asset.balanceOf(request.bag), 0);
     }
 
-    function testBagClaimSingleNativeRequiresBagOwner() public {
+    function testBagClaimSingleNativeRequiresRequestOwner() public {
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, user);
 
         WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(id);
         vm.deal(request.bag, 4 ether);
 
-        vm.expectRevert(abi.encodeWithSelector(IBag.NotBagOwner.selector, address(this)));
+        vm.expectRevert(abi.encodeWithSelector(IBag.NotRequestOwner.selector, address(this)));
         _claimSingleNative(request.bag, payable(user), 4 ether);
 
         uint256 userBalanceBefore = user.balance;
@@ -444,7 +448,7 @@ contract WithdrawalRequestManagerTest is Test {
 
         vm.expectEmit(true, true, true, true, address(manager));
         emit WithdrawalRequestManager.WithdrawalRequestFulfilled(
-            id, request.owner, address(ynToken), address(asset), 4 ether, 4 ether, 6 ether
+            id, user, address(ynToken), address(asset), 4 ether, 4 ether, 6 ether
         );
 
         vm.prank(fulfiller);
@@ -501,7 +505,7 @@ contract WithdrawalRequestManagerTest is Test {
 
         vm.expectEmit(true, true, true, true, address(manager));
         emit WithdrawalRequestManager.WithdrawalRequestFulfilled(
-            id, request.owner, address(ynToken), address(asset), 10 ether, 10 ether, 0
+            id, user, address(ynToken), address(asset), 10 ether, 10 ether, 0
         );
 
         vm.prank(fulfiller);

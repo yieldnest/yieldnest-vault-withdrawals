@@ -194,7 +194,7 @@ contract WithdrawalRequestViewerTest is Test {
         assertEq(view_.assetBalances[0].balance, 4 ether);
         assertEq(view_.assetBalances[1].asset, address(secondAsset));
         assertEq(view_.assetBalances[1].balance, 0);
-        assertEq(IBag(view_.bag).ownerOf(IBag(view_.bag).TOKEN_ID()), receiver);
+        assertEq(manager.ownerOf(id), receiver);
     }
 
     function testGetInProgressRequestsForOwnerReturnsCurrentOwnerRequests() public {
@@ -207,10 +207,8 @@ contract WithdrawalRequestViewerTest is Test {
         vm.prank(fulfiller);
         manager.fulfillWithdrawalRequest(completedId, address(asset), 10 ether);
 
-        WithdrawalRequestManager.WithdrawalRequest memory transferredRequest = manager.requests(transferredId);
-        uint256 tokenId = IBag(transferredRequest.bag).TOKEN_ID();
         vm.prank(receiver);
-        IBag(transferredRequest.bag).transferFrom(receiver, other, tokenId);
+        manager.transferFrom(receiver, other, transferredId);
 
         WithdrawalRequestViewer.RequestView[] memory receiverRequests =
             viewer.getInProgressRequestsForOwner(manager, receiver);

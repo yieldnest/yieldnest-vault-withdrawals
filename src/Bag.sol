@@ -5,23 +5,22 @@ import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.so
 import {IERC721} from "lib/openzeppelin-contracts/contracts/token/ERC721/IERC721.sol";
 import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Address} from "lib/openzeppelin-contracts/contracts/utils/Address.sol";
-import {Strings} from "lib/openzeppelin-contracts/contracts/utils/Strings.sol";
-import {ERC721Upgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC721/ERC721Upgradeable.sol";
 import {Initializable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import {IBag} from "src/interface/IBag.sol";
+import {IOwnerRegistry} from "src/interface/IOwnerRegistry.sol";
 
 /// @title Bag
-/// @notice Per-request NFT container whose token owner can claim received assets.
-contract Bag is Initializable, ERC721Upgradeable, IBag {
+/// @notice Per-request asset container whose request NFT owner can claim received assets.
+contract Bag is Initializable, IBag {
     using SafeERC20 for IERC20;
     using Address for address payable;
 
     string public constant VERSION = "0.1.0";
-    uint256 public constant TOKEN_ID = 1;
     address public constant NATIVE_ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     /// @custom:storage-location erc7201:yieldnest.storage.bag
     struct BagStorage {
+        IOwnerRegistry ownerRegistry;
         uint256 id;
     }
 
@@ -39,30 +38,35 @@ contract Bag is Initializable, ERC721Upgradeable, IBag {
         _disableInitializers();
     }
 
-    modifier onlyNFTOwner() {
-        if (msg.sender != ownerOf(TOKEN_ID)) revert NotBagOwner(msg.sender);
+    modifier onlyOwner() {
+        BagStorage storage $ = _getBagStorage();
+        if (msg.sender != $.ownerRegistry.ownerOf($.id)) revert NotRequestOwner(msg.sender);
         _;
     }
 
     receive() external payable {}
 
-    /// @notice Initializes the bag NFT and mints it to the owner.
-    /// @param owner_ Initial owner of the bag NFT.
+    /// @notice Initializes the bag with the request NFT contract and request id.
+    /// @param ownerRegistry_ Contract that reports request NFT ownership.
     /// @param id_ Withdrawal request id represented by this bag.
-    function initialize(address owner_, uint256 id_) external initializer {
-        if (owner_ == address(0)) revert ZeroAddress();
+    function initialize(address ownerRegistry_, uint256 id_) external initializer {
+        if (ownerRegistry_ == address(0)) revert ZeroAddress();
 
-        _getBagStorage().id = id_;
-
-        string memory idString = Strings.toString(id_);
-        __ERC721_init(string.concat("Bag #", idString), string.concat("ynBAG-", idString));
-        _mint(owner_, TOKEN_ID);
+        BagStorage storage $ = _getBagStorage();
+        $.ownerRegistry = IOwnerRegistry(ownerRegistry_);
+        $.id = id_;
     }
 
     /// @notice Returns the withdrawal request id represented by this bag.
     /// @return The withdrawal request id.
     function id() external view returns (uint256) {
         return _getBagStorage().id;
+    }
+
+    /// @notice Returns the contract that reports request NFT ownership.
+    /// @return The request owner registry.
+    function ownerRegistry() external view returns (address) {
+        return address(_getBagStorage().ownerRegistry);
     }
 
     /// @notice Claims ERC20 assets and native ETH from this bag.
@@ -73,7 +77,7 @@ contract Bag is Initializable, ERC721Upgradeable, IBag {
     /// @return amounts The amounts claimed.
     function claim(address[] calldata assets, address payable recipient, uint256[] calldata amounts)
         external
-        onlyNFTOwner
+        onlyOwner
         returns (uint256[] memory)
     {
         if (recipient == address(0)) revert ZeroAddress();
@@ -100,7 +104,7 @@ contract Bag is Initializable, ERC721Upgradeable, IBag {
     /// @param asset ERC721 asset to claim.
     /// @param recipient Receiver of the claimed token.
     /// @param tokenId Token id to claim.
-    function claimERC721(address asset, address recipient, uint256 tokenId) external onlyNFTOwner {
+    function claimERC721(address asset, address recipient, uint256 tokenId) external onlyOwner {
         if (asset == address(0) || recipient == address(0)) revert ZeroAddress();
 
         IERC721(asset).safeTransferFrom(address(this), recipient, tokenId);
