@@ -159,6 +159,18 @@ contract WithdrawalRequestViewerTest is Test {
         ynToken.approve(address(manager), type(uint256).max);
     }
 
+    function _claimSingleERC20(address bag, address asset_, address recipient_, uint256 amount)
+        internal
+        returns (uint256[] memory)
+    {
+        address[] memory assets = new address[](1);
+        assets[0] = asset_;
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = amount;
+
+        return IBag(bag).claim(assets, payable(recipient_), amounts);
+    }
+
     function testGetRequestReturnsOwnerBagTokenAndAssetBalances() public {
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, receiver);
@@ -175,6 +187,8 @@ contract WithdrawalRequestViewerTest is Test {
         assertEq(view_.token, address(ynToken));
         assertEq(view_.amountLocked, 6 ether);
         assertEq(view_.tokenBalance, 6 ether);
+        assertFalse(view_.isClaimable);
+        assertFalse(view_.isClaimed);
         assertEq(view_.assetBalances.length, 2);
         assertEq(view_.assetBalances[0].asset, address(asset));
         assertEq(view_.assetBalances[0].balance, 4 ether);
@@ -204,6 +218,8 @@ contract WithdrawalRequestViewerTest is Test {
         assertEq(receiverRequests[0].id, completedId);
         assertEq(receiverRequests[0].owner, receiver);
         assertEq(receiverRequests[0].amountLocked, 0);
+        assertTrue(receiverRequests[0].isClaimable);
+        assertFalse(receiverRequests[0].isClaimed);
         assertEq(receiverRequests[0].assetBalances[0].balance, 10 ether);
 
         WithdrawalRequestViewer.RequestView[] memory otherRequests =
@@ -212,9 +228,51 @@ contract WithdrawalRequestViewerTest is Test {
         assertEq(otherRequests[0].id, otherId);
         assertEq(otherRequests[0].owner, other);
         assertEq(otherRequests[0].amountLocked, 11 ether);
+        assertFalse(otherRequests[0].isClaimable);
+        assertTrue(otherRequests[0].isClaimed);
         assertEq(otherRequests[1].id, transferredId);
         assertEq(otherRequests[1].owner, other);
         assertEq(otherRequests[1].amountLocked, 12 ether);
+        assertFalse(otherRequests[1].isClaimable);
+        assertTrue(otherRequests[1].isClaimed);
+    }
+
+    function testRequestIsClaimableUsesLockedTokenDustThreshold() public {
+        uint256 dustThreshold = 10 ** ynToken.decimals() / 1e4;
+
+        vm.startPrank(user);
+        uint256 atThresholdId = manager.requestWithdrawal(10 ether, receiver);
+        uint256 belowThresholdId = manager.requestWithdrawal(10 ether, receiver);
+        vm.stopPrank();
+
+        assertFalse(viewer.requestIsClaimable(manager, atThresholdId));
+        assertFalse(viewer.requestIsClaimable(manager, belowThresholdId));
+
+        vm.startPrank(fulfiller);
+        manager.fulfillWithdrawalRequest(atThresholdId, address(asset), 10 ether - dustThreshold);
+        manager.fulfillWithdrawalRequest(belowThresholdId, address(asset), 10 ether - dustThreshold + 1);
+        vm.stopPrank();
+
+        assertFalse(viewer.requestIsClaimable(manager, atThresholdId));
+        assertTrue(viewer.requestIsClaimable(manager, belowThresholdId));
+    }
+
+    function testRequestIsClaimedRequiresAllBagAssetBalancesToBeZero() public {
+        vm.prank(user);
+        uint256 id = manager.requestWithdrawal(10 ether, receiver);
+
+        WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(id);
+        assertTrue(viewer.requestIsClaimed(manager, id));
+
+        vm.prank(fulfiller);
+        manager.fulfillWithdrawalRequest(id, address(asset), 10 ether);
+
+        assertFalse(viewer.requestIsClaimed(manager, id));
+
+        vm.prank(receiver);
+        assertEq(_claimSingleERC20(request.bag, address(asset), receiver, 10 ether)[0], 10 ether);
+
+        assertTrue(viewer.requestIsClaimed(manager, id));
     }
 
     function testConvertToAssetsUsesVaultRateAndDecimals() public view {

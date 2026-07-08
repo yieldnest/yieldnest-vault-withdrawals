@@ -2,13 +2,14 @@
 pragma solidity ^0.8.24;
 
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "lib/openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {IProvider} from "lib/yieldnest-vault/src/interface/IProvider.sol";
 import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
 import {IBag} from "src/interface/IBag.sol";
 import {WithdrawalRequestManager} from "src/WithdrawalRequestManager.sol";
 
-interface IWithdrawalRequestViewerVault is IERC20 {
+interface IWithdrawalRequestViewerVault is IERC20, IERC20Metadata {
     function getAssets() external view returns (address[] memory);
     function getAsset(address asset_) external view returns (IVault.AssetParams memory);
     function provider() external view returns (address);
@@ -32,6 +33,8 @@ contract WithdrawalRequestViewer {
         address token;
         uint256 amountLocked;
         uint256 tokenBalance;
+        bool isClaimable;
+        bool isClaimed;
         AssetBalance[] assetBalances;
     }
 
@@ -87,6 +90,8 @@ contract WithdrawalRequestViewer {
             token: address(token),
             amountLocked: request.amountLocked,
             tokenBalance: token.balanceOf(address(manager)),
+            isClaimable: _requestIsClaimable(request, token),
+            isClaimed: _requestIsClaimed(request, assets),
             assetBalances: assetBalances
         });
     }
@@ -96,6 +101,41 @@ contract WithdrawalRequestViewer {
 
         WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(id);
         return IBag(request.bag).ownerOf(IBag(request.bag).TOKEN_ID()) == owner;
+    }
+
+    /// @notice Returns true when the remaining locked yn-token amount is below the dust threshold.
+    function requestIsClaimable(WithdrawalRequestManager manager, uint256 id) external view returns (bool) {
+        WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(id);
+        IWithdrawalRequestViewerVault token = IWithdrawalRequestViewerVault(address(manager.token()));
+
+        return _requestIsClaimable(request, token);
+    }
+
+    /// @notice Returns true when the request bag has no balances for the vault's listed assets.
+    function requestIsClaimed(WithdrawalRequestManager manager, uint256 id) external view returns (bool) {
+        WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(id);
+        IWithdrawalRequestViewerVault token = IWithdrawalRequestViewerVault(address(manager.token()));
+
+        return _requestIsClaimed(request, token.getAssets());
+    }
+
+    function _requestIsClaimable(
+        WithdrawalRequestManager.WithdrawalRequest memory request,
+        IWithdrawalRequestViewerVault token
+    ) internal view returns (bool) {
+        return request.amountLocked < 10 ** token.decimals() / 1e4;
+    }
+
+    function _requestIsClaimed(WithdrawalRequestManager.WithdrawalRequest memory request, address[] memory assets)
+        internal
+        view
+        returns (bool)
+    {
+        for (uint256 i = 0; i < assets.length; ++i) {
+            if (IERC20(assets[i]).balanceOf(request.bag) != 0) return false;
+        }
+
+        return true;
     }
 
     /// @notice Converts yn-token shares into the maximum amount of a vault asset withdrawable from the configured token.
