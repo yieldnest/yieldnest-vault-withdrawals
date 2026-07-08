@@ -14,13 +14,13 @@ contract DeployWithdrawalRequestManagerTest is Test {
 
         deployScript.run();
 
-        WithdrawalRequestViewer viewer = deployScript.viewer();
+        WithdrawalRequestViewer viewer = deployScript.withdrawalRequestViewer();
         TimelockController timelock = deployScript.timelock();
         WithdrawalRequestManager manager = deployScript.withdrawalRequestManager();
         BeaconProxyFactory beaconFactory = deployScript.beaconFactory();
         assertGt(address(viewer).code.length, 0);
         assertGt(address(timelock).code.length, 0);
-        assertEq(timelock.getMinDelay(), deployScript.TIMELOCK_MIN_DELAY());
+        assertEq(timelock.getMinDelay(), deployScript.minDelay());
         assertTrue(timelock.hasRole(timelock.DEFAULT_ADMIN_ROLE(), address(timelock)));
         assertFalse(timelock.hasRole(timelock.DEFAULT_ADMIN_ROLE(), deployScript.proposer()));
         assertTrue(timelock.hasRole(timelock.PROPOSER_ROLE(), deployScript.proposer()));
@@ -40,7 +40,7 @@ contract DeployWithdrawalRequestManagerTest is Test {
         assertEq(vm.parseJsonAddress(deploymentJson, ".withdrawalRequestManager"), address(manager));
         assertEq(vm.parseJsonAddress(deploymentJson, ".defaultAdmin"), address(timelock));
         assertEq(vm.parseJsonAddress(deploymentJson, ".configurationManager"), address(timelock));
-        assertEq(vm.parseJsonUint(deploymentJson, ".timelockMinDelay"), deployScript.TIMELOCK_MIN_DELAY());
+        assertEq(vm.parseJsonUint(deploymentJson, ".timelockMinDelay"), deployScript.minDelay());
 
         vm.removeFile(deploymentFilePath);
     }
