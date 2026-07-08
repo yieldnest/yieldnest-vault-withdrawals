@@ -18,6 +18,14 @@ contract BagERC20Mock is ERC20 {
     }
 }
 
+contract BagERC20SecondMock is ERC20 {
+    constructor() ERC20("Second Token", "TKN2") {}
+
+    function mint(address account, uint256 amount) external {
+        _mint(account, amount);
+    }
+}
+
 contract BagERC721Mock is ERC721 {
     constructor() ERC721("Collectible", "NFT") {}
 
@@ -36,6 +44,7 @@ contract BagTest is Test {
     Bag implementation;
     Bag bag;
     BagERC20Mock token;
+    BagERC20SecondMock secondToken;
     BagERC721Mock nft;
 
     address owner = address(0xB0B);
@@ -47,6 +56,7 @@ contract BagTest is Test {
         implementation = new Bag();
         bag = _deployBag(owner, requestId);
         token = new BagERC20Mock();
+        secondToken = new BagERC20SecondMock();
         nft = new BagERC721Mock();
     }
 
@@ -62,6 +72,7 @@ contract BagTest is Test {
     function testInitializeMintsExpectedNFTMetadataAndConstants() public {
         assertEq(bag.VERSION(), "0.1.0");
         assertEq(bag.TOKEN_ID(), 1);
+        assertEq(bag.NATIVE_ETH(), 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE);
         assertEq(bag.id(), requestId);
         assertEq(bag.name(), "YieldNest Withdrawal Bag #42");
         assertEq(bag.symbol(), "ynBAG-42");
@@ -104,6 +115,98 @@ contract BagTest is Test {
     function testProxyCannotBeInitializedTwice() public {
         vm.expectRevert(Initializable.InvalidInitialization.selector);
         bag.initialize(owner, requestId + 1);
+    }
+
+    function testClaimTransfersERC20sAndNativeETH() public {
+        token.mint(address(bag), 12 ether);
+        secondToken.mint(address(bag), 8 ether);
+        vm.deal(address(bag), 3 ether);
+        uint256 recipientBalanceBefore = recipient.balance;
+
+        address[] memory assets = new address[](3);
+        assets[0] = address(token);
+        assets[1] = bag.NATIVE_ETH();
+        assets[2] = address(secondToken);
+        uint256[] memory amounts = new uint256[](3);
+        amounts[0] = 5 ether;
+        amounts[1] = 1 ether;
+        amounts[2] = 2 ether;
+
+        vm.expectEmit(true, true, true, true, address(bag));
+        emit IBag.ERC20Claimed(owner, recipient, address(token), 5 ether);
+        vm.expectEmit(true, true, true, true, address(bag));
+        emit IBag.NativeClaimed(owner, recipient, 1 ether);
+        vm.expectEmit(true, true, true, true, address(bag));
+        emit IBag.ERC20Claimed(owner, recipient, address(secondToken), 2 ether);
+
+        vm.prank(owner);
+        uint256[] memory amountsClaimed = bag.claim(assets, payable(recipient), amounts);
+
+        assertEq(amountsClaimed.length, 3);
+        assertEq(amountsClaimed[0], 5 ether);
+        assertEq(amountsClaimed[1], 1 ether);
+        assertEq(amountsClaimed[2], 2 ether);
+        assertEq(token.balanceOf(recipient), 5 ether);
+        assertEq(secondToken.balanceOf(recipient), 2 ether);
+        assertEq(recipient.balance - recipientBalanceBefore, 1 ether);
+        assertEq(token.balanceOf(address(bag)), 7 ether);
+        assertEq(secondToken.balanceOf(address(bag)), 6 ether);
+        assertEq(address(bag).balance, 2 ether);
+    }
+
+    function testClaimAllowsEmptyClaim() public {
+        address[] memory assets = new address[](0);
+        uint256[] memory amounts = new uint256[](0);
+
+        vm.prank(owner);
+        uint256[] memory amountsClaimed = bag.claim(assets, payable(recipient), amounts);
+
+        assertEq(amountsClaimed.length, 0);
+    }
+
+    function testClaimRevertsWhenCallerIsNotNFTOwner() public {
+        address[] memory assets = new address[](1);
+        assets[0] = address(token);
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = 1 ether;
+
+        vm.expectRevert(abi.encodeWithSelector(IBag.NotBagOwner.selector, other));
+        vm.prank(other);
+        bag.claim(assets, payable(recipient), amounts);
+    }
+
+    function testClaimRevertsForInvalidInputs() public {
+        address[] memory assets = new address[](1);
+        assets[0] = address(token);
+        uint256[] memory amounts = new uint256[](2);
+
+        vm.startPrank(owner);
+
+        vm.expectRevert(IBag.InvalidArrayLength.selector);
+        bag.claim(assets, payable(recipient), amounts);
+
+        amounts = new uint256[](1);
+        vm.expectRevert(IBag.ZeroAddress.selector);
+        bag.claim(assets, payable(address(0)), amounts);
+
+        assets[0] = address(0);
+        vm.expectRevert(IBag.ZeroAddress.selector);
+        bag.claim(assets, payable(recipient), amounts);
+
+        vm.stopPrank();
+    }
+
+    function testClaimRevertsWhenNativeRecipientRejectsTransfer() public {
+        NativeRejector rejector = new NativeRejector();
+        vm.deal(address(bag), 3 ether);
+        address[] memory assets = new address[](1);
+        assets[0] = bag.NATIVE_ETH();
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = 1 ether;
+
+        vm.expectRevert(bytes("reject native"));
+        vm.prank(owner);
+        bag.claim(assets, payable(address(rejector)), amounts);
     }
 
     function testClaimERC20TransfersSpecifiedAmountAndEmits() public {

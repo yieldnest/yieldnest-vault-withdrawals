@@ -18,6 +18,7 @@ contract Bag is Initializable, ERC721Upgradeable, IBag {
 
     string public constant VERSION = "0.1.0";
     uint256 public constant TOKEN_ID = 1;
+    address public constant NATIVE_ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     /// @custom:storage-location erc7201:yieldnest.storage.bag
     struct BagStorage {
@@ -62,6 +63,37 @@ contract Bag is Initializable, ERC721Upgradeable, IBag {
     /// @return The withdrawal request id.
     function id() external view returns (uint256) {
         return _getBagStorage().id;
+    }
+
+    /// @notice Claims ERC20 assets and native ETH from this bag.
+    /// @dev Use `NATIVE_ETH` as the asset address for native ETH.
+    /// @param assets Assets to claim.
+    /// @param recipient Receiver of the claimed assets.
+    /// @param amounts Amounts to claim for each asset.
+    /// @return amounts The amounts claimed.
+    function claim(address[] calldata assets, address payable recipient, uint256[] calldata amounts)
+        external
+        onlyNFTOwner
+        returns (uint256[] memory)
+    {
+        if (recipient == address(0)) revert ZeroAddress();
+        if (assets.length != amounts.length) revert InvalidArrayLength();
+
+        for (uint256 i = 0; i < assets.length; ++i) {
+            address asset = assets[i];
+            if (asset == address(0)) revert ZeroAddress();
+
+            uint256 amount = amounts[i];
+            if (asset == NATIVE_ETH) {
+                recipient.sendValue(amount);
+                emit NativeClaimed(msg.sender, recipient, amount);
+            } else {
+                IERC20(asset).safeTransfer(recipient, amount);
+                emit ERC20Claimed(msg.sender, recipient, asset, amount);
+            }
+        }
+
+        return amounts;
     }
 
     /// @notice Claims an amount of an ERC20 asset from this bag.
