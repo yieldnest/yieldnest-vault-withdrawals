@@ -41,6 +41,9 @@ contract WithdrawalRequestViewer {
     function getRequest(WithdrawalRequestManager manager, uint256 id) external view returns (RequestView memory view_) {
         WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(id);
         IWithdrawalRequestViewerVault token = IWithdrawalRequestViewerVault(address(manager.token()));
+        // Incomplete by design: this only includes assets currently returned by the vault.
+        // If an asset is removed from the vault after a redemption bag receives it, that
+        // asset balance will not be surfaced here and may be hidden from the redemption NFT UI.
         address[] memory assets = token.getAssets();
 
         view_ = _getRequest(id, request, token, assets, manager);
@@ -54,6 +57,8 @@ contract WithdrawalRequestViewer {
         returns (RequestView[] memory requests_)
     {
         IWithdrawalRequestViewerVault token = IWithdrawalRequestViewerVault(address(manager.token()));
+        // See `getRequest`: deleted vault assets are not included in this list, so
+        // balances for removed assets may not be visible in request views.
         address[] memory assets = token.getAssets();
         uint256 nextRequestId = manager.nextRequestId();
         uint256 count;
@@ -104,6 +109,9 @@ contract WithdrawalRequestViewer {
     }
 
     /// @notice Returns true when the remaining locked yn-token amount is below the dust threshold.
+    /// @dev UI-only heuristic: this indicates that most of the position has been withdrawn.
+    /// It works well for ETH and USDC-style assets where fulfillment can leave a trace
+    /// amount of locked yn-token behind. It is not a protocol-level claimability invariant.
     function requestIsClaimable(WithdrawalRequestManager manager, uint256 id) external view returns (bool) {
         WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(id);
         IWithdrawalRequestViewerVault token = IWithdrawalRequestViewerVault(address(manager.token()));
@@ -112,6 +120,9 @@ contract WithdrawalRequestViewer {
     }
 
     /// @notice Returns true when the request bag has no balances for the vault's listed assets.
+    /// @dev This only checks assets currently returned by `getAssets()`. If a vault asset
+    /// is deleted after funds are sent to a bag, this may return true even though the bag
+    /// still holds the removed asset.
     function requestIsClaimed(WithdrawalRequestManager manager, uint256 id) external view returns (bool) {
         WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(id);
         IWithdrawalRequestViewerVault token = IWithdrawalRequestViewerVault(address(manager.token()));
