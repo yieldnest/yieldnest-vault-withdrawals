@@ -7,10 +7,10 @@ import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/
 import {Address} from "lib/openzeppelin-contracts/contracts/utils/Address.sol";
 import {Initializable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import {IBag} from "src/interface/IBag.sol";
-import {IOwnerRegistry} from "src/interface/IOwnerRegistry.sol";
+import {IAuth} from "src/interface/IAuth.sol";
 
 /// @title Bag
-/// @notice Per-request asset container whose request NFT owner can claim received assets.
+/// @notice Per-request asset container whose request NFT owner or approved operator can claim received assets.
 contract Bag is Initializable, IBag {
     using SafeERC20 for IERC20;
     using Address for address payable;
@@ -20,7 +20,7 @@ contract Bag is Initializable, IBag {
 
     /// @custom:storage-location erc7201:yieldnest.storage.bag
     struct BagStorage {
-        IOwnerRegistry ownerRegistry;
+        IAuth ownerRegistry;
         uint256 id;
     }
 
@@ -40,7 +40,7 @@ contract Bag is Initializable, IBag {
 
     modifier onlyOwner() {
         BagStorage storage $ = _getBagStorage();
-        if (msg.sender != $.ownerRegistry.ownerOf($.id)) revert NotRequestOwner(msg.sender);
+        if (!$.ownerRegistry.isAuthorized(msg.sender, $.id)) revert NotRequestOwner(msg.sender);
         _;
     }
 
@@ -53,7 +53,7 @@ contract Bag is Initializable, IBag {
         if (ownerRegistry_ == address(0)) revert ZeroAddress();
 
         BagStorage storage $ = _getBagStorage();
-        $.ownerRegistry = IOwnerRegistry(ownerRegistry_);
+        $.ownerRegistry = IAuth(ownerRegistry_);
         $.id = id_;
     }
 

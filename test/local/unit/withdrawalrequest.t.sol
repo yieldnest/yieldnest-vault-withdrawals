@@ -334,6 +334,46 @@ contract WithdrawalRequestTest is Test {
         assertEq(asset.balanceOf(request.bag), 0);
     }
 
+    function testBagClaimAllowsApprovedRequestOperator() public {
+        vm.prank(user);
+        uint256 id = manager.requestWithdrawal(10 ether, user);
+
+        WithdrawalRequest.Request memory request = manager.requests(id);
+        asset.mint(request.bag, 4 ether);
+
+        vm.prank(user);
+        manager.approve(receiver, id);
+
+        assertTrue(manager.isAuthorized(receiver, id));
+
+        vm.prank(receiver);
+        uint256 amountClaimed = _claimSingleERC20(request.bag, address(asset), receiver, 4 ether)[0];
+
+        assertEq(amountClaimed, 4 ether);
+        assertEq(asset.balanceOf(receiver), 4 ether);
+        assertEq(asset.balanceOf(request.bag), 0);
+    }
+
+    function testBagClaimAllowsApprovedForAllRequestOperator() public {
+        vm.prank(user);
+        uint256 id = manager.requestWithdrawal(10 ether, user);
+
+        WithdrawalRequest.Request memory request = manager.requests(id);
+        asset.mint(request.bag, 4 ether);
+
+        vm.prank(user);
+        manager.setApprovalForAll(receiver, true);
+
+        assertTrue(manager.isAuthorized(receiver, id));
+
+        vm.prank(receiver);
+        uint256 amountClaimed = _claimSingleERC20(request.bag, address(asset), receiver, 4 ether)[0];
+
+        assertEq(amountClaimed, 4 ether);
+        assertEq(asset.balanceOf(receiver), 4 ether);
+        assertEq(asset.balanceOf(request.bag), 0);
+    }
+
     function testBagClaimSingleNativeRequiresRequestOwner() public {
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, user);

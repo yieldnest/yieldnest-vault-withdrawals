@@ -41,13 +41,22 @@ contract NativeRejector {
 
 contract OwnerRegistryMock {
     mapping(uint256 id => address owner) internal owners;
+    mapping(uint256 id => mapping(address spender => bool authorized)) internal authorizations;
 
     function setOwner(uint256 id, address owner) external {
         owners[id] = owner;
     }
 
+    function setAuthorized(uint256 id, address spender, bool authorized) external {
+        authorizations[id][spender] = authorized;
+    }
+
     function ownerOf(uint256 id) external view returns (address) {
         return owners[id];
+    }
+
+    function isAuthorized(address spender, uint256 id) external view returns (bool) {
+        return spender == owners[id] || authorizations[id][spender];
     }
 }
 
@@ -205,6 +214,18 @@ contract BagTest is Test {
         vm.expectRevert(abi.encodeWithSelector(IBag.NotRequestOwner.selector, other));
         vm.prank(other);
         bag.claim(assets, payable(recipient), amounts);
+    }
+
+    function testClaimAllowsAuthorizedOperator() public {
+        token.mint(address(bag), 12 ether);
+        ownerRegistry.setAuthorized(requestId, other, true);
+
+        vm.prank(other);
+        uint256 amount = _claimSingleERC20(bag, address(token), recipient, 5 ether)[0];
+
+        assertEq(amount, 5 ether);
+        assertEq(token.balanceOf(recipient), 5 ether);
+        assertEq(token.balanceOf(address(bag)), 7 ether);
     }
 
     function testClaimRevertsForInvalidInputs() public {

@@ -29,6 +29,10 @@ contract BeaconOwnerRegistryMock {
     function ownerOf(uint256 id) external view returns (address) {
         return owners[id];
     }
+
+    function isAuthorized(address spender, uint256 id) external view returns (bool) {
+        return spender == owners[id];
+    }
 }
 
 contract BeaconProxyFactoryTest is Test {

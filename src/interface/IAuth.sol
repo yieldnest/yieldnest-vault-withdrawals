@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 pragma solidity ^0.8.24;
 
-interface IOwnerRegistry {
+interface IAuth {
     function ownerOf(uint256 id) external view returns (address);
+    function isAuthorized(address spender, uint256 id) external view returns (bool);
 }

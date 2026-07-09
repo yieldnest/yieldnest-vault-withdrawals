@@ -11,7 +11,7 @@ import {PausableUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contra
 import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IBag} from "src/interface/IBag.sol";
 import {IBeaconProxyFactory} from "src/interface/IBeaconProxyFactory.sol";
-import {IOwnerRegistry} from "src/interface/IOwnerRegistry.sol";
+import {IAuth} from "src/interface/IAuth.sol";
 
 interface IWithdrawAssetVault is IERC20 {
     function withdrawAsset(address asset_, uint256 assets, address receiver, address owner)
@@ -22,13 +22,7 @@ interface IWithdrawAssetVault is IERC20 {
 
 /// @title WithdrawalRequest
 /// @notice Custodies one yn-token type and tracks permissioned fulfilment of withdrawal requests.
-contract WithdrawalRequest is
-    Initializable,
-    AccessControlUpgradeable,
-    ERC721Upgradeable,
-    PausableUpgradeable,
-    IOwnerRegistry
-{
+contract WithdrawalRequest is Initializable, AccessControlUpgradeable, ERC721Upgradeable, PausableUpgradeable, IAuth {
     using SafeERC20 for IERC20;
 
     string public constant VERSION = "0.1.0";
@@ -257,11 +251,20 @@ contract WithdrawalRequest is
         return _requestExists(_getRequestStorage().requests[id]);
     }
 
+    /// @notice Returns whether `spender` owns or is approved to operate the request NFT.
+    /// @param spender Account to check.
+    /// @param id Request id to query.
+    /// @return True if `spender` is the owner, approved address, or approved operator.
+    function isAuthorized(address spender, uint256 id) external view override returns (bool) {
+        address owner = ownerOf(id);
+        return _isAuthorized(owner, spender, id);
+    }
+
     function _requestExists(Request memory request) internal pure returns (bool) {
         return request.bag != address(0);
     }
 
-    function ownerOf(uint256 id) public view override(ERC721Upgradeable, IOwnerRegistry) returns (address) {
+    function ownerOf(uint256 id) public view override(ERC721Upgradeable, IAuth) returns (address) {
         return super.ownerOf(id);
     }
 
