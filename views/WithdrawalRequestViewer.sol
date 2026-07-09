@@ -6,7 +6,7 @@ import {IERC20Metadata} from "lib/openzeppelin-contracts/contracts/token/ERC20/e
 import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {IProvider} from "lib/yieldnest-vault/src/interface/IProvider.sol";
 import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
-import {WithdrawalRequestManager} from "src/WithdrawalRequestManager.sol";
+import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 
 interface IWithdrawalRequestViewerVault is IERC20, IERC20Metadata {
     function getAssets() external view returns (address[] memory);
@@ -37,50 +37,50 @@ contract WithdrawalRequestViewer {
         AssetBalance[] assetBalances;
     }
 
-    function getRequest(WithdrawalRequestManager manager, uint256 id) external view returns (RequestView memory view_) {
-        WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(id);
-        IWithdrawalRequestViewerVault token = IWithdrawalRequestViewerVault(address(manager.token()));
+    function getRequest(WithdrawalRequest withdrawalRequest, uint256 id) external view returns (RequestView memory view_) {
+        WithdrawalRequest.Request memory request = withdrawalRequest.requests(id);
+        IWithdrawalRequestViewerVault token = IWithdrawalRequestViewerVault(address(withdrawalRequest.token()));
         // Incomplete by design: this only includes assets currently returned by the vault.
         // If an asset is removed from the vault after a redemption bag receives it, that
         // asset balance will not be surfaced here and may be hidden from the redemption NFT UI.
         address[] memory assets = token.getAssets();
 
-        view_ = _getRequest(id, request, token, assets, manager);
+        view_ = _getRequest(id, request, token, assets, withdrawalRequest);
     }
 
     /// @notice Returns requests currently owned by `owner`.
     /// @dev Iterates request ids from 1 to `nextRequestId() - 1`; intended for offchain/UI reads.
-    function getInProgressRequestsForOwner(WithdrawalRequestManager manager, address owner)
+    function getInProgressRequestsForOwner(WithdrawalRequest withdrawalRequest, address owner)
         external
         view
         returns (RequestView[] memory requests_)
     {
-        IWithdrawalRequestViewerVault token = IWithdrawalRequestViewerVault(address(manager.token()));
+        IWithdrawalRequestViewerVault token = IWithdrawalRequestViewerVault(address(withdrawalRequest.token()));
         // See `getRequest`: deleted vault assets are not included in this list, so
         // balances for removed assets may not be visible in request views.
         address[] memory assets = token.getAssets();
-        uint256 nextRequestId = manager.nextRequestId();
+        uint256 nextRequestId = withdrawalRequest.nextRequestId();
         uint256 count;
 
         for (uint256 id = 1; id < nextRequestId; ++id) {
-            if (_matchesOwner(manager, id, owner)) count++;
+            if (_matchesOwner(withdrawalRequest, id, owner)) count++;
         }
 
         requests_ = new RequestView[](count);
         uint256 index;
         for (uint256 id = 1; id < nextRequestId; ++id) {
-            if (_matchesOwner(manager, id, owner)) {
-                requests_[index++] = _getRequest(id, manager.requests(id), token, assets, manager);
+            if (_matchesOwner(withdrawalRequest, id, owner)) {
+                requests_[index++] = _getRequest(id, withdrawalRequest.requests(id), token, assets, withdrawalRequest);
             }
         }
     }
 
     function _getRequest(
         uint256 id,
-        WithdrawalRequestManager.WithdrawalRequest memory request,
+        WithdrawalRequest.Request memory request,
         IWithdrawalRequestViewerVault token,
         address[] memory assets,
-        WithdrawalRequestManager manager
+        WithdrawalRequest withdrawalRequest
     ) internal view returns (RequestView memory view_) {
         AssetBalance[] memory assetBalances = new AssetBalance[](assets.length);
         for (uint256 i = 0; i < assets.length; ++i) {
@@ -89,30 +89,30 @@ contract WithdrawalRequestViewer {
 
         view_ = RequestView({
             id: id,
-            owner: manager.ownerOf(id),
+            owner: withdrawalRequest.ownerOf(id),
             bag: request.bag,
             token: address(token),
             amountLocked: request.amountLocked,
-            tokenBalance: token.balanceOf(address(manager)),
+            tokenBalance: token.balanceOf(address(withdrawalRequest)),
             isClaimable: _requestIsClaimable(request, token),
             isClaimed: _requestIsClaimed(request, assets),
             assetBalances: assetBalances
         });
     }
 
-    function _matchesOwner(WithdrawalRequestManager manager, uint256 id, address owner) internal view returns (bool) {
-        if (!manager.requestExists(id)) return false;
+    function _matchesOwner(WithdrawalRequest withdrawalRequest, uint256 id, address owner) internal view returns (bool) {
+        if (!withdrawalRequest.requestExists(id)) return false;
 
-        return manager.ownerOf(id) == owner;
+        return withdrawalRequest.ownerOf(id) == owner;
     }
 
     /// @notice Returns true when the remaining locked yn-token amount is below the dust threshold.
     /// @dev UI-only heuristic: this indicates that most of the position has been withdrawn.
     /// It works well for ETH and USDC-style assets where fulfillment can leave a trace
     /// amount of locked yn-token behind. It is not a protocol-level claimability invariant.
-    function requestIsClaimable(WithdrawalRequestManager manager, uint256 id) external view returns (bool) {
-        WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(id);
-        IWithdrawalRequestViewerVault token = IWithdrawalRequestViewerVault(address(manager.token()));
+    function requestIsClaimable(WithdrawalRequest withdrawalRequest, uint256 id) external view returns (bool) {
+        WithdrawalRequest.Request memory request = withdrawalRequest.requests(id);
+        IWithdrawalRequestViewerVault token = IWithdrawalRequestViewerVault(address(withdrawalRequest.token()));
 
         return _requestIsClaimable(request, token);
     }
@@ -121,21 +121,21 @@ contract WithdrawalRequestViewer {
     /// @dev This only checks assets currently returned by `getAssets()`. If a vault asset
     /// is deleted after funds are sent to a bag, this may return true even though the bag
     /// still holds the removed asset.
-    function requestIsClaimed(WithdrawalRequestManager manager, uint256 id) external view returns (bool) {
-        WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(id);
-        IWithdrawalRequestViewerVault token = IWithdrawalRequestViewerVault(address(manager.token()));
+    function requestIsClaimed(WithdrawalRequest withdrawalRequest, uint256 id) external view returns (bool) {
+        WithdrawalRequest.Request memory request = withdrawalRequest.requests(id);
+        IWithdrawalRequestViewerVault token = IWithdrawalRequestViewerVault(address(withdrawalRequest.token()));
 
         return _requestIsClaimed(request, token.getAssets());
     }
 
     function _requestIsClaimable(
-        WithdrawalRequestManager.WithdrawalRequest memory request,
+        WithdrawalRequest.Request memory request,
         IWithdrawalRequestViewerVault token
     ) internal view returns (bool) {
         return request.amountLocked < 10 ** token.decimals() / 1e4;
     }
 
-    function _requestIsClaimed(WithdrawalRequestManager.WithdrawalRequest memory request, address[] memory assets)
+    function _requestIsClaimed(WithdrawalRequest.Request memory request, address[] memory assets)
         internal
         view
         returns (bool)
@@ -149,12 +149,12 @@ contract WithdrawalRequestViewer {
 
     /// @notice Converts yn-token shares into the maximum amount of a vault asset withdrawable from the configured token.
     /// @dev Rounds down so callers do not intentionally request assets requiring more shares than are locked.
-    function convertToAssets(WithdrawalRequestManager manager, address asset, uint256 shares)
+    function convertToAssets(WithdrawalRequest withdrawalRequest, address asset, uint256 shares)
         public
         view
         returns (uint256 assets)
     {
-        IWithdrawalRequestViewerVault token = IWithdrawalRequestViewerVault(address(manager.token()));
+        IWithdrawalRequestViewerVault token = IWithdrawalRequestViewerVault(address(withdrawalRequest.token()));
         uint256 totalSupply = token.totalSupply();
         uint256 totalBaseAssets = token.totalBaseAssets();
         uint256 baseAssets = shares.mulDiv(totalBaseAssets + 1, totalSupply + 1, Math.Rounding.Floor);
@@ -165,12 +165,12 @@ contract WithdrawalRequestViewer {
     }
 
     /// @notice Returns the asset amount a caller can pass to `fulfillWithdrawalRequest` for the request's locked shares.
-    function maxFulfillmentAssets(WithdrawalRequestManager manager, uint256 id, address asset)
+    function maxFulfillmentAssets(WithdrawalRequest withdrawalRequest, uint256 id, address asset)
         external
         view
         returns (uint256 assets)
     {
-        WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(id);
-        assets = convertToAssets(manager, asset, request.amountLocked);
+        WithdrawalRequest.Request memory request = withdrawalRequest.requests(id);
+        assets = convertToAssets(withdrawalRequest, asset, request.amountLocked);
     }
 }

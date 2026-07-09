@@ -8,7 +8,7 @@ import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
 import {Bag} from "src/Bag.sol";
 import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
 import {IBag} from "src/interface/IBag.sol";
-import {WithdrawalRequestManager} from "src/WithdrawalRequestManager.sol";
+import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 import {WithdrawalRequestViewer} from "views/WithdrawalRequestViewer.sol";
 
 contract ViewerVaultMock is ERC20 {
@@ -83,7 +83,7 @@ contract ViewerAssetMock is ERC20 {
 }
 
 contract WithdrawalRequestViewerTest is Test {
-    WithdrawalRequestManager manager;
+    WithdrawalRequest manager;
     WithdrawalRequestViewer viewer;
     ViewerVaultMock ynToken;
     ViewerAssetMock asset;
@@ -115,13 +115,13 @@ contract WithdrawalRequestViewerTest is Test {
             )
         );
 
-        WithdrawalRequestManager implementation = new WithdrawalRequestManager();
-        manager = WithdrawalRequestManager(
+        WithdrawalRequest implementation = new WithdrawalRequest();
+        manager = WithdrawalRequest(
             address(
                 new ERC1967Proxy(
                     address(implementation),
                     abi.encodeCall(
-                        WithdrawalRequestManager.initialize,
+                        WithdrawalRequest.initialize,
                         (
                             address(ynToken),
                             admin,
@@ -178,7 +178,7 @@ contract WithdrawalRequestViewerTest is Test {
         vm.prank(fulfiller);
         manager.fulfillWithdrawalRequest(id, address(asset), 4 ether);
 
-        WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(id);
+        WithdrawalRequest.Request memory request = manager.requests(id);
         WithdrawalRequestViewer.RequestView memory view_ = viewer.getRequest(manager, id);
 
         assertEq(view_.id, id);
@@ -259,7 +259,7 @@ contract WithdrawalRequestViewerTest is Test {
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, receiver);
 
-        WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(id);
+        WithdrawalRequest.Request memory request = manager.requests(id);
         assertTrue(viewer.requestIsClaimed(manager, id));
 
         vm.prank(fulfiller);
@@ -291,10 +291,10 @@ contract WithdrawalRequestViewerTest is Test {
     }
 
     function testViewerRevertsForMissingRequest() public {
-        vm.expectRevert(abi.encodeWithSelector(WithdrawalRequestManager.RequestNotFound.selector, 123));
+        vm.expectRevert(abi.encodeWithSelector(WithdrawalRequest.RequestNotFound.selector, 123));
         viewer.getRequest(manager, 123);
 
-        vm.expectRevert(abi.encodeWithSelector(WithdrawalRequestManager.RequestNotFound.selector, 123));
+        vm.expectRevert(abi.encodeWithSelector(WithdrawalRequest.RequestNotFound.selector, 123));
         viewer.maxFulfillmentAssets(manager, 123, address(asset));
     }
 }

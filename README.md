@@ -6,9 +6,9 @@ Standalone Foundry package for YieldNest withdrawal request management.
 
 - `src/Bag.sol`: per-request NFT claim container.
 - `src/BeaconProxyFactory.sol`: upgradeable beacon proxy factory for Bags.
-- `src/WithdrawalRequestManager.sol`: yn-token withdrawal request queue and fulfilment manager.
+- `src/WithdrawalRequest.sol`: yn-token withdrawal request queue and fulfilment contract.
 - `src/interface/`: public interfaces used by the withdrawal contracts.
-- `script/deploy/DeployWithdrawalRequestManager.s.sol`: ynETHx deployment script.
+- `script/deploy/DeployWithdrawalRequest.s.sol`: ynETHx deployment script.
 - `test/local/unit/`: unit tests.
 - `test/mainnet/`: mainnet-fork integration tests.
 
@@ -22,5 +22,5 @@ forge test --match-path 'test/local/unit/*.t.sol'
 Mainnet-fork tests use `ETH_MAINNET_RPC_URL`:
 
 ```sh
-FOUNDRY_PROFILE=mainnet forge test --match-path test/mainnet/withdrawalrequestmanager.spec.sol
+FOUNDRY_PROFILE=mainnet forge test --match-path test/mainnet/withdrawalrequest.spec.sol
 ```

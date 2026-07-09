@@ -12,12 +12,12 @@ import {MainnetContracts as MC} from "lib/yieldnest-vault/script/Contracts.sol";
 import {IBag} from "src/interface/IBag.sol";
 import {Bag} from "src/Bag.sol";
 import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
-import {WithdrawalRequestManager} from "src/WithdrawalRequestManager.sol";
+import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 import {WithdrawalRequestViewer} from "views/WithdrawalRequestViewer.sol";
 
-contract WithdrawalRequestManagerMainnetTest is Test, Actors {
+contract WithdrawalRequestMainnetTest is Test, Actors {
     BaseVault public vault;
-    WithdrawalRequestManager public manager;
+    WithdrawalRequest public manager;
     WithdrawalRequestViewer public viewer;
     Bag public bagImplementation;
     BeaconProxyFactory public beaconFactoryImplementation;
@@ -47,11 +47,11 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         );
         beaconFactory = BeaconProxyFactory(address(beaconFactoryProxy));
 
-        WithdrawalRequestManager implementation = new WithdrawalRequestManager();
+        WithdrawalRequest implementation = new WithdrawalRequest();
         ERC1967Proxy proxy = new ERC1967Proxy(
             address(implementation),
             abi.encodeCall(
-                WithdrawalRequestManager.initialize,
+                WithdrawalRequest.initialize,
                 (
                     address(vault),
                     ADMIN,
@@ -63,7 +63,7 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
                 )
             )
         );
-        manager = WithdrawalRequestManager(address(proxy));
+        manager = WithdrawalRequest(address(proxy));
 
         bytes32 creatorRole = beaconFactory.CREATOR_ROLE();
         vm.prank(ADMIN);
@@ -90,7 +90,7 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         return IBag(bag).claim(assets, payable(recipient), amounts)[0];
     }
 
-    function test_withdrawalManager_fulfillsWETHWithdrawal() public {
+    function test_withdrawalRequest_fulfillsWETHWithdrawal() public {
         uint256 depositedShares = _depositIntoYnETHx(MC.WETH, requester, 10 ether);
         uint256 requestId = _requestWithdrawal(requester, depositedShares);
 
@@ -100,7 +100,7 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         vm.prank(fulfiller);
         uint256 burnedShares = manager.fulfillWithdrawalRequest(requestId, MC.WETH, 2 ether);
 
-        WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(requestId);
+        WithdrawalRequest.Request memory request = manager.requests(requestId);
         assertEq(IERC20(MC.WETH).balanceOf(request.bag), 2 ether);
         assertEq(IERC20(MC.WETH).balanceOf(requester), 0);
         assertEq(IERC20(MC.WETH).balanceOf(address(manager)), 0);
@@ -113,7 +113,7 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         assertEq(IERC20(MC.WETH).balanceOf(requester), 2 ether);
     }
 
-    function test_withdrawalManager_fulfillsMaxWETHWithdrawal() public {
+    function test_withdrawalRequest_fulfillsMaxWETHWithdrawal() public {
         uint256 depositedShares = _depositIntoYnETHx(MC.WETH, requester, 10 ether);
         uint256 requestId = _requestWithdrawal(requester, depositedShares);
 
@@ -123,7 +123,7 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         vm.prank(fulfiller);
         uint256 burnedShares = manager.fulfillWithdrawalRequest(requestId, MC.WETH, maxAssets);
 
-        WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(requestId);
+        WithdrawalRequest.Request memory request = manager.requests(requestId);
         assertEq(IERC20(MC.WETH).balanceOf(request.bag), maxAssets);
         assertEq(IERC20(MC.WETH).balanceOf(requester), 0);
         assertEq(IERC20(MC.WETH).balanceOf(address(manager)), 0);
@@ -135,7 +135,7 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         assertEq(IERC20(MC.WETH).balanceOf(requester), maxAssets);
     }
 
-    function test_withdrawalManager_fulfillMaxDoesNotBurnMoreThanLockedShares(uint256 assetIndex, uint256 depositAmount)
+    function test_withdrawalRequest_fulfillMaxDoesNotBurnMoreThanLockedShares(uint256 assetIndex, uint256 depositAmount)
         public
     {
         address[3] memory assets = [MC.WETH, MC.WSTETH, MC.WOETH];
@@ -149,12 +149,12 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         vm.prank(fulfiller);
         uint256 burnedShares = manager.fulfillWithdrawalRequest(requestId, asset, maxAssets);
 
-        WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(requestId);
+        WithdrawalRequest.Request memory request = manager.requests(requestId);
         assertLe(burnedShares, depositedShares);
         assertEq(request.amountLocked, depositedShares - burnedShares);
     }
 
-    function test_withdrawalManager_convertToAssetsForLiveYnETHx(uint256 assetIndex, uint256 shares) public view {
+    function test_withdrawalRequest_convertToAssetsForLiveYnETHx(uint256 assetIndex, uint256 shares) public view {
         address[3] memory assets = [MC.WETH, MC.WSTETH, MC.WOETH];
         address asset = assets[bound(assetIndex, 0, assets.length - 1)];
         shares = bound(shares, 1e15, 100 ether);
@@ -165,7 +165,7 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         assertLe(assetsForShares, type(uint128).max);
     }
 
-    function test_withdrawalManager_fulfillsMultiAssetWithdrawal(
+    function test_withdrawalRequest_fulfillsMultiAssetWithdrawal(
         uint256 assetIndex,
         uint256 depositAmount,
         uint256 withdrawAmount
@@ -184,7 +184,7 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         vm.prank(fulfiller);
         uint256 burnedShares = manager.fulfillWithdrawalRequest(requestId, asset, withdrawAmount);
 
-        WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(requestId);
+        WithdrawalRequest.Request memory request = manager.requests(requestId);
         assertEq(IERC20(asset).balanceOf(request.bag), withdrawAmount);
         assertEq(IERC20(asset).balanceOf(requester), 0);
         assertEq(IERC20(asset).balanceOf(address(manager)), managerAssetBalanceBefore);
@@ -197,7 +197,7 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         assertEq(IERC20(asset).balanceOf(requester), withdrawAmount);
     }
 
-    function test_withdrawalManager_fulfillsPartialWithdrawals(uint256 firstWithdraw, uint256 secondWithdraw) public {
+    function test_withdrawalRequest_fulfillsPartialWithdrawals(uint256 firstWithdraw, uint256 secondWithdraw) public {
         uint256 depositAmount = 20 ether;
         firstWithdraw = bound(firstWithdraw, 1e15, 5 ether);
         secondWithdraw = bound(secondWithdraw, 1e15, 5 ether);
@@ -208,13 +208,13 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         vm.prank(fulfiller);
         uint256 firstBurned = manager.fulfillWithdrawalRequest(requestId, MC.WETH, firstWithdraw);
 
-        WithdrawalRequestManager.WithdrawalRequest memory requestAfterFirst = manager.requests(requestId);
+        WithdrawalRequest.Request memory requestAfterFirst = manager.requests(requestId);
         assertEq(requestAfterFirst.amountLocked, depositedShares - firstBurned);
 
         vm.prank(fulfiller);
         uint256 secondBurned = manager.fulfillWithdrawalRequest(requestId, MC.WETH, secondWithdraw);
 
-        WithdrawalRequestManager.WithdrawalRequest memory requestAfterSecond = manager.requests(requestId);
+        WithdrawalRequest.Request memory requestAfterSecond = manager.requests(requestId);
         assertEq(requestAfterSecond.amountLocked, depositedShares - firstBurned - secondBurned);
         assertEq(IERC20(MC.WETH).balanceOf(requestAfterSecond.bag), firstWithdraw + secondWithdraw);
         assertEq(IERC20(MC.WETH).balanceOf(requester), 0);
@@ -228,7 +228,7 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         assertEq(IERC20(MC.WETH).balanceOf(requester), firstWithdraw + secondWithdraw);
     }
 
-    function test_withdrawalManager_revertsWhenFulfillmentWouldBurnMoreThanLocked() public {
+    function test_withdrawalRequest_revertsWhenFulfillmentWouldBurnMoreThanLocked() public {
         uint256 depositedShares = _depositIntoYnETHx(MC.WETH, requester, 2 ether);
         uint256 requestId = _requestWithdrawal(requester, depositedShares / 4);
 
@@ -237,7 +237,7 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         manager.fulfillWithdrawalRequest(requestId, MC.WETH, 1 ether);
     }
 
-    function test_withdrawalManager_revertsForUnauthorizedFulfiller() public {
+    function test_withdrawalRequest_revertsForUnauthorizedFulfiller() public {
         uint256 depositedShares = _depositIntoYnETHx(MC.WETH, requester, 5 ether);
         uint256 requestId = _requestWithdrawal(requester, depositedShares);
 
@@ -246,7 +246,7 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         manager.fulfillWithdrawalRequest(requestId, MC.WETH, 1 ether);
     }
 
-    function test_withdrawalManager_respectsMinimumAndPause() public {
+    function test_withdrawalRequest_respectsMinimumAndPause() public {
         vm.prank(configurationManager);
         manager.setMinimumAmountToLock(2 ether);
 
@@ -254,7 +254,7 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
 
         vm.startPrank(requester);
         IERC20(address(vault)).approve(address(manager), depositedShares);
-        vm.expectRevert(abi.encodeWithSelector(WithdrawalRequestManager.AmountBelowMinimum.selector, 1 ether, 2 ether));
+        vm.expectRevert(abi.encodeWithSelector(WithdrawalRequest.AmountBelowMinimum.selector, 1 ether, 2 ether));
         manager.requestWithdrawal(1 ether, requester);
         vm.stopPrank();
 
@@ -266,19 +266,19 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         manager.requestWithdrawal(depositedShares, requester);
     }
 
-    function test_withdrawalManager_revertsForInvalidRequestAndZeroAmounts() public {
-        vm.expectRevert(abi.encodeWithSelector(WithdrawalRequestManager.RequestNotFound.selector, 123));
+    function test_withdrawalRequest_revertsForInvalidRequestAndZeroAmounts() public {
+        vm.expectRevert(abi.encodeWithSelector(WithdrawalRequest.RequestNotFound.selector, 123));
         vm.prank(fulfiller);
         manager.fulfillWithdrawalRequest(123, MC.WETH, 1 ether);
 
         uint256 depositedShares = _depositIntoYnETHx(MC.WETH, requester, 5 ether);
         uint256 requestId = _requestWithdrawal(requester, depositedShares);
 
-        vm.expectRevert(WithdrawalRequestManager.ZeroAmount.selector);
+        vm.expectRevert(WithdrawalRequest.ZeroAmount.selector);
         vm.prank(fulfiller);
         manager.fulfillWithdrawalRequest(requestId, MC.WETH, 0);
 
-        vm.expectRevert(WithdrawalRequestManager.ZeroAddress.selector);
+        vm.expectRevert(WithdrawalRequest.ZeroAddress.selector);
         vm.prank(fulfiller);
         manager.fulfillWithdrawalRequest(requestId, address(0), 1 ether);
     }
@@ -300,7 +300,7 @@ contract WithdrawalRequestManagerMainnetTest is Test, Actors {
         requestId = manager.requestWithdrawal(amount, owner);
         vm.stopPrank();
 
-        WithdrawalRequestManager.WithdrawalRequest memory request = manager.requests(requestId);
+        WithdrawalRequest.Request memory request = manager.requests(requestId);
         assertTrue(manager.requestExists(requestId));
         assertFalse(manager.requestExists(requestId + 1));
         assertEq(address(manager.beaconFactory()), address(beaconFactory));

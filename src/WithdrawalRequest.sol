@@ -20,9 +20,9 @@ interface IWithdrawAssetVault is IERC20 {
     function processAccounting() external;
 }
 
-/// @title WithdrawalRequestManager
+/// @title WithdrawalRequest
 /// @notice Custodies one yn-token type and tracks permissioned fulfilment of withdrawal requests.
-contract WithdrawalRequestManager is
+contract WithdrawalRequest is
     Initializable,
     AccessControlUpgradeable,
     ERC721Upgradeable,
@@ -33,18 +33,18 @@ contract WithdrawalRequestManager is
 
     string public constant VERSION = "0.1.0";
 
-    struct WithdrawalRequest {
+    struct Request {
         address bag;
         uint256 amountLocked;
     }
 
     /// @custom:storage-location erc7201:yieldnest.storage.withdrawal_request_manager
-    struct WithdrawalRequestManagerStorage {
+    struct RequestStorage {
         IWithdrawAssetVault token;
         IBeaconProxyFactory beaconFactory;
         uint256 minimumAmountToLock;
         uint256 nextRequestId;
-        mapping(uint256 id => WithdrawalRequest request) requests;
+        mapping(uint256 id => Request request) requests;
     }
 
     error ZeroAddress();
@@ -75,12 +75,12 @@ contract WithdrawalRequestManager is
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
 
     // keccak256(abi.encode(uint256(keccak256("yieldnest.storage.withdrawal_request_manager")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant WithdrawalRequestManagerStorageLocation =
+    bytes32 private constant RequestStorageLocation =
         0x15a0bae20a3f0267f2acf0f91b407bda6fc5d0eeb31acffcadb37a1c9e929100;
 
-    function _getWithdrawalRequestManagerStorage() private pure returns (WithdrawalRequestManagerStorage storage $) {
+    function _getRequestStorage() private pure returns (RequestStorage storage $) {
         assembly {
-            $.slot := WithdrawalRequestManagerStorageLocation
+            $.slot := RequestStorageLocation
         }
     }
 
@@ -106,10 +106,10 @@ contract WithdrawalRequestManager is
         }
 
         __AccessControl_init();
-        __ERC721_init("YieldNest Withdrawal Request", "ynWREQ");
+        __ERC721_init("MAX Vault Withdrawal Request", "ynWREQ");
         __Pausable_init();
 
-        WithdrawalRequestManagerStorage storage $ = _getWithdrawalRequestManagerStorage();
+        RequestStorage storage $ = _getRequestStorage();
         $.token = IWithdrawAssetVault(token_);
         $.beaconFactory = IBeaconProxyFactory(beaconFactory_);
         $.minimumAmountToLock = minimumAmountToLock_;
@@ -124,7 +124,7 @@ contract WithdrawalRequestManager is
     // --- Configuration ---
 
     function setMinimumAmountToLock(uint256 minimumAmountToLock_) external onlyRole(CONFIGURATION_MANAGER_ROLE) {
-        WithdrawalRequestManagerStorage storage $ = _getWithdrawalRequestManagerStorage();
+        RequestStorage storage $ = _getRequestStorage();
         uint256 oldMinimumAmountToLock = $.minimumAmountToLock;
         $.minimumAmountToLock = minimumAmountToLock_;
 
@@ -141,14 +141,14 @@ contract WithdrawalRequestManager is
         if (amount == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
 
-        WithdrawalRequestManagerStorage storage $ = _getWithdrawalRequestManagerStorage();
+        RequestStorage storage $ = _getRequestStorage();
         if (amount < $.minimumAmountToLock) revert AmountBelowMinimum(amount, $.minimumAmountToLock);
 
         IERC20(address($.token)).safeTransferFrom(msg.sender, address(this), amount);
 
         id = $.nextRequestId++;
         address bag = $.beaconFactory.create(abi.encodeCall(IBag.initialize, (address(this), id)));
-        $.requests[id] = WithdrawalRequest({bag: bag, amountLocked: amount});
+        $.requests[id] = Request({bag: bag, amountLocked: amount});
         _mint(receiver, id);
 
         emit WithdrawalRequested(id, receiver, address($.token), bag, amount);
@@ -175,8 +175,8 @@ contract WithdrawalRequestManager is
     {
         if (asset == address(0)) revert ZeroAddress();
 
-        WithdrawalRequestManagerStorage storage $ = _getWithdrawalRequestManagerStorage();
-        WithdrawalRequest storage request = $.requests[id];
+        RequestStorage storage $ = _getRequestStorage();
+        Request storage request = $.requests[id];
         if (!_requestExists(request)) revert RequestNotFound(id);
 
         if (assets == 0) revert ZeroAmount();
@@ -216,35 +216,35 @@ contract WithdrawalRequestManager is
 
     // --- Views ---
 
-    /// @notice Returns the configured yn-token handled by this manager.
+    /// @notice Returns the configured yn-token handled by this withdrawal request contract.
     /// @return The configured yn-token.
     function token() public view returns (IWithdrawAssetVault) {
-        return _getWithdrawalRequestManagerStorage().token;
+        return _getRequestStorage().token;
     }
 
     /// @notice Returns the beacon factory used to create request bags.
     /// @return The beacon factory contract.
     function beaconFactory() public view returns (IBeaconProxyFactory) {
-        return _getWithdrawalRequestManagerStorage().beaconFactory;
+        return _getRequestStorage().beaconFactory;
     }
 
     /// @notice Returns the minimum yn-token share amount required to open a request.
     /// @return The minimum amount to lock.
     function minimumAmountToLock() public view returns (uint256) {
-        return _getWithdrawalRequestManagerStorage().minimumAmountToLock;
+        return _getRequestStorage().minimumAmountToLock;
     }
 
     /// @notice Returns the next withdrawal request id to be assigned.
     /// @return The next request id.
     function nextRequestId() public view returns (uint256) {
-        return _getWithdrawalRequestManagerStorage().nextRequestId;
+        return _getRequestStorage().nextRequestId;
     }
 
     /// @notice Returns a withdrawal request by id.
     /// @param id Request id to query.
     /// @return The stored withdrawal request.
-    function requests(uint256 id) public view returns (WithdrawalRequest memory) {
-        WithdrawalRequest memory request = _getWithdrawalRequestManagerStorage().requests[id];
+    function requests(uint256 id) public view returns (Request memory) {
+        Request memory request = _getRequestStorage().requests[id];
         if (!_requestExists(request)) revert RequestNotFound(id);
 
         return request;
@@ -254,10 +254,10 @@ contract WithdrawalRequestManager is
     /// @param id Request id to query.
     /// @return True if the request exists.
     function requestExists(uint256 id) public view returns (bool) {
-        return _requestExists(_getWithdrawalRequestManagerStorage().requests[id]);
+        return _requestExists(_getRequestStorage().requests[id]);
     }
 
-    function _requestExists(WithdrawalRequest memory request) internal pure returns (bool) {
+    function _requestExists(Request memory request) internal pure returns (bool) {
         return request.bag != address(0);
     }
 

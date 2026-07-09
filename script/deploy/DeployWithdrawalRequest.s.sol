@@ -8,17 +8,17 @@ import {MainnetContracts as MC} from "lib/yieldnest-vault/script/Contracts.sol";
 import {BaseScript} from "lib/yieldnest-vault/script/BaseScript.sol";
 import {Bag} from "src/Bag.sol";
 import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
-import {WithdrawalRequestManager} from "src/WithdrawalRequestManager.sol";
+import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 import {WithdrawalRequestViewer} from "views/WithdrawalRequestViewer.sol";
 
-contract DeployWithdrawalRequestManager is BaseScript {
+contract DeployWithdrawalRequest is BaseScript {
     uint256 public constant MINIMUM_AMOUNT_TO_LOCK = 10 ether;
 
     Bag public bagImplementation;
     BeaconProxyFactory public beaconFactoryImplementation;
     BeaconProxyFactory public beaconFactory;
-    WithdrawalRequestManager public managerImplementation;
-    WithdrawalRequestManager public withdrawalRequestManager;
+    WithdrawalRequest public requestImplementation;
+    WithdrawalRequest public withdrawalRequest;
     WithdrawalRequestViewer public withdrawalRequestViewer;
     ERC1967Proxy public beaconFactoryProxy;
     ERC1967Proxy public proxy;
@@ -33,7 +33,7 @@ contract DeployWithdrawalRequestManager is BaseScript {
     address public predictedProxy;
 
     function symbol() public pure override returns (string memory) {
-        return "withdrawalRequestManager-ynETHx";
+        return "withdrawalRequest-ynETHx";
     }
 
     function run() public {
@@ -60,11 +60,11 @@ contract DeployWithdrawalRequestManager is BaseScript {
             )
         );
         beaconFactory = BeaconProxyFactory(address(beaconFactoryProxy));
-        managerImplementation = new WithdrawalRequestManager();
+        requestImplementation = new WithdrawalRequest();
         proxy = new ERC1967Proxy(
-            address(managerImplementation),
+            address(requestImplementation),
             abi.encodeCall(
-                WithdrawalRequestManager.initialize,
+                WithdrawalRequest.initialize,
                 (
                     token,
                     defaultAdmin,
@@ -76,8 +76,8 @@ contract DeployWithdrawalRequestManager is BaseScript {
                 )
             )
         );
-        withdrawalRequestManager = WithdrawalRequestManager(address(proxy));
-        require(address(withdrawalRequestManager) == predictedProxy, "unexpected proxy address");
+        withdrawalRequest = WithdrawalRequest(address(proxy));
+        require(address(withdrawalRequest) == predictedProxy, "unexpected proxy address");
 
         withdrawalRequestViewer = new WithdrawalRequestViewer();
 
@@ -113,17 +113,16 @@ contract DeployWithdrawalRequestManager is BaseScript {
 
     function _verifySetup() public view virtual {
         if (address(timelock) == address(0)) revert InvalidSetup();
-        if (address(withdrawalRequestManager) != predictedProxy) revert InvalidSetup();
+        if (address(withdrawalRequest) != predictedProxy) revert InvalidSetup();
         if (!timelock.hasRole(timelock.DEFAULT_ADMIN_ROLE(), address(timelock))) revert InvalidSetup();
         if (timelock.hasRole(timelock.DEFAULT_ADMIN_ROLE(), proposer)) revert InvalidSetup();
         if (!timelock.hasRole(timelock.PROPOSER_ROLE(), proposer)) revert InvalidSetup();
         if (!timelock.hasRole(timelock.CANCELLER_ROLE(), proposer)) revert InvalidSetup();
         if (!timelock.hasRole(timelock.EXECUTOR_ROLE(), executor)) revert InvalidSetup();
-        if (!withdrawalRequestManager.hasRole(withdrawalRequestManager.DEFAULT_ADMIN_ROLE(), address(timelock))) {
+        if (!withdrawalRequest.hasRole(withdrawalRequest.DEFAULT_ADMIN_ROLE(), address(timelock))) {
             revert InvalidSetup();
         }
-        if (!withdrawalRequestManager.hasRole(withdrawalRequestManager.CONFIGURATION_MANAGER_ROLE(), address(timelock)))
-        {
+        if (!withdrawalRequest.hasRole(withdrawalRequest.CONFIGURATION_MANAGER_ROLE(), address(timelock))) {
             revert InvalidSetup();
         }
         if (!beaconFactory.hasRole(beaconFactory.DEFAULT_ADMIN_ROLE(), address(timelock))) revert InvalidSetup();
@@ -141,7 +140,7 @@ contract DeployWithdrawalRequestManager is BaseScript {
     }
 
     function _saveDeployment() internal virtual {
-        vm.serializeAddress(symbol(), "implementation", address(managerImplementation));
+        vm.serializeAddress(symbol(), "implementation", address(requestImplementation));
         vm.serializeAddress(symbol(), "timelock", address(timelock));
         vm.serializeAddress(symbol(), "bagImplementation", address(bagImplementation));
         vm.serializeAddress(symbol(), "beaconFactoryImplementation", address(beaconFactoryImplementation));
@@ -150,7 +149,7 @@ contract DeployWithdrawalRequestManager is BaseScript {
         vm.serializeAddress(symbol(), "beacon", beaconFactory.beacon());
         vm.serializeAddress(symbol(), "proxy", address(proxy));
         vm.serializeAddress(symbol(), "predictedProxy", predictedProxy);
-        vm.serializeAddress(symbol(), "withdrawalRequestManager", address(withdrawalRequestManager));
+        vm.serializeAddress(symbol(), "withdrawalRequest", address(withdrawalRequest));
         vm.serializeAddress(symbol(), "viewer", address(withdrawalRequestViewer));
         vm.serializeAddress(symbol(), "token", token);
         vm.serializeUint(symbol(), "minimumAmountToLock", MINIMUM_AMOUNT_TO_LOCK);

@@ -4,19 +4,19 @@ pragma solidity ^0.8.24;
 import "forge-std/Test.sol";
 import {TimelockController} from "lib/openzeppelin-contracts/contracts/governance/TimelockController.sol";
 import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
-import {WithdrawalRequestManager} from "src/WithdrawalRequestManager.sol";
-import {DeployWithdrawalRequestManager} from "script/deploy/DeployWithdrawalRequestManager.s.sol";
+import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
+import {DeployWithdrawalRequest} from "script/deploy/DeployWithdrawalRequest.s.sol";
 import {WithdrawalRequestViewer} from "views/WithdrawalRequestViewer.sol";
 
-contract DeployWithdrawalRequestManagerTest is Test {
+contract DeployWithdrawalRequestTest is Test {
     function testRunDeploysAndRecordsViewer() public {
-        DeployWithdrawalRequestManager deployScript = new DeployWithdrawalRequestManager();
+        DeployWithdrawalRequest deployScript = new DeployWithdrawalRequest();
 
         deployScript.run();
 
         WithdrawalRequestViewer viewer = deployScript.withdrawalRequestViewer();
         TimelockController timelock = deployScript.timelock();
-        WithdrawalRequestManager manager = deployScript.withdrawalRequestManager();
+        WithdrawalRequest manager = deployScript.withdrawalRequest();
         BeaconProxyFactory beaconFactory = deployScript.beaconFactory();
         assertGt(address(viewer).code.length, 0);
         assertGt(address(timelock).code.length, 0);
@@ -37,7 +37,7 @@ contract DeployWithdrawalRequestManagerTest is Test {
 
         assertEq(vm.parseJsonAddress(deploymentJson, ".timelock"), address(timelock));
         assertEq(vm.parseJsonAddress(deploymentJson, ".viewer"), address(viewer));
-        assertEq(vm.parseJsonAddress(deploymentJson, ".withdrawalRequestManager"), address(manager));
+        assertEq(vm.parseJsonAddress(deploymentJson, ".withdrawalRequest"), address(manager));
         assertEq(vm.parseJsonAddress(deploymentJson, ".defaultAdmin"), address(timelock));
         assertEq(vm.parseJsonAddress(deploymentJson, ".configurationManager"), address(timelock));
         assertEq(vm.parseJsonUint(deploymentJson, ".timelockMinDelay"), deployScript.minDelay());
