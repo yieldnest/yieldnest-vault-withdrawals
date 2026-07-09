@@ -107,7 +107,6 @@ contract WithdrawalRequest is Initializable, AccessControlUpgradeable, ERC721Upg
         $.token = IWithdrawAssetVault(token_);
         $.beaconFactory = IBeaconProxyFactory(beaconFactory_);
         $.minimumAmountToLock = minimumAmountToLock_;
-        $.nextRequestId = 1;
 
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
         _grantRole(FULFILLER_ROLE, fulfiller);

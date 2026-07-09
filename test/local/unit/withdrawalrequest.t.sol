@@ -181,13 +181,13 @@ contract WithdrawalRequestTest is Test {
 
     function testRequestWithdrawalTransfersTokenAndRecordsRequest() public {
         vm.expectEmit(true, false, true, false, address(manager));
-        emit WithdrawalRequest.WithdrawalRequested(1, user, address(ynToken), address(0), 10 ether);
+        emit WithdrawalRequest.WithdrawalRequested(0, user, address(ynToken), address(0), 10 ether);
 
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, user);
 
-        assertEq(id, 1);
-        assertEq(manager.nextRequestId(), 2);
+        assertEq(id, 0);
+        assertEq(manager.nextRequestId(), 1);
         assertEq(address(manager.beaconFactory()), address(beaconFactory));
         assertTrue(manager.requestExists(id));
         assertFalse(manager.requestExists(id + 1));
@@ -287,7 +287,7 @@ contract WithdrawalRequestTest is Test {
 
         WithdrawalRequest.Request memory request = manager.requests(id);
 
-        assertEq(id, 1);
+        assertEq(id, 0);
         assertTrue(manager.requestExists(id));
         assertFalse(manager.requestExists(id + 1));
         assertEq(ynToken.balanceOf(user), userBalanceBefore - amount);

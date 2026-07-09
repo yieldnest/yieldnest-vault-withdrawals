@@ -49,7 +49,7 @@ contract WithdrawalRequestViewer {
     }
 
     /// @notice Returns requests currently owned by `owner`.
-    /// @dev Iterates request ids from 1 to `nextRequestId() - 1`; intended for offchain/UI reads.
+    /// @dev Iterates request ids from 0 to `nextRequestId() - 1`; intended for offchain/UI reads.
     function getInProgressRequestsForOwner(WithdrawalRequest withdrawalRequest, address owner)
         external
         view
@@ -62,13 +62,13 @@ contract WithdrawalRequestViewer {
         uint256 nextRequestId = withdrawalRequest.nextRequestId();
         uint256 count;
 
-        for (uint256 id = 1; id < nextRequestId; ++id) {
+        for (uint256 id = 0; id < nextRequestId; ++id) {
             if (_matchesOwner(withdrawalRequest, id, owner)) count++;
         }
 
         requests_ = new RequestView[](count);
         uint256 index;
-        for (uint256 id = 1; id < nextRequestId; ++id) {
+        for (uint256 id = 0; id < nextRequestId; ++id) {
             if (_matchesOwner(withdrawalRequest, id, owner)) {
                 requests_[index++] = _getRequest(id, withdrawalRequest.requests(id), token, assets, withdrawalRequest);
             }
