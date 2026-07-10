@@ -30,6 +30,7 @@ contract WithdrawalRequest is Initializable, AccessControlUpgradeable, ERC721Upg
     struct Request {
         address bag;
         uint256 amountLocked;
+        address[] assetsRedeemed;
     }
 
     /// @custom:storage-location erc7201:yieldnest.storage.withdrawal_request_manager
@@ -141,7 +142,8 @@ contract WithdrawalRequest is Initializable, AccessControlUpgradeable, ERC721Upg
 
         id = $.nextRequestId++;
         address bag = $.beaconFactory.create(abi.encodeCall(IBag.initialize, (address(this), id)));
-        $.requests[id] = Request({bag: bag, amountLocked: amount});
+        $.requests[id].bag = bag;
+        $.requests[id].amountLocked = amount;
         _mint(receiver, id);
 
         emit WithdrawalRequested(id, receiver, address($.token), bag, amount);
@@ -197,6 +199,8 @@ contract WithdrawalRequest is Initializable, AccessControlUpgradeable, ERC721Upg
 
         assetsWithdrawn = assetBalanceAfter - assetBalanceBefore;
         if (assetsWithdrawn != assets) revert UnexpectedAssetsWithdrawn(assets, assetsWithdrawn);
+
+        _recordAssetRedeemed(request, asset);
 
         request.amountLocked -= amountBurned;
 
@@ -261,6 +265,14 @@ contract WithdrawalRequest is Initializable, AccessControlUpgradeable, ERC721Upg
 
     function _requestExists(Request memory request) internal pure returns (bool) {
         return request.bag != address(0);
+    }
+
+    function _recordAssetRedeemed(Request storage request, address asset) internal {
+        for (uint256 i = 0; i < request.assetsRedeemed.length; ++i) {
+            if (request.assetsRedeemed[i] == asset) return;
+        }
+
+        request.assetsRedeemed.push(asset);
     }
 
     function ownerOf(uint256 id) public view override(ERC721Upgradeable, IAuth) returns (address) {

@@ -485,6 +485,7 @@ contract WithdrawalRequestTest is Test {
         uint256 id = manager.requestWithdrawal(10 ether, user);
 
         WithdrawalRequest.Request memory request = manager.requests(id);
+        assertEq(request.assetsRedeemed.length, 0);
 
         vm.expectEmit(true, true, true, true, address(manager));
         emit WithdrawalRequest.WithdrawalRequestFulfilled(
@@ -503,11 +504,30 @@ contract WithdrawalRequestTest is Test {
         assertEq(asset.balanceOf(request.bag), 4 ether);
         assertEq(asset.balanceOf(user), 0);
         assertEq(request.amountLocked, 6 ether);
+        assertEq(request.assetsRedeemed.length, 1);
+        assertEq(request.assetsRedeemed[0], address(asset));
 
         vm.prank(user);
         assertEq(_claimSingleERC20(request.bag, address(asset), user, 4 ether)[0], 4 ether);
         assertEq(asset.balanceOf(user), 4 ether);
         assertEq(asset.balanceOf(request.bag), 0);
+    }
+
+    function testFulfillWithdrawalRequestTracksUniqueRedeemedAssets() public {
+        vm.prank(user);
+        uint256 id = manager.requestWithdrawal(10 ether, user);
+
+        vm.startPrank(fulfiller);
+        manager.fulfillWithdrawalRequest(id, address(asset), 4 ether);
+        manager.fulfillWithdrawalRequest(id, address(asset), 2 ether);
+        manager.fulfillWithdrawalRequest(id, address(secondAsset), 3 ether);
+        vm.stopPrank();
+
+        WithdrawalRequest.Request memory request = manager.requests(id);
+        assertEq(request.assetsRedeemed.length, 2);
+        assertEq(request.assetsRedeemed[0], address(asset));
+        assertEq(request.assetsRedeemed[1], address(secondAsset));
+        assertEq(request.amountLocked, 1 ether);
     }
 
     function testFuzzFulfillWithdrawalRequestBurnsLockedTokenAndSubtractsBurnedAmount(
@@ -527,6 +547,8 @@ contract WithdrawalRequestTest is Test {
 
         assertEq(amountBurned, assets);
         assertEq(request.amountLocked, lockedAmount - assets);
+        assertEq(request.assetsRedeemed.length, 1);
+        assertEq(request.assetsRedeemed[0], address(asset));
         assertEq(ynToken.balanceOf(address(manager)), lockedAmount - assets);
         assertEq(asset.balanceOf(request.bag), assets);
         assertEq(asset.balanceOf(address(manager)), 0);
