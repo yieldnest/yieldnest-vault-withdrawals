@@ -211,6 +211,14 @@ contract WithdrawalRequest is Initializable, AccessControlUpgradeable, ERC721Upg
         );
     }
 
+    function _recordAssetRedeemed(Request storage request, address asset) internal {
+        for (uint256 i = 0; i < request.assetsRedeemed.length; ++i) {
+            if (request.assetsRedeemed[i] == asset) return;
+        }
+
+        request.assetsRedeemed.push(asset);
+    }
+
     // --- Views ---
 
     /// @notice Returns the configured yn-token handled by this withdrawal request contract.
@@ -265,14 +273,6 @@ contract WithdrawalRequest is Initializable, AccessControlUpgradeable, ERC721Upg
 
     function _requestExists(Request memory request) internal pure returns (bool) {
         return request.bag != address(0);
-    }
-
-    function _recordAssetRedeemed(Request storage request, address asset) internal {
-        for (uint256 i = 0; i < request.assetsRedeemed.length; ++i) {
-            if (request.assetsRedeemed[i] == asset) return;
-        }
-
-        request.assetsRedeemed.push(asset);
     }
 
     function ownerOf(uint256 id) public view override(ERC721Upgradeable, IAuth) returns (address) {
