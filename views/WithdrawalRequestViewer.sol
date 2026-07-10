@@ -44,26 +44,18 @@ contract WithdrawalRequestViewer {
     }
 
     /// @notice Returns requests currently owned by `owner`.
-    /// @dev Iterates request ids from 0 to `nextRequestId() - 1`; intended for offchain/UI reads.
     function getInProgressRequestsForOwner(WithdrawalRequest withdrawalRequest, address owner)
         external
         view
         returns (RequestView[] memory requests_)
     {
         IWithdrawalRequestViewerVault token = IWithdrawalRequestViewerVault(address(withdrawalRequest.token()));
-        uint256 nextRequestId = withdrawalRequest.nextRequestId();
-        uint256 count;
-
-        for (uint256 id = 0; id < nextRequestId; ++id) {
-            if (_matchesOwner(withdrawalRequest, id, owner)) count++;
-        }
+        uint256 count = withdrawalRequest.balanceOf(owner);
 
         requests_ = new RequestView[](count);
-        uint256 index;
-        for (uint256 id = 0; id < nextRequestId; ++id) {
-            if (_matchesOwner(withdrawalRequest, id, owner)) {
-                requests_[index++] = _getRequest(id, withdrawalRequest.requests(id), token, withdrawalRequest);
-            }
+        for (uint256 i = 0; i < count; ++i) {
+            uint256 id = withdrawalRequest.tokenOfOwnerByIndex(owner, i);
+            requests_[i] = _getRequest(id, withdrawalRequest.requests(id), token, withdrawalRequest);
         }
     }
 
@@ -90,12 +82,6 @@ contract WithdrawalRequestViewer {
             isClaimed: _requestIsClaimed(request),
             assetBalances: assetBalances
         });
-    }
-
-    function _matchesOwner(WithdrawalRequest withdrawalRequest, uint256 id, address owner) internal view returns (bool) {
-        if (!withdrawalRequest.requestExists(id)) return false;
-
-        return withdrawalRequest.ownerOf(id) == owner;
     }
 
     /// @notice Returns true when the remaining locked yn-token amount is below the dust threshold.

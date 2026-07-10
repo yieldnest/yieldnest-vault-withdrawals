@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 import {IAccessControl} from "lib/openzeppelin-contracts/contracts/access/IAccessControl.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {ERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
+import {IERC721Enumerable} from "lib/openzeppelin-contracts/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
 import {PausableUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
 import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
 import {IBag} from "src/interface/IBag.sol";
@@ -199,6 +200,7 @@ contract WithdrawalRequestTest is Test {
         assertEq(manager.ownerOf(id), user);
         assertEq(manager.name(), "MAX Vault Withdrawal Request");
         assertEq(manager.symbol(), "ynWREQ");
+        assertTrue(manager.supportsInterface(type(IERC721Enumerable).interfaceId));
         assertEq(IBag(request.bag).ownerRegistry(), address(manager));
         assertEq(IBag(request.bag).id(), id);
         assertEq(request.amountLocked, 10 ether);
@@ -218,6 +220,11 @@ contract WithdrawalRequestTest is Test {
         assertTrue(firstRequest.bag != secondRequest.bag);
         assertEq(manager.ownerOf(firstId), user);
         assertEq(manager.ownerOf(secondId), user);
+        assertEq(manager.totalSupply(), 2);
+        assertEq(manager.tokenByIndex(0), firstId);
+        assertEq(manager.tokenByIndex(1), secondId);
+        assertEq(manager.tokenOfOwnerByIndex(user, 0), firstId);
+        assertEq(manager.tokenOfOwnerByIndex(user, 1), secondId);
         assertEq(IBag(firstRequest.bag).ownerRegistry(), address(manager));
         assertEq(IBag(secondRequest.bag).ownerRegistry(), address(manager));
     }
@@ -231,8 +238,22 @@ contract WithdrawalRequestTest is Test {
         assertEq(ynToken.balanceOf(user), 90 ether);
         assertEq(ynToken.balanceOf(address(manager)), 10 ether);
         assertEq(manager.ownerOf(id), receiver);
+        assertEq(manager.balanceOf(receiver), 1);
+        assertEq(manager.tokenOfOwnerByIndex(receiver, 0), id);
         assertEq(IBag(request.bag).ownerRegistry(), address(manager));
         assertEq(IBag(request.bag).id(), id);
+    }
+
+    function testRequestNFTEnumerableTracksTransfers() public {
+        vm.prank(user);
+        uint256 id = manager.requestWithdrawal(10 ether, receiver);
+
+        vm.prank(receiver);
+        manager.transferFrom(receiver, user, id);
+
+        assertEq(manager.balanceOf(receiver), 0);
+        assertEq(manager.balanceOf(user), 1);
+        assertEq(manager.tokenOfOwnerByIndex(user, 0), id);
     }
 
     function testViewerReturnsFullRequestPicture() public {

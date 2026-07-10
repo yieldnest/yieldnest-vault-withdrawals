@@ -5,6 +5,10 @@ import {
     AccessControlUpgradeable
 } from "lib/openzeppelin-contracts-upgradeable/contracts/access/AccessControlUpgradeable.sol";
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import {IERC721} from "lib/openzeppelin-contracts/contracts/token/ERC721/IERC721.sol";
+import {
+    ERC721EnumerableUpgradeable
+} from "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
 import {ERC721Upgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC721/ERC721Upgradeable.sol";
 import {Initializable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import {PausableUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
@@ -22,7 +26,14 @@ interface IWithdrawAssetVault is IERC20 {
 
 /// @title WithdrawalRequest
 /// @notice Custodies one yn-token type and tracks permissioned fulfilment of withdrawal requests.
-contract WithdrawalRequest is Initializable, AccessControlUpgradeable, ERC721Upgradeable, PausableUpgradeable, IAuth {
+contract WithdrawalRequest is
+    Initializable,
+    AccessControlUpgradeable,
+    ERC721Upgradeable,
+    ERC721EnumerableUpgradeable,
+    PausableUpgradeable,
+    IAuth
+{
     using SafeERC20 for IERC20;
 
     string public constant VERSION = "0.1.0";
@@ -102,6 +113,7 @@ contract WithdrawalRequest is Initializable, AccessControlUpgradeable, ERC721Upg
 
         __AccessControl_init();
         __ERC721_init("MAX Vault Withdrawal Request", "ynWREQ");
+        __ERC721Enumerable_init();
         __Pausable_init();
 
         RequestStorage storage $ = _getRequestStorage();
@@ -275,14 +287,29 @@ contract WithdrawalRequest is Initializable, AccessControlUpgradeable, ERC721Upg
         return request.bag != address(0);
     }
 
-    function ownerOf(uint256 id) public view override(ERC721Upgradeable, IAuth) returns (address) {
+    function ownerOf(uint256 id) public view override(ERC721Upgradeable, IERC721, IAuth) returns (address) {
         return super.ownerOf(id);
+    }
+
+    function _update(address to, uint256 tokenId, address auth)
+        internal
+        override(ERC721Upgradeable, ERC721EnumerableUpgradeable)
+        returns (address)
+    {
+        return super._update(to, tokenId, auth);
+    }
+
+    function _increaseBalance(address account, uint128 value)
+        internal
+        override(ERC721Upgradeable, ERC721EnumerableUpgradeable)
+    {
+        super._increaseBalance(account, value);
     }
 
     function supportsInterface(bytes4 interfaceId)
         public
         view
-        override(AccessControlUpgradeable, ERC721Upgradeable)
+        override(AccessControlUpgradeable, ERC721Upgradeable, ERC721EnumerableUpgradeable)
         returns (bool)
     {
         return super.supportsInterface(interfaceId);
