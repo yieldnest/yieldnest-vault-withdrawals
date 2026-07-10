@@ -107,7 +107,7 @@ contract WithdrawalRequestTest is Test {
     address pauser = address(0xAA05E);
     address user = address(0xB0B);
     address receiver = address(0xCA11);
-    uint256 minimumAmountToLock = 1 ether;
+    uint256 minWithdrawalAmount = 1 ether;
 
     function setUp() public {
         ynToken = new MockWithdrawAssetVault();
@@ -134,7 +134,7 @@ contract WithdrawalRequestTest is Test {
                     configurationManager,
                     pauser,
                     address(beaconFactory),
-                    minimumAmountToLock
+                    minWithdrawalAmount
                 )
             )
         );
@@ -276,7 +276,7 @@ contract WithdrawalRequestTest is Test {
     function testFuzzRequestWithdrawalTransfersTokenAndMintsRequestNFTToReceiver(uint96 amount, address receiver_)
         public
     {
-        amount = uint96(bound(amount, minimumAmountToLock, ynToken.balanceOf(user)));
+        amount = uint96(bound(amount, minWithdrawalAmount, ynToken.balanceOf(user)));
         vm.assume(receiver_ != address(0));
 
         uint256 userBalanceBefore = ynToken.balanceOf(user);
@@ -397,18 +397,18 @@ contract WithdrawalRequestTest is Test {
     function testRequestWithdrawalRevertsBelowMinimumAmount() public {
         vm.expectRevert(
             abi.encodeWithSelector(
-                WithdrawalRequest.AmountBelowMinimum.selector, minimumAmountToLock - 1, minimumAmountToLock
+                WithdrawalRequest.AmountBelowMinimum.selector, minWithdrawalAmount - 1, minWithdrawalAmount
             )
         );
         vm.prank(user);
-        manager.requestWithdrawal(minimumAmountToLock - 1, user);
+        manager.requestWithdrawal(minWithdrawalAmount - 1, user);
     }
 
     function testFuzzRequestWithdrawalRevertsBelowMinimumAmount(uint96 amount) public {
-        amount = uint96(bound(amount, 1, minimumAmountToLock - 1));
+        amount = uint96(bound(amount, 1, minWithdrawalAmount - 1));
 
         vm.expectRevert(
-            abi.encodeWithSelector(WithdrawalRequest.AmountBelowMinimum.selector, amount, minimumAmountToLock)
+            abi.encodeWithSelector(WithdrawalRequest.AmountBelowMinimum.selector, amount, minWithdrawalAmount)
         );
         vm.prank(user);
         manager.requestWithdrawal(amount, user);
@@ -425,31 +425,31 @@ contract WithdrawalRequestTest is Test {
         manager.requests(123);
     }
 
-    function testSetMinimumAmountToLockRequiresConfigurationManagerRole() public {
+    function testSetMinWithdrawalAmountRequiresConfigurationManagerRole() public {
         vm.expectRevert(
             abi.encodeWithSelector(
                 IAccessControl.AccessControlUnauthorizedAccount.selector, user, manager.CONFIGURATION_MANAGER_ROLE()
             )
         );
         vm.prank(user);
-        manager.setMinimumAmountToLock(2 ether);
+        manager.setMinWithdrawalAmount(2 ether);
     }
 
-    function testSetMinimumAmountToLockUpdatesMinimum() public {
+    function testSetMinWithdrawalAmountUpdatesMinimum() public {
         vm.expectEmit(true, true, true, true, address(manager));
-        emit WithdrawalRequest.MinimumAmountToLockUpdated(minimumAmountToLock, 2 ether);
+        emit WithdrawalRequest.MinWithdrawalAmountUpdated(minWithdrawalAmount, 2 ether);
 
         vm.prank(configurationManager);
-        manager.setMinimumAmountToLock(2 ether);
+        manager.setMinWithdrawalAmount(2 ether);
 
-        assertEq(manager.minimumAmountToLock(), 2 ether);
+        assertEq(manager.minWithdrawalAmount(), 2 ether);
     }
 
-    function testFuzzSetMinimumAmountToLockUpdatesMinimum(uint128 newMinimumAmountToLock) public {
+    function testFuzzSetMinWithdrawalAmountUpdatesMinimum(uint128 newMinWithdrawalAmount) public {
         vm.prank(configurationManager);
-        manager.setMinimumAmountToLock(newMinimumAmountToLock);
+        manager.setMinWithdrawalAmount(newMinWithdrawalAmount);
 
-        assertEq(manager.minimumAmountToLock(), newMinimumAmountToLock);
+        assertEq(manager.minWithdrawalAmount(), newMinWithdrawalAmount);
     }
 
     function testConvertToAssets() public view {
@@ -514,7 +514,7 @@ contract WithdrawalRequestTest is Test {
         uint96 lockedAmount,
         uint96 assets
     ) public {
-        lockedAmount = uint96(bound(lockedAmount, minimumAmountToLock, ynToken.balanceOf(user)));
+        lockedAmount = uint96(bound(lockedAmount, minWithdrawalAmount, ynToken.balanceOf(user)));
         assets = uint96(bound(assets, 1, lockedAmount));
 
         vm.prank(user);
@@ -564,7 +564,7 @@ contract WithdrawalRequestTest is Test {
     }
 
     function testFuzzViewerMaxFulfillmentAssetsCanBeUsedToFulfillLockedShares(uint96 lockedAmount) public {
-        lockedAmount = uint96(bound(lockedAmount, minimumAmountToLock, ynToken.balanceOf(user)));
+        lockedAmount = uint96(bound(lockedAmount, minWithdrawalAmount, ynToken.balanceOf(user)));
 
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(lockedAmount, user);

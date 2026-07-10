@@ -36,14 +36,14 @@ contract WithdrawalRequest is Initializable, AccessControlUpgradeable, ERC721Upg
     struct RequestStorage {
         IWithdrawAssetVault token;
         IBeaconProxyFactory beaconFactory;
-        uint256 minimumAmountToLock;
+        uint256 minWithdrawalAmount;
         uint256 nextRequestId;
         mapping(uint256 id => Request request) requests;
     }
 
     error ZeroAddress();
     error ZeroAmount();
-    error AmountBelowMinimum(uint256 amount, uint256 minimumAmountToLock);
+    error AmountBelowMinimum(uint256 amount, uint256 minWithdrawalAmount);
     error RequestNotFound(uint256 id);
     error InsufficientLockedAmount(uint256 id, uint256 amountLocked, uint256 amountBurned);
     error InvalidTokenBalanceChange(uint256 balanceBefore, uint256 balanceAfter);
@@ -62,7 +62,7 @@ contract WithdrawalRequest is Initializable, AccessControlUpgradeable, ERC721Upg
         uint256 amountBurned,
         uint256 amountLocked
     );
-    event MinimumAmountToLockUpdated(uint256 oldMinimumAmountToLock, uint256 newMinimumAmountToLock);
+    event MinWithdrawalAmountUpdated(uint256 oldMinWithdrawalAmount, uint256 newMinWithdrawalAmount);
 
     bytes32 public constant FULFILLER_ROLE = keccak256("FULFILLER_ROLE");
     bytes32 public constant CONFIGURATION_MANAGER_ROLE = keccak256("CONFIGURATION_MANAGER_ROLE");
@@ -90,7 +90,7 @@ contract WithdrawalRequest is Initializable, AccessControlUpgradeable, ERC721Upg
         address configurationManager,
         address pauser,
         address beaconFactory_,
-        uint256 minimumAmountToLock_
+        uint256 minWithdrawalAmount_
     ) external initializer {
         if (
             token_ == address(0) || defaultAdmin == address(0) || fulfiller == address(0)
@@ -106,7 +106,7 @@ contract WithdrawalRequest is Initializable, AccessControlUpgradeable, ERC721Upg
         RequestStorage storage $ = _getRequestStorage();
         $.token = IWithdrawAssetVault(token_);
         $.beaconFactory = IBeaconProxyFactory(beaconFactory_);
-        $.minimumAmountToLock = minimumAmountToLock_;
+        $.minWithdrawalAmount = minWithdrawalAmount_;
 
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
         _grantRole(FULFILLER_ROLE, fulfiller);
@@ -116,12 +116,12 @@ contract WithdrawalRequest is Initializable, AccessControlUpgradeable, ERC721Upg
 
     // --- Configuration ---
 
-    function setMinimumAmountToLock(uint256 minimumAmountToLock_) external onlyRole(CONFIGURATION_MANAGER_ROLE) {
+    function setMinWithdrawalAmount(uint256 minWithdrawalAmount_) external onlyRole(CONFIGURATION_MANAGER_ROLE) {
         RequestStorage storage $ = _getRequestStorage();
-        uint256 oldMinimumAmountToLock = $.minimumAmountToLock;
-        $.minimumAmountToLock = minimumAmountToLock_;
+        uint256 oldMinWithdrawalAmount = $.minWithdrawalAmount;
+        $.minWithdrawalAmount = minWithdrawalAmount_;
 
-        emit MinimumAmountToLockUpdated(oldMinimumAmountToLock, minimumAmountToLock_);
+        emit MinWithdrawalAmountUpdated(oldMinWithdrawalAmount, minWithdrawalAmount_);
     }
 
     // --- Requests ---
@@ -135,7 +135,7 @@ contract WithdrawalRequest is Initializable, AccessControlUpgradeable, ERC721Upg
         if (receiver == address(0)) revert ZeroAddress();
 
         RequestStorage storage $ = _getRequestStorage();
-        if (amount < $.minimumAmountToLock) revert AmountBelowMinimum(amount, $.minimumAmountToLock);
+        if (amount < $.minWithdrawalAmount) revert AmountBelowMinimum(amount, $.minWithdrawalAmount);
 
         IERC20(address($.token)).safeTransferFrom(msg.sender, address(this), amount);
 
@@ -223,8 +223,8 @@ contract WithdrawalRequest is Initializable, AccessControlUpgradeable, ERC721Upg
 
     /// @notice Returns the minimum yn-token share amount required to open a request.
     /// @return The minimum amount to lock.
-    function minimumAmountToLock() public view returns (uint256) {
-        return _getRequestStorage().minimumAmountToLock;
+    function minWithdrawalAmount() public view returns (uint256) {
+        return _getRequestStorage().minWithdrawalAmount;
     }
 
     /// @notice Returns the next withdrawal request id to be assigned.

@@ -28,7 +28,7 @@ contract WithdrawalRequestMainnetTest is Test, Actors {
     address public configurationManager;
     address public pauser;
 
-    uint256 public constant MINIMUM_AMOUNT_TO_LOCK = 1e15;
+    uint256 public constant MIN_WITHDRAWAL_AMOUNT = 1e15;
 
     function setUp() public {
         vault = BaseVault(payable(MC.YNETHX));
@@ -59,7 +59,7 @@ contract WithdrawalRequestMainnetTest is Test, Actors {
                     configurationManager,
                     pauser,
                     address(beaconFactory),
-                    MINIMUM_AMOUNT_TO_LOCK
+                    MIN_WITHDRAWAL_AMOUNT
                 )
             )
         );
@@ -248,7 +248,7 @@ contract WithdrawalRequestMainnetTest is Test, Actors {
 
     function test_withdrawalRequest_respectsMinimumAndPause() public {
         vm.prank(configurationManager);
-        manager.setMinimumAmountToLock(2 ether);
+        manager.setMinWithdrawalAmount(2 ether);
 
         uint256 depositedShares = _depositIntoYnETHx(MC.WETH, requester, 5 ether);
 

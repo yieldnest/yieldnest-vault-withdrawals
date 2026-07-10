@@ -12,7 +12,7 @@ import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 import {WithdrawalRequestViewer} from "views/WithdrawalRequestViewer.sol";
 
 contract DeployWithdrawalRequest is BaseScript {
-    uint256 public constant MINIMUM_AMOUNT_TO_LOCK = 10 ether;
+    uint256 public constant MIN_WITHDRAWAL_AMOUNT = 10 ether;
 
     Bag public bagImplementation;
     BeaconProxyFactory public beaconFactoryImplementation;
@@ -72,7 +72,7 @@ contract DeployWithdrawalRequest is BaseScript {
                     configurationManager,
                     pauser,
                     address(beaconFactory),
-                    MINIMUM_AMOUNT_TO_LOCK
+                    MIN_WITHDRAWAL_AMOUNT
                 )
             )
         );
@@ -152,7 +152,7 @@ contract DeployWithdrawalRequest is BaseScript {
         vm.serializeAddress(symbol(), "withdrawalRequest", address(withdrawalRequest));
         vm.serializeAddress(symbol(), "viewer", address(withdrawalRequestViewer));
         vm.serializeAddress(symbol(), "token", token);
-        vm.serializeUint(symbol(), "minimumAmountToLock", MINIMUM_AMOUNT_TO_LOCK);
+        vm.serializeUint(symbol(), "minWithdrawalAmount", MIN_WITHDRAWAL_AMOUNT);
         vm.serializeUint(symbol(), "timelockMinDelay", minDelay);
         vm.serializeAddress(symbol(), "defaultAdmin", defaultAdmin);
         vm.serializeAddress(symbol(), "fulfiller", fulfiller);

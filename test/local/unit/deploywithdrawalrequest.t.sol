@@ -40,6 +40,7 @@ contract DeployWithdrawalRequestTest is Test {
         assertEq(vm.parseJsonAddress(deploymentJson, ".withdrawalRequest"), address(manager));
         assertEq(vm.parseJsonAddress(deploymentJson, ".defaultAdmin"), address(timelock));
         assertEq(vm.parseJsonAddress(deploymentJson, ".configurationManager"), address(timelock));
+        assertEq(vm.parseJsonUint(deploymentJson, ".minWithdrawalAmount"), deployScript.MIN_WITHDRAWAL_AMOUNT());
         assertEq(vm.parseJsonUint(deploymentJson, ".timelockMinDelay"), deployScript.minDelay());
 
         vm.removeFile(deploymentFilePath);
