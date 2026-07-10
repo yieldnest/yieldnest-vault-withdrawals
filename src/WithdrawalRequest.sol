@@ -29,7 +29,6 @@ interface IWithdrawAssetVault is IERC20 {
 contract WithdrawalRequest is
     Initializable,
     AccessControlUpgradeable,
-    ERC721Upgradeable,
     ERC721EnumerableUpgradeable,
     PausableUpgradeable,
     IAuth
@@ -291,25 +290,10 @@ contract WithdrawalRequest is
         return super.ownerOf(id);
     }
 
-    function _update(address to, uint256 tokenId, address auth)
-        internal
-        override(ERC721Upgradeable, ERC721EnumerableUpgradeable)
-        returns (address)
-    {
-        return super._update(to, tokenId, auth);
-    }
-
-    function _increaseBalance(address account, uint128 value)
-        internal
-        override(ERC721Upgradeable, ERC721EnumerableUpgradeable)
-    {
-        super._increaseBalance(account, value);
-    }
-
     function supportsInterface(bytes4 interfaceId)
         public
         view
-        override(AccessControlUpgradeable, ERC721Upgradeable, ERC721EnumerableUpgradeable)
+        override(AccessControlUpgradeable, ERC721EnumerableUpgradeable)
         returns (bool)
     {
         return super.supportsInterface(interfaceId);
