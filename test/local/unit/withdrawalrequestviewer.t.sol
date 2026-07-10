@@ -189,12 +189,30 @@ contract WithdrawalRequestViewerTest is Test {
         assertEq(view_.tokenBalance, 6 ether);
         assertFalse(view_.isClaimable);
         assertFalse(view_.isClaimed);
-        assertEq(view_.assetBalances.length, 2);
+        assertEq(view_.assetBalances.length, 1);
         assertEq(view_.assetBalances[0].asset, address(asset));
         assertEq(view_.assetBalances[0].balance, 4 ether);
-        assertEq(view_.assetBalances[1].asset, address(secondAsset));
-        assertEq(view_.assetBalances[1].balance, 0);
         assertEq(manager.ownerOf(id), receiver);
+    }
+
+    function testGetRequestUsesRedeemedAssetsAfterVaultAssetListChanges() public {
+        vm.prank(user);
+        uint256 id = manager.requestWithdrawal(10 ether, receiver);
+
+        vm.prank(fulfiller);
+        manager.fulfillWithdrawalRequest(id, address(asset), 4 ether);
+
+        address[] memory assets = new address[](0);
+        uint8[] memory decimals_ = new uint8[](0);
+        uint256[] memory rates = new uint256[](0);
+        ynToken.setAssets(assets, decimals_, rates);
+
+        WithdrawalRequestViewer.RequestView memory view_ = viewer.getRequest(manager, id);
+
+        assertEq(view_.assetBalances.length, 1);
+        assertEq(view_.assetBalances[0].asset, address(asset));
+        assertEq(view_.assetBalances[0].balance, 4 ether);
+        assertFalse(view_.isClaimed);
     }
 
     function testGetInProgressRequestsForOwnerReturnsCurrentOwnerRequests() public {

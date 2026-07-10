@@ -247,11 +247,7 @@ contract WithdrawalRequestTest is Test {
         assertEq(view_.token, address(ynToken));
         assertEq(view_.amountLocked, 10 ether);
         assertEq(view_.tokenBalance, 10 ether);
-        assertEq(view_.assetBalances.length, 2);
-        assertEq(view_.assetBalances[0].asset, address(asset));
-        assertEq(view_.assetBalances[0].balance, 0);
-        assertEq(view_.assetBalances[1].asset, address(secondAsset));
-        assertEq(view_.assetBalances[1].balance, 0);
+        assertEq(view_.assetBalances.length, 0);
     }
 
     function testViewerReturnsBagAssetBalancesAfterFulfillment() public {
@@ -266,11 +262,9 @@ contract WithdrawalRequestTest is Test {
         assertEq(view_.owner, receiver);
         assertEq(view_.amountLocked, 6 ether);
         assertEq(view_.tokenBalance, 6 ether);
-        assertEq(view_.assetBalances.length, 2);
+        assertEq(view_.assetBalances.length, 1);
         assertEq(view_.assetBalances[0].asset, address(asset));
         assertEq(view_.assetBalances[0].balance, 4 ether);
-        assertEq(view_.assetBalances[1].asset, address(secondAsset));
-        assertEq(view_.assetBalances[1].balance, 0);
     }
 
     function testFuzzRequestWithdrawalTransfersTokenAndMintsRequestNFTToReceiver(uint96 amount, address receiver_)

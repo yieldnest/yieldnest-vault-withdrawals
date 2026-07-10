@@ -9,7 +9,6 @@ import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 
 interface IWithdrawalRequestViewerVault is IERC20, IERC20Metadata {
-    function getAssets() external view returns (address[] memory);
     function getAsset(address asset_) external view returns (IVault.AssetParams memory);
     function provider() external view returns (address);
     function totalBaseAssets() external view returns (uint256);
@@ -40,12 +39,8 @@ contract WithdrawalRequestViewer {
     function getRequest(WithdrawalRequest withdrawalRequest, uint256 id) external view returns (RequestView memory view_) {
         WithdrawalRequest.Request memory request = withdrawalRequest.requests(id);
         IWithdrawalRequestViewerVault token = IWithdrawalRequestViewerVault(address(withdrawalRequest.token()));
-        // Incomplete by design: this only includes assets currently returned by the vault.
-        // If an asset is removed from the vault after a redemption bag receives it, that
-        // asset balance will not be surfaced here and may be hidden from the redemption NFT UI.
-        address[] memory assets = token.getAssets();
 
-        view_ = _getRequest(id, request, token, assets, withdrawalRequest);
+        view_ = _getRequest(id, request, token, withdrawalRequest);
     }
 
     /// @notice Returns requests currently owned by `owner`.
@@ -56,9 +51,6 @@ contract WithdrawalRequestViewer {
         returns (RequestView[] memory requests_)
     {
         IWithdrawalRequestViewerVault token = IWithdrawalRequestViewerVault(address(withdrawalRequest.token()));
-        // See `getRequest`: deleted vault assets are not included in this list, so
-        // balances for removed assets may not be visible in request views.
-        address[] memory assets = token.getAssets();
         uint256 nextRequestId = withdrawalRequest.nextRequestId();
         uint256 count;
 
@@ -70,7 +62,7 @@ contract WithdrawalRequestViewer {
         uint256 index;
         for (uint256 id = 0; id < nextRequestId; ++id) {
             if (_matchesOwner(withdrawalRequest, id, owner)) {
-                requests_[index++] = _getRequest(id, withdrawalRequest.requests(id), token, assets, withdrawalRequest);
+                requests_[index++] = _getRequest(id, withdrawalRequest.requests(id), token, withdrawalRequest);
             }
         }
     }
@@ -79,12 +71,12 @@ contract WithdrawalRequestViewer {
         uint256 id,
         WithdrawalRequest.Request memory request,
         IWithdrawalRequestViewerVault token,
-        address[] memory assets,
         WithdrawalRequest withdrawalRequest
     ) internal view returns (RequestView memory view_) {
-        AssetBalance[] memory assetBalances = new AssetBalance[](assets.length);
-        for (uint256 i = 0; i < assets.length; ++i) {
-            assetBalances[i] = AssetBalance({asset: assets[i], balance: IERC20(assets[i]).balanceOf(request.bag)});
+        AssetBalance[] memory assetBalances = new AssetBalance[](request.assetsRedeemed.length);
+        for (uint256 i = 0; i < request.assetsRedeemed.length; ++i) {
+            address asset = request.assetsRedeemed[i];
+            assetBalances[i] = AssetBalance({asset: asset, balance: IERC20(asset).balanceOf(request.bag)});
         }
 
         view_ = RequestView({
@@ -95,7 +87,7 @@ contract WithdrawalRequestViewer {
             amountLocked: request.amountLocked,
             tokenBalance: token.balanceOf(address(withdrawalRequest)),
             isClaimable: _requestIsClaimable(request, token),
-            isClaimed: _requestIsClaimed(request, assets),
+            isClaimed: _requestIsClaimed(request),
             assetBalances: assetBalances
         });
     }
@@ -117,15 +109,11 @@ contract WithdrawalRequestViewer {
         return _requestIsClaimable(request, token);
     }
 
-    /// @notice Returns true when the request bag has no balances for the vault's listed assets.
-    /// @dev This only checks assets currently returned by `getAssets()`. If a vault asset
-    /// is deleted after funds are sent to a bag, this may return true even though the bag
-    /// still holds the removed asset.
+    /// @notice Returns true when the request bag has no balances for redeemed assets.
     function requestIsClaimed(WithdrawalRequest withdrawalRequest, uint256 id) external view returns (bool) {
         WithdrawalRequest.Request memory request = withdrawalRequest.requests(id);
-        IWithdrawalRequestViewerVault token = IWithdrawalRequestViewerVault(address(withdrawalRequest.token()));
 
-        return _requestIsClaimed(request, token.getAssets());
+        return _requestIsClaimed(request);
     }
 
     function _requestIsClaimable(
@@ -135,13 +123,9 @@ contract WithdrawalRequestViewer {
         return request.amountLocked < 10 ** token.decimals() / 1e4;
     }
 
-    function _requestIsClaimed(WithdrawalRequest.Request memory request, address[] memory assets)
-        internal
-        view
-        returns (bool)
-    {
-        for (uint256 i = 0; i < assets.length; ++i) {
-            if (IERC20(assets[i]).balanceOf(request.bag) != 0) return false;
+    function _requestIsClaimed(WithdrawalRequest.Request memory request) internal view returns (bool) {
+        for (uint256 i = 0; i < request.assetsRedeemed.length; ++i) {
+            if (IERC20(request.assetsRedeemed[i]).balanceOf(request.bag) != 0) return false;
         }
 
         return true;
