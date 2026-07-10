@@ -21,7 +21,7 @@ contract BeaconProxyFactory is Initializable, AccessControlUpgradeable {
 
     error ZeroAddress();
 
-    event ProxyCreated(address indexed proxy);
+    event ProxyCreated(address indexed creator, address indexed proxy, address indexed implementation);
     event ImplementationUpgraded(address indexed previousImplementation, address indexed newImplementation);
 
     // keccak256(abi.encode(uint256(keccak256("yieldnest.storage.beacon_proxy_factory")) - 1)) & ~bytes32(uint256(0xff))
@@ -63,9 +63,11 @@ contract BeaconProxyFactory is Initializable, AccessControlUpgradeable {
     /// @param initData Initialization call data for the implementation.
     /// @return proxy New proxy address.
     function create(bytes calldata initData) external onlyRole(CREATOR_ROLE) returns (address proxy) {
-        proxy = address(new BeaconProxy(address(_getBeaconProxyFactoryStorage().beacon), initData));
+        UpgradeableBeacon beacon_ = _getBeaconProxyFactoryStorage().beacon;
+        address implementation_ = beacon_.implementation();
+        proxy = address(new BeaconProxy(address(beacon_), initData));
 
-        emit ProxyCreated(proxy);
+        emit ProxyCreated(msg.sender, proxy, implementation_);
     }
 
     /// @notice Upgrades the implementation used by all proxies created by this factory.

@@ -124,8 +124,8 @@ contract BeaconProxyFactoryTest is Test {
     function testCreateDeploysBeaconProxyAndInitializesIt() public {
         ownerRegistry.setOwner(9, owner);
 
-        vm.expectEmit(false, false, false, false, address(factory));
-        emit BeaconProxyFactory.ProxyCreated(address(0));
+        vm.expectEmit(true, false, true, true, address(factory));
+        emit BeaconProxyFactory.ProxyCreated(creator, address(0), address(bagImplementation));
 
         vm.prank(creator);
         address proxy = factory.create(abi.encodeCall(IBag.initialize, (address(ownerRegistry), 9)));
