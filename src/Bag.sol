@@ -16,7 +16,7 @@ contract Bag is Initializable, IBag {
     using Address for address payable;
 
     string public constant VERSION = "0.1.0";
-    address public constant NATIVE_ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    address public constant ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     /// @custom:storage-location erc7201:yieldnest.storage.bag
     struct BagStorage {
@@ -70,7 +70,7 @@ contract Bag is Initializable, IBag {
     }
 
     /// @notice Claims ERC20 assets and native ETH from this bag.
-    /// @dev Use `NATIVE_ETH` as the asset address for native ETH.
+    /// @dev Use `ETH` as the asset address for native ETH.
     /// @param assets Assets to claim.
     /// @param recipient Receiver of the claimed assets.
     /// @param amounts Amounts to claim for each asset.
@@ -88,7 +88,7 @@ contract Bag is Initializable, IBag {
             if (asset == address(0)) revert ZeroAddress();
 
             uint256 amount = amounts[i];
-            if (asset == NATIVE_ETH) {
+            if (asset == ETH) {
                 recipient.sendValue(amount);
                 emit NativeClaimed(msg.sender, recipient, amount);
             } else {

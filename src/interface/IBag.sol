@@ -11,7 +11,7 @@ interface IBag {
     event NativeClaimed(address indexed owner, address indexed recipient, uint256 amount);
 
     function VERSION() external view returns (string memory);
-    function NATIVE_ETH() external view returns (address);
+    function ETH() external view returns (address);
     function id() external view returns (uint256);
     function ownerRegistry() external view returns (address);
     function initialize(address ownerRegistry_, uint256 id_) external;

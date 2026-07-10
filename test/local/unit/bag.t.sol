@@ -61,7 +61,7 @@ contract OwnerRegistryMock {
 }
 
 contract BagTest is Test {
-    address internal constant NATIVE_ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    address internal constant ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     Bag implementation;
     Bag bag;
@@ -112,7 +112,7 @@ contract BagTest is Test {
         returns (uint256[] memory)
     {
         address[] memory assets = new address[](1);
-        assets[0] = NATIVE_ETH;
+        assets[0] = ETH;
         uint256[] memory amounts = new uint256[](1);
         amounts[0] = amount;
 
@@ -121,7 +121,7 @@ contract BagTest is Test {
 
     function testInitializeSetsExpectedOwnerRegistryAndConstants() public view {
         assertEq(bag.VERSION(), "0.1.0");
-        assertEq(bag.NATIVE_ETH(), 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE);
+        assertEq(bag.ETH(), 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE);
         assertEq(bag.id(), requestId);
         assertEq(bag.ownerRegistry(), address(ownerRegistry));
     }
@@ -166,7 +166,7 @@ contract BagTest is Test {
 
         address[] memory assets = new address[](3);
         assets[0] = address(token);
-        assets[1] = bag.NATIVE_ETH();
+        assets[1] = bag.ETH();
         assets[2] = address(secondToken);
         uint256[] memory amounts = new uint256[](3);
         amounts[0] = 5 ether;
@@ -253,7 +253,7 @@ contract BagTest is Test {
         NativeRejector rejector = new NativeRejector();
         vm.deal(address(bag), 3 ether);
         address[] memory assets = new address[](1);
-        assets[0] = bag.NATIVE_ETH();
+        assets[0] = bag.ETH();
         uint256[] memory amounts = new uint256[](1);
         amounts[0] = 1 ether;
 

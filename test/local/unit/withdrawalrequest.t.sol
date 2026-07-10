@@ -90,7 +90,7 @@ contract WithdrawalAssetMock is ERC20 {
 }
 
 contract WithdrawalRequestTest is Test {
-    address internal constant NATIVE_ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    address internal constant ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     WithdrawalRequest manager;
     MockWithdrawAssetVault ynToken;
@@ -172,7 +172,7 @@ contract WithdrawalRequestTest is Test {
         returns (uint256[] memory)
     {
         address[] memory assets = new address[](1);
-        assets[0] = NATIVE_ETH;
+        assets[0] = ETH;
         uint256[] memory amounts = new uint256[](1);
         amounts[0] = amount;
 
