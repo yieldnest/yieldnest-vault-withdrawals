@@ -166,16 +166,17 @@ contract WithdrawalRequest is
     /// @param id Request id to fulfil.
     /// @param asset Asset to withdraw from the yn-token.
     /// @param assets Amount of `asset` to withdraw to the request bag.
+    /// @param shouldProcessAccounting Whether to call processAccounting on the configured yn-token after fulfillment.
     /// @return amountBurned Amount of locked yn-token shares burned by the withdrawal.
-    function fulfillWithdrawalRequest(uint256 id, address asset, uint256 assets)
+    function fulfillWithdrawalRequest(uint256 id, address asset, uint256 assets, bool shouldProcessAccounting)
         external
         onlyRole(FULFILLER_ROLE)
         returns (uint256 amountBurned)
     {
-        (amountBurned,) = _fulfillWithdrawalRequest(id, asset, assets);
+        (amountBurned,) = _fulfillWithdrawalRequest(id, asset, assets, shouldProcessAccounting);
     }
 
-    function _fulfillWithdrawalRequest(uint256 id, address asset, uint256 assets)
+    function _fulfillWithdrawalRequest(uint256 id, address asset, uint256 assets, bool shouldProcessAccounting)
         internal
         returns (uint256 amountBurned, uint256 assetsWithdrawn)
     {
@@ -215,7 +216,9 @@ contract WithdrawalRequest is
 
         request.amountLocked -= amountBurned;
 
-        $.token.processAccounting();
+        if (shouldProcessAccounting) {
+            $.token.processAccounting();
+        }
 
         emit WithdrawalRequestFulfilled(
             id, ownerOf(id), address($.token), asset, assetsWithdrawn, amountBurned, request.amountLocked
@@ -228,6 +231,16 @@ contract WithdrawalRequest is
         }
 
         request.assetsRedeemed.push(asset);
+    }
+
+    // --- Pause ---
+
+    function pause() external onlyRole(PAUSER_ROLE) {
+        _pause();
+    }
+
+    function unpause() external onlyRole(PAUSER_ROLE) {
+        _unpause();
     }
 
     // --- Views ---
@@ -297,15 +310,5 @@ contract WithdrawalRequest is
         returns (bool)
     {
         return super.supportsInterface(interfaceId);
-    }
-
-    // --- Pause ---
-
-    function pause() external onlyRole(PAUSER_ROLE) {
-        _pause();
-    }
-
-    function unpause() external onlyRole(PAUSER_ROLE) {
-        _unpause();
     }
 }
