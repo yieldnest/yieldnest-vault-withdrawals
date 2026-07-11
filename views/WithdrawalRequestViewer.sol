@@ -80,7 +80,7 @@ contract WithdrawalRequestViewer {
             amountLocked: request.amountLocked,
             tokenBalance: token.balanceOf(address(withdrawalRequest)),
             isClaimable: isClaimable,
-            isClaimed: _requestIsClaimed(request, isClaimable),
+            isClaimed: _requestIsClaimed(request, token),
             assetBalances: assetBalances
         });
     }
@@ -105,7 +105,7 @@ contract WithdrawalRequestViewer {
         WithdrawalRequest.Request memory request = withdrawalRequest.requests(id);
         IWithdrawalRequestViewerVault token = IWithdrawalRequestViewerVault(address(withdrawalRequest.token()));
 
-        return _requestIsClaimed(request, _requestIsClaimable(request, token));
+        return _requestIsClaimed(request, token);
     }
 
     function _requestIsClaimable(
@@ -115,8 +115,11 @@ contract WithdrawalRequestViewer {
         return request.amountLocked < 10 ** token.decimals() / 1e4;
     }
 
-    function _requestIsClaimed(WithdrawalRequest.Request memory request, bool isClaimable) internal view returns (bool) {
-        if (!isClaimable) return false;
+    function _requestIsClaimed(
+        WithdrawalRequest.Request memory request,
+        IWithdrawalRequestViewerVault token
+    ) internal view returns (bool) {
+        if (!_requestIsClaimable(request, token)) return false;
 
         for (uint256 i = 0; i < request.assetsRedeemed.length; ++i) {
             if (IERC20(request.assetsRedeemed[i]).balanceOf(request.bag) != 0) return false;
