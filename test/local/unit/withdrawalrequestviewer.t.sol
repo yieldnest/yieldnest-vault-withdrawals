@@ -245,12 +245,12 @@ contract WithdrawalRequestViewerTest is Test {
         assertEq(otherRequests[0].owner, other);
         assertEq(otherRequests[0].amountLocked, 11 ether);
         assertFalse(otherRequests[0].isClaimable);
-        assertTrue(otherRequests[0].isClaimed);
+        assertFalse(otherRequests[0].isClaimed);
         assertEq(otherRequests[1].id, transferredId);
         assertEq(otherRequests[1].owner, other);
         assertEq(otherRequests[1].amountLocked, 12 ether);
         assertFalse(otherRequests[1].isClaimable);
-        assertTrue(otherRequests[1].isClaimed);
+        assertFalse(otherRequests[1].isClaimed);
     }
 
     function testRequestIsClaimableUsesLockedTokenDustThreshold() public {
@@ -278,7 +278,7 @@ contract WithdrawalRequestViewerTest is Test {
         uint256 id = manager.requestWithdrawal(10 ether, receiver);
 
         WithdrawalRequest.Request memory request = manager.requests(id);
-        assertTrue(viewer.requestIsClaimed(manager, id));
+        assertFalse(viewer.requestIsClaimed(manager, id));
 
         vm.prank(fulfiller);
         manager.fulfillWithdrawalRequest(id, address(asset), 10 ether);
@@ -309,6 +309,9 @@ contract WithdrawalRequestViewerTest is Test {
     }
 
     function testViewerRevertsForMissingRequest() public {
+        assertFalse(viewer.requestIsClaimable(manager, 123));
+        assertFalse(viewer.requestIsClaimed(manager, 123));
+
         vm.expectRevert(abi.encodeWithSelector(WithdrawalRequest.RequestNotFound.selector, 123));
         viewer.getRequest(manager, 123);
 

@@ -71,6 +71,7 @@ contract WithdrawalRequestViewer {
             assetBalances[i] = AssetBalance({asset: asset, balance: IERC20(asset).balanceOf(request.bag)});
         }
 
+        bool isClaimable = _requestIsClaimable(request, token);
         view_ = RequestView({
             id: id,
             owner: withdrawalRequest.ownerOf(id),
@@ -78,8 +79,8 @@ contract WithdrawalRequestViewer {
             token: address(token),
             amountLocked: request.amountLocked,
             tokenBalance: token.balanceOf(address(withdrawalRequest)),
-            isClaimable: _requestIsClaimable(request, token),
-            isClaimed: _requestIsClaimed(request),
+            isClaimable: isClaimable,
+            isClaimed: _requestIsClaimed(request, isClaimable),
             assetBalances: assetBalances
         });
     }
@@ -89,17 +90,22 @@ contract WithdrawalRequestViewer {
     /// It works well for ETH and USDC-style assets where fulfillment can leave a trace
     /// amount of locked yn-token behind. It is not a protocol-level claimability invariant.
     function requestIsClaimable(WithdrawalRequest withdrawalRequest, uint256 id) external view returns (bool) {
+        if (!withdrawalRequest.requestExists(id)) return false;
+
         WithdrawalRequest.Request memory request = withdrawalRequest.requests(id);
         IWithdrawalRequestViewerVault token = IWithdrawalRequestViewerVault(address(withdrawalRequest.token()));
 
         return _requestIsClaimable(request, token);
     }
 
-    /// @notice Returns true when the request bag has no balances for redeemed assets.
+    /// @notice Returns true when the request is claimable and its bag has no balances for redeemed assets.
     function requestIsClaimed(WithdrawalRequest withdrawalRequest, uint256 id) external view returns (bool) {
-        WithdrawalRequest.Request memory request = withdrawalRequest.requests(id);
+        if (!withdrawalRequest.requestExists(id)) return false;
 
-        return _requestIsClaimed(request);
+        WithdrawalRequest.Request memory request = withdrawalRequest.requests(id);
+        IWithdrawalRequestViewerVault token = IWithdrawalRequestViewerVault(address(withdrawalRequest.token()));
+
+        return _requestIsClaimed(request, _requestIsClaimable(request, token));
     }
 
     function _requestIsClaimable(
@@ -109,7 +115,9 @@ contract WithdrawalRequestViewer {
         return request.amountLocked < 10 ** token.decimals() / 1e4;
     }
 
-    function _requestIsClaimed(WithdrawalRequest.Request memory request) internal view returns (bool) {
+    function _requestIsClaimed(WithdrawalRequest.Request memory request, bool isClaimable) internal view returns (bool) {
+        if (!isClaimable) return false;
+
         for (uint256 i = 0; i < request.assetsRedeemed.length; ++i) {
             if (IERC20(request.assetsRedeemed[i]).balanceOf(request.bag) != 0) return false;
         }
