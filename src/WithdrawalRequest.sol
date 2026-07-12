@@ -178,7 +178,7 @@ contract WithdrawalRequest is
 
     function _fulfillWithdrawalRequest(uint256 id, address asset, uint256 assets, bool shouldProcessAccounting)
         internal
-        returns (uint256 amountBurned, uint256 assetsWithdrawn)
+        returns (uint256 tokenAmountBurned, uint256 assetsWithdrawn)
     {
         if (asset == address(0)) revert ZeroAddress();
 
@@ -192,17 +192,17 @@ contract WithdrawalRequest is
         uint256 tokenBalanceBefore = $.token.balanceOf(address(this));
         uint256 bagAssetBalanceBefore = IERC20(asset).balanceOf(bag);
 
-        uint256 sharesBurned = $.token.withdrawAsset(asset, assets, bag, address(this));
+        tokenAmountBurned = $.token.withdrawAsset(asset, assets, bag, address(this));
 
         {
             uint256 tokenBalanceAfter = $.token.balanceOf(address(this));
-            if (tokenBalanceBefore - tokenBalanceAfter != sharesBurned) {
+            if (tokenBalanceBefore - tokenBalanceAfter != tokenAmountBurned) {
                 revert InvalidTokenBalanceChange(tokenBalanceBefore, tokenBalanceAfter);
             }
         }
 
-        if (sharesBurned > request.amountLocked) {
-            revert InsufficientLockedAmount(id, request.amountLocked, amountBurned);
+        if (tokenAmountBurned > request.amountLocked) {
+            revert InsufficientLockedAmount(id, request.amountLocked, tokenAmountBurned);
         }
 
         assetsWithdrawn = IERC20(asset).balanceOf(bag) - bagAssetBalanceBefore;
@@ -210,14 +210,14 @@ contract WithdrawalRequest is
 
         _recordAssetRedeemed(request, asset);
 
-        request.amountLocked -= sharesBurned;
+        request.amountLocked -= tokenAmountBurned;
 
         if (shouldProcessAccounting) {
             $.token.processAccounting();
         }
 
         emit WithdrawalRequestFulfilled(
-            id, ownerOf(id), address($.token), asset, assetsWithdrawn, sharesBurned, request.amountLocked
+            id, ownerOf(id), address($.token), asset, assetsWithdrawn, tokenAmountBurned, request.amountLocked
         );
     }
 
