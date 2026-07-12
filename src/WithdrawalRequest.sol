@@ -190,38 +190,34 @@ contract WithdrawalRequest is
 
         address bag = request.bag;
         uint256 tokenBalanceBefore = $.token.balanceOf(address(this));
-        uint256 assetBalanceBefore = IERC20(asset).balanceOf(bag);
+        uint256 bagAssetBalanceBefore = IERC20(asset).balanceOf(bag);
 
-        $.token.withdrawAsset(asset, assets, bag, address(this));
+        uint256 sharesBurned = $.token.withdrawAsset(asset, assets, bag, address(this));
 
-        uint256 tokenBalanceAfter = $.token.balanceOf(address(this));
-        if (tokenBalanceAfter > tokenBalanceBefore) {
-            revert InvalidTokenBalanceChange(tokenBalanceBefore, tokenBalanceAfter);
+        {
+            uint256 tokenBalanceAfter = $.token.balanceOf(address(this));
+            if (tokenBalanceBefore - tokenBalanceAfter != sharesBurned) {
+                revert InvalidTokenBalanceChange(tokenBalanceBefore, tokenBalanceAfter);
+            }
         }
 
-        uint256 assetBalanceAfter = IERC20(asset).balanceOf(bag);
-        if (assetBalanceAfter < assetBalanceBefore) {
-            revert InvalidAssetBalanceChange(assetBalanceBefore, assetBalanceAfter);
-        }
-
-        amountBurned = tokenBalanceBefore - tokenBalanceAfter;
-        if (amountBurned > request.amountLocked) {
+        if (sharesBurned > request.amountLocked) {
             revert InsufficientLockedAmount(id, request.amountLocked, amountBurned);
         }
 
-        assetsWithdrawn = assetBalanceAfter - assetBalanceBefore;
+        assetsWithdrawn = IERC20(asset).balanceOf(bag) - bagAssetBalanceBefore;
         if (assetsWithdrawn != assets) revert UnexpectedAssetsWithdrawn(assets, assetsWithdrawn);
 
         _recordAssetRedeemed(request, asset);
 
-        request.amountLocked -= amountBurned;
+        request.amountLocked -= sharesBurned;
 
         if (shouldProcessAccounting) {
             $.token.processAccounting();
         }
 
         emit WithdrawalRequestFulfilled(
-            id, ownerOf(id), address($.token), asset, assetsWithdrawn, amountBurned, request.amountLocked
+            id, ownerOf(id), address($.token), asset, assetsWithdrawn, sharesBurned, request.amountLocked
         );
     }
 
