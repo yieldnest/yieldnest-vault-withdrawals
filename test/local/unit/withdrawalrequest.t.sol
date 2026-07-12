@@ -634,22 +634,15 @@ contract WithdrawalRequestTest is Test {
         assertEq(ynToken.processAccountingCalls(), 1);
     }
 
-    function testFulfillWithdrawalRequestUsesActualBalanceDeltaInsteadOfReturnValue() public {
+    function testFulfillWithdrawalRequestRevertsWhenReturnedBurnAmountMismatchesBalanceDelta() public {
         ynToken.setReturnAmountOffset(100 ether);
 
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, user);
 
+        vm.expectRevert(abi.encodeWithSelector(WithdrawalRequest.InvalidTokenBalanceChange.selector, 10 ether, 6 ether));
         vm.prank(fulfiller);
-        uint256 amountBurned = manager.fulfillWithdrawalRequest(id, address(asset), 4 ether, true);
-
-        assertEq(amountBurned, 4 ether);
-
-        WithdrawalRequest.Request memory request = manager.requests(id);
-        assertEq(request.amountLocked, 6 ether);
-        assertEq(asset.balanceOf(address(manager)), 0);
-        assertEq(asset.balanceOf(request.bag), 4 ether);
-        assertEq(asset.balanceOf(user), 0);
+        manager.fulfillWithdrawalRequest(id, address(asset), 4 ether, true);
     }
 
     function testFulfillWithdrawalRequestRevertsWhenAssetsWithdrawnMismatchExpected() public {
