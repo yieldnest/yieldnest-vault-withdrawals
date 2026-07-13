@@ -2,6 +2,8 @@
 pragma solidity ^0.8.24;
 
 interface IResolver {
+    error ArrayLengthMismatch(uint256 assetsLength, uint256 assetAmountsLength);
+
     function resolveWithdrawalRequest(uint256 id, address asset, uint256 assets) external returns (uint256 amountBurned);
 
     function resolveWithdrawalRequest(uint256 id, address[] calldata assets, uint256[] calldata assetAmounts)

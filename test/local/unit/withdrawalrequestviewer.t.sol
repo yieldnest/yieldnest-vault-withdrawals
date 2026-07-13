@@ -93,6 +93,7 @@ contract WithdrawalRequestViewerTest is Test {
     address resolver = address(0xF0111);
     address configurationManager = address(0xC0F16);
     address pauser = address(0xAA05E);
+    address feeWallet = address(0xFEE);
     address user = address(0xB0B);
     address receiver = address(0xCA11);
     address other = address(0xCAFE);
@@ -128,7 +129,8 @@ contract WithdrawalRequestViewerTest is Test {
                             configurationManager,
                             pauser,
                             address(proxyFactory),
-                            1 ether
+                            1 ether,
+                            feeWallet
                         )
                     )
                 )
@@ -175,7 +177,7 @@ contract WithdrawalRequestViewerTest is Test {
         uint256 id = manager.requestWithdrawal(10 ether, receiver);
 
         vm.prank(resolver);
-        manager.resolveWithdrawalRequest(id, address(asset), 4 ether);
+        manager.resolveWithdrawalRequest(id, address(asset), 4 ether, 0);
 
         WithdrawalRequest.Request memory request = manager.requests(id);
         WithdrawalRequestViewer.RequestView memory view_ = viewer.getRequest(manager, id);
@@ -200,7 +202,7 @@ contract WithdrawalRequestViewerTest is Test {
         uint256 id = manager.requestWithdrawal(10 ether, receiver);
 
         vm.prank(resolver);
-        manager.resolveWithdrawalRequest(id, address(asset), 4 ether);
+        manager.resolveWithdrawalRequest(id, address(asset), 4 ether, 0);
 
         address[] memory assets = new address[](0);
         uint8[] memory decimals_ = new uint8[](0);
@@ -223,7 +225,7 @@ contract WithdrawalRequestViewerTest is Test {
         vm.stopPrank();
 
         vm.prank(resolver);
-        manager.resolveWithdrawalRequest(completedId, address(asset), 10 ether);
+        manager.resolveWithdrawalRequest(completedId, address(asset), 10 ether, 0);
 
         vm.prank(receiver);
         manager.transferFrom(receiver, other, transferredId);
@@ -265,8 +267,8 @@ contract WithdrawalRequestViewerTest is Test {
         assertFalse(viewer.requestIsClaimable(manager, belowThresholdId));
 
         vm.startPrank(resolver);
-        manager.resolveWithdrawalRequest(atThresholdId, address(asset), 10 ether - dustThreshold);
-        manager.resolveWithdrawalRequest(belowThresholdId, address(asset), 10 ether - dustThreshold + 1);
+        manager.resolveWithdrawalRequest(atThresholdId, address(asset), 10 ether - dustThreshold, 0);
+        manager.resolveWithdrawalRequest(belowThresholdId, address(asset), 10 ether - dustThreshold + 1, 0);
         vm.stopPrank();
 
         assertFalse(viewer.requestIsClaimable(manager, atThresholdId));
@@ -281,7 +283,7 @@ contract WithdrawalRequestViewerTest is Test {
         assertFalse(viewer.requestIsClaimed(manager, id));
 
         vm.prank(resolver);
-        manager.resolveWithdrawalRequest(id, address(asset), 10 ether);
+        manager.resolveWithdrawalRequest(id, address(asset), 10 ether, 0);
 
         assertFalse(viewer.requestIsClaimed(manager, id));
 
@@ -303,7 +305,7 @@ contract WithdrawalRequestViewerTest is Test {
         assertEq(viewer.maxResolutionAssets(manager, id, address(asset)), 10 ether);
 
         vm.prank(resolver);
-        manager.resolveWithdrawalRequest(id, address(asset), 4 ether);
+        manager.resolveWithdrawalRequest(id, address(asset), 4 ether, 0);
 
         assertEq(viewer.maxResolutionAssets(manager, id, address(asset)), 6 ether);
     }
