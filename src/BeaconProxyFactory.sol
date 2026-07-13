@@ -7,10 +7,11 @@ import {
 import {Initializable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import {BeaconProxy} from "lib/openzeppelin-contracts/contracts/proxy/beacon/BeaconProxy.sol";
 import {UpgradeableBeacon} from "lib/openzeppelin-contracts/contracts/proxy/beacon/UpgradeableBeacon.sol";
+import {IProxyFactory} from "src/interface/IProxyFactory.sol";
 
 /// @title BeaconProxyFactory
 /// @notice Shared beacon proxy factory and implementation upgrade manager.
-contract BeaconProxyFactory is Initializable, AccessControlUpgradeable {
+contract BeaconProxyFactory is Initializable, AccessControlUpgradeable, IProxyFactory {
     bytes32 public constant CREATOR_ROLE = keccak256("CREATOR_ROLE");
     bytes32 public constant IMPLEMENTATION_MANAGER_ROLE = keccak256("IMPLEMENTATION_MANAGER_ROLE");
 
@@ -62,7 +63,7 @@ contract BeaconProxyFactory is Initializable, AccessControlUpgradeable {
     /// @notice Creates a new beacon proxy initialized with arbitrary call data.
     /// @param initData Initialization call data for the implementation.
     /// @return proxy New proxy address.
-    function create(bytes calldata initData) external onlyRole(CREATOR_ROLE) returns (address proxy) {
+    function create(bytes calldata initData) external override onlyRole(CREATOR_ROLE) returns (address proxy) {
         UpgradeableBeacon beacon_ = _getBeaconProxyFactoryStorage().beacon;
         address implementation_ = beacon_.implementation();
         proxy = address(new BeaconProxy(address(beacon_), initData));
