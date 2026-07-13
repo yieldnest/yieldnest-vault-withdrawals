@@ -99,8 +99,8 @@ contract WithdrawalRequestTest is Test {
     WithdrawalAssetMock secondAsset;
     WithdrawalRequestViewer viewer;
     Bag bagImplementation;
-    BeaconProxyFactory beaconFactoryImplementation;
-    BeaconProxyFactory beaconFactory;
+    BeaconProxyFactory proxyFactoryImplementation;
+    BeaconProxyFactory proxyFactory;
 
     address admin = address(0xA11CE);
     address fulfiller = address(0xF0111);
@@ -116,12 +116,12 @@ contract WithdrawalRequestTest is Test {
         secondAsset = new WithdrawalAssetMock();
         viewer = new WithdrawalRequestViewer();
         bagImplementation = new Bag();
-        beaconFactoryImplementation = new BeaconProxyFactory();
-        ERC1967Proxy beaconFactoryProxy = new ERC1967Proxy(
-            address(beaconFactoryImplementation),
+        proxyFactoryImplementation = new BeaconProxyFactory();
+        ERC1967Proxy proxyFactoryProxy = new ERC1967Proxy(
+            address(proxyFactoryImplementation),
             abi.encodeCall(BeaconProxyFactory.initialize, (address(bagImplementation), admin, admin, admin))
         );
-        beaconFactory = BeaconProxyFactory(address(beaconFactoryProxy));
+        proxyFactory = BeaconProxyFactory(address(proxyFactoryProxy));
 
         WithdrawalRequest implementation = new WithdrawalRequest();
         ERC1967Proxy proxy = new ERC1967Proxy(
@@ -134,15 +134,15 @@ contract WithdrawalRequestTest is Test {
                     fulfiller,
                     configurationManager,
                     pauser,
-                    address(beaconFactory),
+                    address(proxyFactory),
                     minWithdrawalAmount
                 )
             )
         );
         manager = WithdrawalRequest(address(proxy));
-        bytes32 creatorRole = beaconFactory.CREATOR_ROLE();
+        bytes32 creatorRole = proxyFactory.CREATOR_ROLE();
         vm.prank(admin);
-        beaconFactory.grantRole(creatorRole, address(manager));
+        proxyFactory.grantRole(creatorRole, address(manager));
 
         ynToken.mint(user, 100 ether);
         asset.mint(address(ynToken), 100 ether);
@@ -189,7 +189,7 @@ contract WithdrawalRequestTest is Test {
 
         assertEq(id, 0);
         assertEq(manager.nextRequestId(), 1);
-        assertEq(address(manager.beaconFactory()), address(beaconFactory));
+        assertEq(address(manager.proxyFactory()), address(proxyFactory));
         assertTrue(manager.requestExists(id));
         assertFalse(manager.requestExists(id + 1));
         assertEq(ynToken.balanceOf(user), 90 ether);
@@ -313,22 +313,22 @@ contract WithdrawalRequestTest is Test {
         assertEq(IBag(request.bag).id(), id);
     }
 
-    function testBeaconFactoryRequiresCreatorRole() public {
-        bytes32 creatorRole = beaconFactory.CREATOR_ROLE();
+    function testProxyFactoryRequiresCreatorRole() public {
+        bytes32 creatorRole = proxyFactory.CREATOR_ROLE();
         vm.expectRevert(
             abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, user, creatorRole)
         );
         vm.prank(user);
-        beaconFactory.create(abi.encodeCall(IBag.initialize, (address(manager), 1)));
+        proxyFactory.create(abi.encodeCall(IBag.initialize, (address(manager), 1)));
     }
 
-    function testBeaconFactoryUpgradesImplementation() public {
+    function testProxyFactoryUpgradesImplementation() public {
         Bag newImplementation = new Bag();
 
         vm.prank(admin);
-        beaconFactory.upgradeImplementation(address(newImplementation));
+        proxyFactory.upgradeImplementation(address(newImplementation));
 
-        assertEq(beaconFactory.implementation(), address(newImplementation));
+        assertEq(proxyFactory.implementation(), address(newImplementation));
     }
 
     function testBagClaimRequiresRequestOwner() public {

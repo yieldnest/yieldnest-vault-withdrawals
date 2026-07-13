@@ -15,12 +15,12 @@ contract DeployWithdrawalRequest is BaseScript {
     uint256 public constant MIN_WITHDRAWAL_AMOUNT = 10 ether;
 
     Bag public bagImplementation;
-    BeaconProxyFactory public beaconFactoryImplementation;
-    BeaconProxyFactory public beaconFactory;
+    BeaconProxyFactory public proxyFactoryImplementation;
+    BeaconProxyFactory public proxyFactory;
     WithdrawalRequest public requestImplementation;
     WithdrawalRequest public withdrawalRequest;
     WithdrawalRequestViewer public withdrawalRequestViewer;
-    ERC1967Proxy public beaconFactoryProxy;
+    ERC1967Proxy public proxyFactoryProxy;
     ERC1967Proxy public proxy;
 
     address public token;
@@ -52,14 +52,14 @@ contract DeployWithdrawalRequest is BaseScript {
         configurationManager = address(timelock);
 
         bagImplementation = new Bag();
-        beaconFactoryImplementation = new BeaconProxyFactory();
-        beaconFactoryProxy = new ERC1967Proxy(
-            address(beaconFactoryImplementation),
+        proxyFactoryImplementation = new BeaconProxyFactory();
+        proxyFactoryProxy = new ERC1967Proxy(
+            address(proxyFactoryImplementation),
             abi.encodeCall(
                 BeaconProxyFactory.initialize, (address(bagImplementation), defaultAdmin, predictedProxy, defaultAdmin)
             )
         );
-        beaconFactory = BeaconProxyFactory(address(beaconFactoryProxy));
+        proxyFactory = BeaconProxyFactory(address(proxyFactoryProxy));
         requestImplementation = new WithdrawalRequest();
         proxy = new ERC1967Proxy(
             address(requestImplementation),
@@ -71,7 +71,7 @@ contract DeployWithdrawalRequest is BaseScript {
                     fulfiller,
                     configurationManager,
                     pauser,
-                    address(beaconFactory),
+                    address(proxyFactory),
                     MIN_WITHDRAWAL_AMOUNT
                 )
             )
@@ -125,8 +125,8 @@ contract DeployWithdrawalRequest is BaseScript {
         if (!withdrawalRequest.hasRole(withdrawalRequest.CONFIGURATION_MANAGER_ROLE(), address(timelock))) {
             revert InvalidSetup();
         }
-        if (!beaconFactory.hasRole(beaconFactory.DEFAULT_ADMIN_ROLE(), address(timelock))) revert InvalidSetup();
-        if (!beaconFactory.hasRole(beaconFactory.IMPLEMENTATION_MANAGER_ROLE(), address(timelock))) {
+        if (!proxyFactory.hasRole(proxyFactory.DEFAULT_ADMIN_ROLE(), address(timelock))) revert InvalidSetup();
+        if (!proxyFactory.hasRole(proxyFactory.IMPLEMENTATION_MANAGER_ROLE(), address(timelock))) {
             revert InvalidSetup();
         }
     }
@@ -143,10 +143,10 @@ contract DeployWithdrawalRequest is BaseScript {
         vm.serializeAddress(symbol(), "implementation", address(requestImplementation));
         vm.serializeAddress(symbol(), "timelock", address(timelock));
         vm.serializeAddress(symbol(), "bagImplementation", address(bagImplementation));
-        vm.serializeAddress(symbol(), "beaconFactoryImplementation", address(beaconFactoryImplementation));
-        vm.serializeAddress(symbol(), "beaconFactory", address(beaconFactory));
-        vm.serializeAddress(symbol(), "beaconFactoryProxy", address(beaconFactoryProxy));
-        vm.serializeAddress(symbol(), "beacon", beaconFactory.beacon());
+        vm.serializeAddress(symbol(), "proxyFactoryImplementation", address(proxyFactoryImplementation));
+        vm.serializeAddress(symbol(), "proxyFactory", address(proxyFactory));
+        vm.serializeAddress(symbol(), "proxyFactoryProxy", address(proxyFactoryProxy));
+        vm.serializeAddress(symbol(), "beacon", proxyFactory.beacon());
         vm.serializeAddress(symbol(), "proxy", address(proxy));
         vm.serializeAddress(symbol(), "predictedProxy", predictedProxy);
         vm.serializeAddress(symbol(), "withdrawalRequest", address(withdrawalRequest));

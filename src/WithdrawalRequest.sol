@@ -14,8 +14,8 @@ import {Initializable} from "lib/openzeppelin-contracts-upgradeable/contracts/pr
 import {PausableUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
 import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IBag} from "src/interface/IBag.sol";
-import {IBeaconProxyFactory} from "src/interface/IBeaconProxyFactory.sol";
 import {IAuth} from "src/interface/IAuth.sol";
+import {IProxyFactory} from "src/interface/IProxyFactory.sol";
 
 interface IWithdrawAssetVault is IERC20 {
     function withdrawAsset(address asset_, uint256 assets, address receiver, address owner)
@@ -46,7 +46,7 @@ contract WithdrawalRequest is
     /// @custom:storage-location erc7201:yieldnest.storage.withdrawal_request_manager
     struct RequestStorage {
         IWithdrawAssetVault token;
-        IBeaconProxyFactory beaconFactory;
+        IProxyFactory proxyFactory;
         uint256 minWithdrawalAmount;
         uint256 nextRequestId;
         mapping(uint256 id => Request request) requests;
@@ -100,12 +100,12 @@ contract WithdrawalRequest is
         address fulfiller,
         address configurationManager,
         address pauser,
-        address beaconFactory_,
+        address proxyFactory_,
         uint256 minWithdrawalAmount_
     ) external initializer {
         if (
             token_ == address(0) || defaultAdmin == address(0) || fulfiller == address(0)
-                || configurationManager == address(0) || pauser == address(0) || beaconFactory_ == address(0)
+                || configurationManager == address(0) || pauser == address(0) || proxyFactory_ == address(0)
         ) {
             revert ZeroAddress();
         }
@@ -117,7 +117,7 @@ contract WithdrawalRequest is
 
         RequestStorage storage $ = _getRequestStorage();
         $.token = IWithdrawAssetVault(token_);
-        $.beaconFactory = IBeaconProxyFactory(beaconFactory_);
+        $.proxyFactory = IProxyFactory(proxyFactory_);
         $.minWithdrawalAmount = minWithdrawalAmount_;
 
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
@@ -152,7 +152,7 @@ contract WithdrawalRequest is
         IERC20(address($.token)).safeTransferFrom(msg.sender, address(this), amount);
 
         id = $.nextRequestId++;
-        address bag = $.beaconFactory.create(abi.encodeCall(IBag.initialize, (address(this), id)));
+        address bag = $.proxyFactory.create(abi.encodeCall(IBag.initialize, (address(this), id)));
         $.requests[id].bag = bag;
         $.requests[id].amountLocked = amount;
         _mint(receiver, id);
@@ -247,10 +247,10 @@ contract WithdrawalRequest is
         return _getRequestStorage().token;
     }
 
-    /// @notice Returns the beacon factory used to create request bags.
-    /// @return The beacon factory contract.
-    function beaconFactory() public view returns (IBeaconProxyFactory) {
-        return _getRequestStorage().beaconFactory;
+    /// @notice Returns the factory used to create request bags.
+    /// @return The factory contract.
+    function proxyFactory() public view returns (IProxyFactory) {
+        return _getRequestStorage().proxyFactory;
     }
 
     /// @notice Returns the minimum yn-token share amount required to open a request.
