@@ -12,7 +12,6 @@ import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 import {WithdrawalRequestViewer} from "views/WithdrawalRequestViewer.sol";
 
 contract ViewerVaultMock is ERC20 {
-    uint256 public processAccountingCalls;
     address[] internal assetList;
     mapping(address asset => uint8 decimals_) internal assetDecimals;
     mapping(address asset => uint256 rate) internal assetRates;
@@ -59,10 +58,6 @@ contract ViewerVaultMock is ERC20 {
 
     function getRate(address asset_) external view returns (uint256) {
         return assetRates[asset_];
-    }
-
-    function processAccounting() external {
-        processAccountingCalls++;
     }
 }
 
@@ -176,7 +171,7 @@ contract WithdrawalRequestViewerTest is Test {
         uint256 id = manager.requestWithdrawal(10 ether, receiver);
 
         vm.prank(fulfiller);
-        manager.fulfillWithdrawalRequest(id, address(asset), 4 ether, true);
+        manager.fulfillWithdrawalRequest(id, address(asset), 4 ether);
 
         WithdrawalRequest.Request memory request = manager.requests(id);
         WithdrawalRequestViewer.RequestView memory view_ = viewer.getRequest(manager, id);
@@ -200,7 +195,7 @@ contract WithdrawalRequestViewerTest is Test {
         uint256 id = manager.requestWithdrawal(10 ether, receiver);
 
         vm.prank(fulfiller);
-        manager.fulfillWithdrawalRequest(id, address(asset), 4 ether, true);
+        manager.fulfillWithdrawalRequest(id, address(asset), 4 ether);
 
         address[] memory assets = new address[](0);
         uint8[] memory decimals_ = new uint8[](0);
@@ -223,7 +218,7 @@ contract WithdrawalRequestViewerTest is Test {
         vm.stopPrank();
 
         vm.prank(fulfiller);
-        manager.fulfillWithdrawalRequest(completedId, address(asset), 10 ether, true);
+        manager.fulfillWithdrawalRequest(completedId, address(asset), 10 ether);
 
         vm.prank(receiver);
         manager.transferFrom(receiver, other, transferredId);
@@ -265,8 +260,8 @@ contract WithdrawalRequestViewerTest is Test {
         assertFalse(viewer.requestIsClaimable(manager, belowThresholdId));
 
         vm.startPrank(fulfiller);
-        manager.fulfillWithdrawalRequest(atThresholdId, address(asset), 10 ether - dustThreshold, true);
-        manager.fulfillWithdrawalRequest(belowThresholdId, address(asset), 10 ether - dustThreshold + 1, true);
+        manager.fulfillWithdrawalRequest(atThresholdId, address(asset), 10 ether - dustThreshold);
+        manager.fulfillWithdrawalRequest(belowThresholdId, address(asset), 10 ether - dustThreshold + 1);
         vm.stopPrank();
 
         assertFalse(viewer.requestIsClaimable(manager, atThresholdId));
@@ -281,7 +276,7 @@ contract WithdrawalRequestViewerTest is Test {
         assertFalse(viewer.requestIsClaimed(manager, id));
 
         vm.prank(fulfiller);
-        manager.fulfillWithdrawalRequest(id, address(asset), 10 ether, true);
+        manager.fulfillWithdrawalRequest(id, address(asset), 10 ether);
 
         assertFalse(viewer.requestIsClaimed(manager, id));
 
@@ -303,7 +298,7 @@ contract WithdrawalRequestViewerTest is Test {
         assertEq(viewer.maxFulfillmentAssets(manager, id, address(asset)), 10 ether);
 
         vm.prank(fulfiller);
-        manager.fulfillWithdrawalRequest(id, address(asset), 4 ether, true);
+        manager.fulfillWithdrawalRequest(id, address(asset), 4 ether);
 
         assertEq(viewer.maxFulfillmentAssets(manager, id, address(asset)), 6 ether);
     }

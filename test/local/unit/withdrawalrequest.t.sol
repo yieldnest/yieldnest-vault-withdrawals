@@ -18,7 +18,6 @@ contract MockWithdrawAssetVault is ERC20 {
     uint256 public burnMultiplier = 1;
     uint256 public returnAmountOffset;
     uint256 public transferShortfall;
-    uint256 public processAccountingCalls;
     address[] internal assetList;
 
     constructor() ERC20("ynToken", "ynT") {}
@@ -75,10 +74,6 @@ contract MockWithdrawAssetVault is ERC20 {
 
     function getRate(address) external pure returns (uint256) {
         return 1 ether;
-    }
-
-    function processAccounting() external {
-        processAccountingCalls++;
     }
 }
 
@@ -276,7 +271,7 @@ contract WithdrawalRequestTest is Test {
         uint256 id = manager.requestWithdrawal(10 ether, receiver);
 
         vm.prank(fulfiller);
-        manager.fulfillWithdrawalRequest(id, address(asset), 4 ether, true);
+        manager.fulfillWithdrawalRequest(id, address(asset), 4 ether);
 
         WithdrawalRequestViewer.RequestView memory view_ = viewer.getRequest(manager, id);
 
@@ -508,13 +503,11 @@ contract WithdrawalRequestTest is Test {
         );
 
         vm.prank(fulfiller);
-        uint256 amountBurned = manager.fulfillWithdrawalRequest(id, address(asset), 4 ether, true);
+        uint256 amountBurned = manager.fulfillWithdrawalRequest(id, address(asset), 4 ether);
 
         assertEq(amountBurned, 4 ether);
         assertEq(ynToken.balanceOf(address(manager)), 6 ether);
         assertEq(asset.balanceOf(address(manager)), 0);
-        assertEq(ynToken.processAccountingCalls(), 1);
-
         request = manager.requests(id);
         assertEq(asset.balanceOf(request.bag), 4 ether);
         assertEq(asset.balanceOf(user), 0);
@@ -533,9 +526,9 @@ contract WithdrawalRequestTest is Test {
         uint256 id = manager.requestWithdrawal(10 ether, user);
 
         vm.startPrank(fulfiller);
-        manager.fulfillWithdrawalRequest(id, address(asset), 4 ether, true);
-        manager.fulfillWithdrawalRequest(id, address(asset), 2 ether, true);
-        manager.fulfillWithdrawalRequest(id, address(secondAsset), 3 ether, true);
+        manager.fulfillWithdrawalRequest(id, address(asset), 4 ether);
+        manager.fulfillWithdrawalRequest(id, address(asset), 2 ether);
+        manager.fulfillWithdrawalRequest(id, address(secondAsset), 3 ether);
         vm.stopPrank();
 
         WithdrawalRequest.Request memory request = manager.requests(id);
@@ -543,20 +536,6 @@ contract WithdrawalRequestTest is Test {
         assertEq(request.assetsRedeemed[0], address(asset));
         assertEq(request.assetsRedeemed[1], address(secondAsset));
         assertEq(request.amountLocked, 1 ether);
-    }
-
-    function testFulfillWithdrawalRequestCanSkipProcessAccounting() public {
-        vm.prank(user);
-        uint256 id = manager.requestWithdrawal(10 ether, user);
-
-        vm.prank(fulfiller);
-        uint256 amountBurned = manager.fulfillWithdrawalRequest(id, address(asset), 4 ether, false);
-
-        WithdrawalRequest.Request memory request = manager.requests(id);
-        assertEq(amountBurned, 4 ether);
-        assertEq(request.amountLocked, 6 ether);
-        assertEq(asset.balanceOf(request.bag), 4 ether);
-        assertEq(ynToken.processAccountingCalls(), 0);
     }
 
     function testFuzzFulfillWithdrawalRequestBurnsLockedTokenAndSubtractsBurnedAmount(
@@ -570,7 +549,7 @@ contract WithdrawalRequestTest is Test {
         uint256 id = manager.requestWithdrawal(lockedAmount, user);
 
         vm.prank(fulfiller);
-        uint256 amountBurned = manager.fulfillWithdrawalRequest(id, address(asset), assets, true);
+        uint256 amountBurned = manager.fulfillWithdrawalRequest(id, address(asset), assets);
 
         WithdrawalRequest.Request memory request = manager.requests(id);
 
@@ -582,7 +561,6 @@ contract WithdrawalRequestTest is Test {
         assertEq(asset.balanceOf(request.bag), assets);
         assertEq(asset.balanceOf(address(manager)), 0);
         assertEq(asset.balanceOf(user), 0);
-        assertEq(ynToken.processAccountingCalls(), 1);
     }
 
     function testViewerMaxFulfillmentAssetsCanBeUsedToFulfillLockedShares() public {
@@ -600,7 +578,7 @@ contract WithdrawalRequestTest is Test {
         );
 
         vm.prank(fulfiller);
-        uint256 amountBurned = manager.fulfillWithdrawalRequest(id, address(asset), maxAssets, true);
+        uint256 amountBurned = manager.fulfillWithdrawalRequest(id, address(asset), maxAssets);
 
         assertEq(amountBurned, 10 ether);
 
@@ -622,7 +600,7 @@ contract WithdrawalRequestTest is Test {
         uint256 maxAssets = viewer.maxFulfillmentAssets(manager, id, address(asset));
 
         vm.prank(fulfiller);
-        uint256 amountBurned = manager.fulfillWithdrawalRequest(id, address(asset), maxAssets, true);
+        uint256 amountBurned = manager.fulfillWithdrawalRequest(id, address(asset), maxAssets);
 
         WithdrawalRequest.Request memory request = manager.requests(id);
 
@@ -631,7 +609,6 @@ contract WithdrawalRequestTest is Test {
         assertEq(request.amountLocked, 0);
         assertEq(ynToken.balanceOf(address(manager)), 0);
         assertEq(asset.balanceOf(request.bag), lockedAmount);
-        assertEq(ynToken.processAccountingCalls(), 1);
     }
 
     function testFulfillWithdrawalRequestRevertsWhenReturnedBurnAmountMismatchesBalanceDelta() public {
@@ -642,7 +619,7 @@ contract WithdrawalRequestTest is Test {
 
         vm.expectRevert(abi.encodeWithSelector(WithdrawalRequest.InvalidTokenBalanceChange.selector, 10 ether, 6 ether));
         vm.prank(fulfiller);
-        manager.fulfillWithdrawalRequest(id, address(asset), 4 ether, true);
+        manager.fulfillWithdrawalRequest(id, address(asset), 4 ether);
     }
 
     function testFulfillWithdrawalRequestRevertsWhenAssetsWithdrawnMismatchExpected() public {
@@ -653,7 +630,7 @@ contract WithdrawalRequestTest is Test {
 
         vm.expectRevert(abi.encodeWithSelector(WithdrawalRequest.UnexpectedAssetsWithdrawn.selector, 4 ether, 3 ether));
         vm.prank(fulfiller);
-        manager.fulfillWithdrawalRequest(id, address(asset), 4 ether, true);
+        manager.fulfillWithdrawalRequest(id, address(asset), 4 ether);
     }
 
     function testFulfillWithdrawalRequestRequiresFulfillerRole() public {
@@ -666,7 +643,7 @@ contract WithdrawalRequestTest is Test {
             )
         );
         vm.prank(user);
-        manager.fulfillWithdrawalRequest(id, address(asset), 1 ether, true);
+        manager.fulfillWithdrawalRequest(id, address(asset), 1 ether);
     }
 
     function testFulfillWithdrawalRequestRevertsWhenBurnExceedsLockedAmount() public {
@@ -680,6 +657,6 @@ contract WithdrawalRequestTest is Test {
             abi.encodeWithSelector(WithdrawalRequest.InsufficientLockedAmount.selector, id, 10 ether, 12 ether)
         );
         vm.prank(fulfiller);
-        manager.fulfillWithdrawalRequest(id, address(asset), 6 ether, true);
+        manager.fulfillWithdrawalRequest(id, address(asset), 6 ether);
     }
 }

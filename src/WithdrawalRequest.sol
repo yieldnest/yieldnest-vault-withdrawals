@@ -21,7 +21,6 @@ interface IWithdrawAssetVault is IERC20 {
     function withdrawAsset(address asset_, uint256 assets, address receiver, address owner)
         external
         returns (uint256 shares);
-    function processAccounting() external;
 }
 
 /// @title WithdrawalRequest
@@ -166,17 +165,16 @@ contract WithdrawalRequest is
     /// @param id Request id to fulfil.
     /// @param asset Asset to withdraw from the yn-token.
     /// @param assets Amount of `asset` to withdraw to the request bag.
-    /// @param shouldProcessAccounting Whether to call processAccounting on the configured yn-token after fulfillment.
     /// @return amountBurned Amount of locked yn-token shares burned by the withdrawal.
-    function fulfillWithdrawalRequest(uint256 id, address asset, uint256 assets, bool shouldProcessAccounting)
+    function fulfillWithdrawalRequest(uint256 id, address asset, uint256 assets)
         external
         onlyRole(FULFILLER_ROLE)
         returns (uint256 amountBurned)
     {
-        (amountBurned,) = _fulfillWithdrawalRequest(id, asset, assets, shouldProcessAccounting);
+        (amountBurned,) = _fulfillWithdrawalRequest(id, asset, assets);
     }
 
-    function _fulfillWithdrawalRequest(uint256 id, address asset, uint256 assets, bool shouldProcessAccounting)
+    function _fulfillWithdrawalRequest(uint256 id, address asset, uint256 assets)
         internal
         returns (uint256 tokenAmountBurned, uint256 assetsWithdrawn)
     {
@@ -211,10 +209,6 @@ contract WithdrawalRequest is
         _recordAssetRedeemed(request, asset);
 
         request.amountLocked -= tokenAmountBurned;
-
-        if (shouldProcessAccounting) {
-            $.token.processAccounting();
-        }
 
         emit WithdrawalRequestFulfilled(
             id, ownerOf(id), address($.token), asset, assetsWithdrawn, tokenAmountBurned, request.amountLocked
