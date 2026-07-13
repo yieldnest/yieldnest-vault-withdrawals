@@ -10,6 +10,7 @@ import {
     ERC721EnumerableUpgradeable
 } from "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
 import {ERC721Upgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC721/ERC721Upgradeable.sol";
+import {IERC20Metadata} from "lib/openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Initializable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import {PausableUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
 import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -17,10 +18,11 @@ import {IBag} from "src/interface/IBag.sol";
 import {IAuth} from "src/interface/IAuth.sol";
 import {IProxyFactory} from "src/interface/IProxyFactory.sol";
 
-interface IWithdrawAssetVault is IERC20 {
+interface IWithdrawAssetVault is IERC20Metadata {
     function withdrawAsset(address asset_, uint256 assets, address receiver, address owner)
         external
         returns (uint256 shares);
+    function convertToAssets(uint256 shares) external view returns (uint256 assets);
 }
 
 /// @title WithdrawalRequest
@@ -40,6 +42,7 @@ contract WithdrawalRequest is
         address bag;
         uint256 amountLocked;
         address[] assetsRedeemed;
+        uint256 rateAtRequest;
     }
 
     /// @custom:storage-location erc7201:yieldnest.storage.withdrawal_request_manager
@@ -149,11 +152,13 @@ contract WithdrawalRequest is
         if (amount < $.minWithdrawalAmount) revert AmountBelowMinimum(amount, $.minWithdrawalAmount);
 
         IERC20(address($.token)).safeTransferFrom(msg.sender, address(this), amount);
+        uint256 rateAtRequest = $.token.convertToAssets(10 ** $.token.decimals());
 
         id = $.nextRequestId++;
         address bag = $.proxyFactory.create(abi.encodeCall(IBag.initialize, (address(this), id)));
         $.requests[id].bag = bag;
         $.requests[id].amountLocked = amount;
+        $.requests[id].rateAtRequest = rateAtRequest;
         _mint(receiver, id);
 
         emit WithdrawalRequested(id, receiver, address($.token), bag, amount);

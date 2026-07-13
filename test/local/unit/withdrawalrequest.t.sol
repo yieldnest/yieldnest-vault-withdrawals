@@ -18,6 +18,7 @@ contract MockWithdrawAssetVault is ERC20 {
     uint256 public burnMultiplier = 1;
     uint256 public returnAmountOffset;
     uint256 public transferShortfall;
+    uint256 public convertToAssetsRate = 1 ether;
     address[] internal assetList;
 
     constructor() ERC20("ynToken", "ynT") {}
@@ -36,6 +37,10 @@ contract MockWithdrawAssetVault is ERC20 {
 
     function setTransferShortfall(uint256 transferShortfall_) external {
         transferShortfall = transferShortfall_;
+    }
+
+    function setConvertToAssetsRate(uint256 convertToAssetsRate_) external {
+        convertToAssetsRate = convertToAssetsRate_;
     }
 
     function setAssets(address[] memory assets_) external {
@@ -74,6 +79,10 @@ contract MockWithdrawAssetVault is ERC20 {
 
     function getRate(address) external pure returns (uint256) {
         return 1 ether;
+    }
+
+    function convertToAssets(uint256 shares) external view returns (uint256 assets) {
+        return shares * convertToAssetsRate / 1 ether;
     }
 }
 
@@ -199,6 +208,20 @@ contract WithdrawalRequestTest is Test {
         assertEq(IBag(request.bag).ownerRegistry(), address(manager));
         assertEq(IBag(request.bag).id(), id);
         assertEq(request.amountLocked, 10 ether);
+        assertEq(request.rateAtRequest, 1 ether);
+    }
+
+    function testRequestWithdrawalRecordsRateAtCreation() public {
+        ynToken.setConvertToAssetsRate(2 ether);
+
+        vm.prank(user);
+        uint256 id = manager.requestWithdrawal(10 ether, user);
+
+        ynToken.setConvertToAssetsRate(3 ether);
+
+        WithdrawalRequest.Request memory request = manager.requests(id);
+        assertEq(request.amountLocked, 10 ether);
+        assertEq(request.rateAtRequest, 2 ether);
     }
 
     function testRequestWithdrawalCreatesBagForEachRequest() public {
@@ -262,6 +285,7 @@ contract WithdrawalRequestTest is Test {
         assertEq(view_.bag, request.bag);
         assertEq(view_.token, address(ynToken));
         assertEq(view_.amountLocked, 10 ether);
+        assertEq(view_.rateAtRequest, 1 ether);
         assertEq(view_.tokenBalance, 10 ether);
         assertEq(view_.assetBalances.length, 0);
     }

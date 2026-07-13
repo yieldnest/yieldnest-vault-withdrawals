@@ -59,6 +59,10 @@ contract ViewerVaultMock is ERC20 {
     function getRate(address asset_) external view returns (uint256) {
         return assetRates[asset_];
     }
+
+    function convertToAssets(uint256 shares) external pure returns (uint256 assets) {
+        return shares;
+    }
 }
 
 contract ViewerAssetMock is ERC20 {
@@ -181,6 +185,7 @@ contract WithdrawalRequestViewerTest is Test {
         assertEq(view_.bag, request.bag);
         assertEq(view_.token, address(ynToken));
         assertEq(view_.amountLocked, 6 ether);
+        assertEq(view_.rateAtRequest, 1 ether);
         assertEq(view_.tokenBalance, 6 ether);
         assertFalse(view_.isClaimable);
         assertFalse(view_.isClaimed);

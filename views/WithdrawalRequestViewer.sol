@@ -30,6 +30,7 @@ contract WithdrawalRequestViewer {
         address bag;
         address token;
         uint256 amountLocked;
+        uint256 rateAtRequest;
         uint256 tokenBalance;
         bool isClaimable;
         bool isClaimed;
@@ -78,6 +79,7 @@ contract WithdrawalRequestViewer {
             bag: request.bag,
             token: address(token),
             amountLocked: request.amountLocked,
+            rateAtRequest: request.rateAtRequest,
             tokenBalance: token.balanceOf(address(withdrawalRequest)),
             isClaimable: isClaimable,
             isClaimed: _requestIsClaimed(request, token),
