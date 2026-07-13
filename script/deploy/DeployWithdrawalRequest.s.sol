@@ -25,7 +25,7 @@ contract DeployWithdrawalRequest is BaseScript {
 
     address public token;
     address public defaultAdmin;
-    address public fulfiller;
+    address public resolver;
     address public configurationManager;
     address public pauser;
     address public proposer;
@@ -68,7 +68,7 @@ contract DeployWithdrawalRequest is BaseScript {
                 (
                     token,
                     defaultAdmin,
-                    fulfiller,
+                    resolver,
                     configurationManager,
                     pauser,
                     address(proxyFactory),
@@ -91,7 +91,7 @@ contract DeployWithdrawalRequest is BaseScript {
         token = MC.YNETHX;
         proposer = actors.ADMIN();
         executor = actors.ADMIN();
-        fulfiller = actors.ADMIN();
+        resolver = actors.ADMIN();
         pauser = actors.PAUSER();
     }
 
@@ -99,7 +99,7 @@ contract DeployWithdrawalRequest is BaseScript {
         if (token == address(0)) revert InvalidSetup();
         if (proposer == address(0)) revert InvalidSetup();
         if (executor == address(0)) revert InvalidSetup();
-        if (fulfiller == address(0)) revert InvalidSetup();
+        if (resolver == address(0)) revert InvalidSetup();
         if (pauser == address(0)) revert InvalidSetup();
     }
 
@@ -123,6 +123,9 @@ contract DeployWithdrawalRequest is BaseScript {
             revert InvalidSetup();
         }
         if (!withdrawalRequest.hasRole(withdrawalRequest.CONFIGURATION_MANAGER_ROLE(), address(timelock))) {
+            revert InvalidSetup();
+        }
+        if (!withdrawalRequest.hasRole(withdrawalRequest.RESOLVER_ROLE(), resolver)) {
             revert InvalidSetup();
         }
         if (!proxyFactory.hasRole(proxyFactory.DEFAULT_ADMIN_ROLE(), address(timelock))) revert InvalidSetup();
@@ -155,7 +158,7 @@ contract DeployWithdrawalRequest is BaseScript {
         vm.serializeUint(symbol(), "minWithdrawalAmount", MIN_WITHDRAWAL_AMOUNT);
         vm.serializeUint(symbol(), "timelockMinDelay", minDelay);
         vm.serializeAddress(symbol(), "defaultAdmin", defaultAdmin);
-        vm.serializeAddress(symbol(), "fulfiller", fulfiller);
+        vm.serializeAddress(symbol(), "resolver", resolver);
         vm.serializeAddress(symbol(), "configurationManager", configurationManager);
         vm.serializeAddress(symbol(), "pauser", pauser);
         vm.serializeAddress(symbol(), "proposer", proposer);

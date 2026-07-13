@@ -16,6 +16,7 @@ import {PausableUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contra
 import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IBag} from "src/interface/IBag.sol";
 import {IAuth} from "src/interface/IAuth.sol";
+import {IResolver} from "src/interface/IResolver.sol";
 import {IProxyFactory} from "src/interface/IProxyFactory.sol";
 
 interface IWithdrawAssetVault is IERC20Metadata {
@@ -26,13 +27,14 @@ interface IWithdrawAssetVault is IERC20Metadata {
 }
 
 /// @title WithdrawalRequest
-/// @notice Custodies one yn-token type and tracks permissioned fulfilment of withdrawal requests.
+/// @notice Custodies one yn-token type and tracks permissioned resolution of withdrawal requests.
 contract WithdrawalRequest is
     Initializable,
     AccessControlUpgradeable,
     ERC721EnumerableUpgradeable,
     PausableUpgradeable,
-    IAuth
+    IAuth,
+    IResolver
 {
     using SafeERC20 for IERC20;
 
@@ -62,11 +64,12 @@ contract WithdrawalRequest is
     error InvalidTokenBalanceChange(uint256 balanceBefore, uint256 balanceAfter);
     error InvalidAssetBalanceChange(uint256 balanceBefore, uint256 balanceAfter);
     error UnexpectedAssetsWithdrawn(uint256 expectedAssets, uint256 actualAssets);
+    error ArrayLengthMismatch(uint256 assetsLength, uint256 assetAmountsLength);
 
     event WithdrawalRequested(
         uint256 indexed id, address indexed owner, address indexed token, address bag, uint256 amountLocked
     );
-    event WithdrawalRequestFulfilled(
+    event WithdrawalRequestResolved(
         uint256 indexed id,
         address indexed owner,
         address indexed token,
@@ -77,7 +80,7 @@ contract WithdrawalRequest is
     );
     event MinWithdrawalAmountUpdated(uint256 oldMinWithdrawalAmount, uint256 newMinWithdrawalAmount);
 
-    bytes32 public constant FULFILLER_ROLE = keccak256("FULFILLER_ROLE");
+    bytes32 public constant RESOLVER_ROLE = keccak256("RESOLVER_ROLE");
     bytes32 public constant CONFIGURATION_MANAGER_ROLE = keccak256("CONFIGURATION_MANAGER_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
 
@@ -99,14 +102,14 @@ contract WithdrawalRequest is
     function initialize(
         address token_,
         address defaultAdmin,
-        address fulfiller,
+        address resolver,
         address configurationManager,
         address pauser,
         address proxyFactory_,
         uint256 minWithdrawalAmount_
     ) external initializer {
         if (
-            token_ == address(0) || defaultAdmin == address(0) || fulfiller == address(0)
+            token_ == address(0) || defaultAdmin == address(0) || resolver == address(0)
                 || configurationManager == address(0) || pauser == address(0) || proxyFactory_ == address(0)
         ) {
             revert ZeroAddress();
@@ -123,7 +126,7 @@ contract WithdrawalRequest is
         $.minWithdrawalAmount = minWithdrawalAmount_;
 
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
-        _grantRole(FULFILLER_ROLE, fulfiller);
+        _grantRole(RESOLVER_ROLE, resolver);
         _grantRole(CONFIGURATION_MANAGER_ROLE, configurationManager);
         _grantRole(PAUSER_ROLE, pauser);
     }
@@ -164,22 +167,44 @@ contract WithdrawalRequest is
         emit WithdrawalRequested(id, receiver, address($.token), bag, amount);
     }
 
-    // --- Fulfillment ---
+    // --- Resolution ---
 
-    /// @notice Fulfils part or all of a request by withdrawing an asset from the configured yn-token.
-    /// @param id Request id to fulfil.
+    /// @notice Resolves part or all of a request by withdrawing an asset from the configured yn-token.
+    /// @param id Request id to resolve.
     /// @param asset Asset to withdraw from the yn-token.
     /// @param assets Amount of `asset` to withdraw to the request bag.
     /// @return amountBurned Amount of locked yn-token shares burned by the withdrawal.
-    function fulfillWithdrawalRequest(uint256 id, address asset, uint256 assets)
+    function resolveWithdrawalRequest(uint256 id, address asset, uint256 assets)
         external
-        onlyRole(FULFILLER_ROLE)
+        override
+        onlyRole(RESOLVER_ROLE)
         returns (uint256 amountBurned)
     {
-        (amountBurned,) = _fulfillWithdrawalRequest(id, asset, assets);
+        (amountBurned,) = _resolveWithdrawalRequest(id, asset, assets);
     }
 
-    function _fulfillWithdrawalRequest(uint256 id, address asset, uint256 assets)
+    /// @notice Resolves a request across multiple assets.
+    /// @param id Request id to resolve.
+    /// @param assets Assets to withdraw from the yn-token.
+    /// @param assetAmounts Amounts of each asset to withdraw to the request bag.
+    /// @return amountsBurned Amounts of locked yn-token shares burned by each withdrawal.
+    function resolveWithdrawalRequest(uint256 id, address[] calldata assets, uint256[] calldata assetAmounts)
+        external
+        override
+        onlyRole(RESOLVER_ROLE)
+        returns (uint256[] memory amountsBurned)
+    {
+        if (assets.length != assetAmounts.length) {
+            revert ArrayLengthMismatch(assets.length, assetAmounts.length);
+        }
+
+        amountsBurned = new uint256[](assets.length);
+        for (uint256 i = 0; i < assets.length; ++i) {
+            (amountsBurned[i],) = _resolveWithdrawalRequest(id, assets[i], assetAmounts[i]);
+        }
+    }
+
+    function _resolveWithdrawalRequest(uint256 id, address asset, uint256 assets)
         internal
         returns (uint256 tokenAmountBurned, uint256 assetsWithdrawn)
     {
@@ -215,7 +240,7 @@ contract WithdrawalRequest is
 
         request.amountLocked -= tokenAmountBurned;
 
-        emit WithdrawalRequestFulfilled(
+        emit WithdrawalRequestResolved(
             id, ownerOf(id), address($.token), asset, assetsWithdrawn, tokenAmountBurned, request.amountLocked
         );
     }

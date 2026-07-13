@@ -90,7 +90,7 @@ contract WithdrawalRequestViewerTest is Test {
     BeaconProxyFactory proxyFactory;
 
     address admin = address(0xA11CE);
-    address fulfiller = address(0xF0111);
+    address resolver = address(0xF0111);
     address configurationManager = address(0xC0F16);
     address pauser = address(0xAA05E);
     address user = address(0xB0B);
@@ -124,7 +124,7 @@ contract WithdrawalRequestViewerTest is Test {
                         (
                             address(ynToken),
                             admin,
-                            fulfiller,
+                            resolver,
                             configurationManager,
                             pauser,
                             address(proxyFactory),
@@ -174,8 +174,8 @@ contract WithdrawalRequestViewerTest is Test {
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, receiver);
 
-        vm.prank(fulfiller);
-        manager.fulfillWithdrawalRequest(id, address(asset), 4 ether);
+        vm.prank(resolver);
+        manager.resolveWithdrawalRequest(id, address(asset), 4 ether);
 
         WithdrawalRequest.Request memory request = manager.requests(id);
         WithdrawalRequestViewer.RequestView memory view_ = viewer.getRequest(manager, id);
@@ -199,8 +199,8 @@ contract WithdrawalRequestViewerTest is Test {
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, receiver);
 
-        vm.prank(fulfiller);
-        manager.fulfillWithdrawalRequest(id, address(asset), 4 ether);
+        vm.prank(resolver);
+        manager.resolveWithdrawalRequest(id, address(asset), 4 ether);
 
         address[] memory assets = new address[](0);
         uint8[] memory decimals_ = new uint8[](0);
@@ -222,8 +222,8 @@ contract WithdrawalRequestViewerTest is Test {
         uint256 transferredId = manager.requestWithdrawal(12 ether, receiver);
         vm.stopPrank();
 
-        vm.prank(fulfiller);
-        manager.fulfillWithdrawalRequest(completedId, address(asset), 10 ether);
+        vm.prank(resolver);
+        manager.resolveWithdrawalRequest(completedId, address(asset), 10 ether);
 
         vm.prank(receiver);
         manager.transferFrom(receiver, other, transferredId);
@@ -264,9 +264,9 @@ contract WithdrawalRequestViewerTest is Test {
         assertFalse(viewer.requestIsClaimable(manager, atThresholdId));
         assertFalse(viewer.requestIsClaimable(manager, belowThresholdId));
 
-        vm.startPrank(fulfiller);
-        manager.fulfillWithdrawalRequest(atThresholdId, address(asset), 10 ether - dustThreshold);
-        manager.fulfillWithdrawalRequest(belowThresholdId, address(asset), 10 ether - dustThreshold + 1);
+        vm.startPrank(resolver);
+        manager.resolveWithdrawalRequest(atThresholdId, address(asset), 10 ether - dustThreshold);
+        manager.resolveWithdrawalRequest(belowThresholdId, address(asset), 10 ether - dustThreshold + 1);
         vm.stopPrank();
 
         assertFalse(viewer.requestIsClaimable(manager, atThresholdId));
@@ -280,8 +280,8 @@ contract WithdrawalRequestViewerTest is Test {
         WithdrawalRequest.Request memory request = manager.requests(id);
         assertFalse(viewer.requestIsClaimed(manager, id));
 
-        vm.prank(fulfiller);
-        manager.fulfillWithdrawalRequest(id, address(asset), 10 ether);
+        vm.prank(resolver);
+        manager.resolveWithdrawalRequest(id, address(asset), 10 ether);
 
         assertFalse(viewer.requestIsClaimed(manager, id));
 
@@ -296,16 +296,16 @@ contract WithdrawalRequestViewerTest is Test {
         assertEq(viewer.convertToAssets(manager, address(secondAsset), 10 ether), 5_000_000);
     }
 
-    function testMaxFulfillmentAssetsUsesCurrentAmountLocked() public {
+    function testMaxResolutionAssetsUsesCurrentAmountLocked() public {
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, receiver);
 
-        assertEq(viewer.maxFulfillmentAssets(manager, id, address(asset)), 10 ether);
+        assertEq(viewer.maxResolutionAssets(manager, id, address(asset)), 10 ether);
 
-        vm.prank(fulfiller);
-        manager.fulfillWithdrawalRequest(id, address(asset), 4 ether);
+        vm.prank(resolver);
+        manager.resolveWithdrawalRequest(id, address(asset), 4 ether);
 
-        assertEq(viewer.maxFulfillmentAssets(manager, id, address(asset)), 6 ether);
+        assertEq(viewer.maxResolutionAssets(manager, id, address(asset)), 6 ether);
     }
 
     function testViewerRevertsForMissingRequest() public {
@@ -316,6 +316,6 @@ contract WithdrawalRequestViewerTest is Test {
         viewer.getRequest(manager, 123);
 
         vm.expectRevert(abi.encodeWithSelector(WithdrawalRequest.RequestNotFound.selector, 123));
-        viewer.maxFulfillmentAssets(manager, 123, address(asset));
+        viewer.maxResolutionAssets(manager, 123, address(asset));
     }
 }
