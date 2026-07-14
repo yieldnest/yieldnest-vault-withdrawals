@@ -9,6 +9,7 @@ import {BaseScript} from "lib/yieldnest-vault/script/BaseScript.sol";
 import {Bag} from "src/Bag.sol";
 import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
+import {BaseWithdrawer} from "src/withdrawers/BaseWithdrawer.sol";
 import {WithdrawalRequestViewer} from "views/WithdrawalRequestViewer.sol";
 
 contract DeployWithdrawalRequest is BaseScript {
@@ -17,6 +18,7 @@ contract DeployWithdrawalRequest is BaseScript {
     Bag public bagImplementation;
     BeaconProxyFactory public proxyFactoryImplementation;
     BeaconProxyFactory public proxyFactory;
+    BaseWithdrawer public requestWithdrawer;
     WithdrawalRequest public requestImplementation;
     WithdrawalRequest public withdrawalRequest;
     WithdrawalRequestViewer public withdrawalRequestViewer;
@@ -45,7 +47,7 @@ contract DeployWithdrawalRequest is BaseScript {
 
         deployer = tx.origin;
         uint256 nonce = vm.getNonce(deployer);
-        predictedProxy = vm.computeCreateAddress(deployer, nonce + 5);
+        predictedProxy = vm.computeCreateAddress(deployer, nonce + 6);
 
         _deployTimelockController();
         defaultAdmin = address(timelock);
@@ -60,6 +62,7 @@ contract DeployWithdrawalRequest is BaseScript {
             )
         );
         proxyFactory = BeaconProxyFactory(address(proxyFactoryProxy));
+        requestWithdrawer = new BaseWithdrawer(token, predictedProxy);
         requestImplementation = new WithdrawalRequest();
         proxy = new ERC1967Proxy(
             address(requestImplementation),
@@ -72,6 +75,7 @@ contract DeployWithdrawalRequest is BaseScript {
                     configurationManager,
                     pauser,
                     address(proxyFactory),
+                    address(requestWithdrawer),
                     MIN_WITHDRAWAL_AMOUNT
                 )
             )
@@ -128,6 +132,7 @@ contract DeployWithdrawalRequest is BaseScript {
         if (!withdrawalRequest.hasRole(withdrawalRequest.RESOLVER_ROLE(), resolver)) {
             revert InvalidSetup();
         }
+        if (address(withdrawalRequest.withdrawer()) != address(requestWithdrawer)) revert InvalidSetup();
         if (!proxyFactory.hasRole(proxyFactory.DEFAULT_ADMIN_ROLE(), address(timelock))) revert InvalidSetup();
         if (!proxyFactory.hasRole(proxyFactory.IMPLEMENTATION_MANAGER_ROLE(), address(timelock))) {
             revert InvalidSetup();
@@ -150,6 +155,7 @@ contract DeployWithdrawalRequest is BaseScript {
         vm.serializeAddress(symbol(), "proxyFactory", address(proxyFactory));
         vm.serializeAddress(symbol(), "proxyFactoryProxy", address(proxyFactoryProxy));
         vm.serializeAddress(symbol(), "beacon", proxyFactory.beacon());
+        vm.serializeAddress(symbol(), "withdrawer", address(requestWithdrawer));
         vm.serializeAddress(symbol(), "proxy", address(proxy));
         vm.serializeAddress(symbol(), "predictedProxy", predictedProxy);
         vm.serializeAddress(symbol(), "withdrawalRequest", address(withdrawalRequest));

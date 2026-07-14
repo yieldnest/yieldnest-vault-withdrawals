@@ -18,6 +18,7 @@ import {IBag} from "src/interface/IBag.sol";
 import {IAuth} from "src/interface/IAuth.sol";
 import {IResolver} from "src/interface/IResolver.sol";
 import {IProxyFactory} from "src/interface/IProxyFactory.sol";
+import {IWithdrawer} from "src/interface/IWithdrawer.sol";
 
 interface IWithdrawAssetVault is IERC20Metadata {
     function withdrawAsset(address asset_, uint256 assets, address receiver, address owner)
@@ -51,6 +52,7 @@ contract WithdrawalRequest is
     struct RequestStorage {
         IWithdrawAssetVault token;
         IProxyFactory proxyFactory;
+        IWithdrawer withdrawer;
         uint256 minWithdrawalAmount;
         uint256 nextRequestId;
         mapping(uint256 id => Request request) requests;
@@ -79,6 +81,7 @@ contract WithdrawalRequest is
         uint256 amountLocked
     );
     event MinWithdrawalAmountUpdated(uint256 oldMinWithdrawalAmount, uint256 newMinWithdrawalAmount);
+    event WithdrawerUpdated(address oldWithdrawer, address newWithdrawer);
 
     bytes32 public constant RESOLVER_ROLE = keccak256("RESOLVER_ROLE");
     bytes32 public constant CONFIGURATION_MANAGER_ROLE = keccak256("CONFIGURATION_MANAGER_ROLE");
@@ -106,11 +109,13 @@ contract WithdrawalRequest is
         address configurationManager,
         address pauser,
         address proxyFactory_,
+        address withdrawer_,
         uint256 minWithdrawalAmount_
     ) external initializer {
         if (
             token_ == address(0) || defaultAdmin == address(0) || resolver == address(0)
                 || configurationManager == address(0) || pauser == address(0) || proxyFactory_ == address(0)
+                || withdrawer_ == address(0)
         ) {
             revert ZeroAddress();
         }
@@ -120,15 +125,26 @@ contract WithdrawalRequest is
         __ERC721Enumerable_init();
         __Pausable_init();
 
-        RequestStorage storage $ = _getRequestStorage();
-        $.token = IWithdrawAssetVault(token_);
-        $.proxyFactory = IProxyFactory(proxyFactory_);
-        $.minWithdrawalAmount = minWithdrawalAmount_;
+        _initializeStorage(token_, proxyFactory_, withdrawer_, minWithdrawalAmount_);
 
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
         _grantRole(RESOLVER_ROLE, resolver);
         _grantRole(CONFIGURATION_MANAGER_ROLE, configurationManager);
         _grantRole(PAUSER_ROLE, pauser);
+    }
+
+    function _initializeStorage(
+        address token_,
+        address proxyFactory_,
+        address withdrawer_,
+        uint256 minWithdrawalAmount_
+    ) internal {
+        RequestStorage storage $ = _getRequestStorage();
+        $.token = IWithdrawAssetVault(token_);
+        $.proxyFactory = IProxyFactory(proxyFactory_);
+        $.withdrawer = IWithdrawer(withdrawer_);
+        $.minWithdrawalAmount = minWithdrawalAmount_;
+        IERC20(token_).forceApprove(withdrawer_, type(uint256).max);
     }
 
     // --- Configuration ---
@@ -139,6 +155,18 @@ contract WithdrawalRequest is
         $.minWithdrawalAmount = minWithdrawalAmount_;
 
         emit MinWithdrawalAmountUpdated(oldMinWithdrawalAmount, minWithdrawalAmount_);
+    }
+
+    function setWithdrawer(address withdrawer_) external onlyRole(CONFIGURATION_MANAGER_ROLE) {
+        if (withdrawer_ == address(0)) revert ZeroAddress();
+
+        RequestStorage storage $ = _getRequestStorage();
+        address oldWithdrawer = address($.withdrawer);
+        IERC20(address($.token)).forceApprove(oldWithdrawer, 0);
+        $.withdrawer = IWithdrawer(withdrawer_);
+        IERC20(address($.token)).forceApprove(withdrawer_, type(uint256).max);
+
+        emit WithdrawerUpdated(oldWithdrawer, withdrawer_);
     }
 
     // --- Requests ---
@@ -220,7 +248,7 @@ contract WithdrawalRequest is
         uint256 tokenBalanceBefore = $.token.balanceOf(address(this));
         uint256 bagAssetBalanceBefore = IERC20(asset).balanceOf(bag);
 
-        tokenAmountBurned = $.token.withdrawAsset(asset, assets, bag, address(this));
+        tokenAmountBurned = $.withdrawer.withdrawAsset(id, asset, assets, bag, address(this));
 
         {
             uint256 tokenBalanceAfter = $.token.balanceOf(address(this));
@@ -275,6 +303,12 @@ contract WithdrawalRequest is
     /// @return The factory contract.
     function proxyFactory() public view returns (IProxyFactory) {
         return _getRequestStorage().proxyFactory;
+    }
+
+    /// @notice Returns the adapter used to withdraw assets from the configured yn-token.
+    /// @return The configured withdrawer.
+    function withdrawer() public view returns (IWithdrawer) {
+        return _getRequestStorage().withdrawer;
     }
 
     /// @notice Returns the minimum yn-token share amount required to open a request.

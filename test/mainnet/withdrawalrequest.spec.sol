@@ -13,12 +13,14 @@ import {IBag} from "src/interface/IBag.sol";
 import {Bag} from "src/Bag.sol";
 import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
+import {BaseWithdrawer} from "src/withdrawers/BaseWithdrawer.sol";
 import {WithdrawalRequestViewer} from "views/WithdrawalRequestViewer.sol";
 
 contract WithdrawalRequestMainnetTest is Test, Actors {
     BaseVault public vault;
     WithdrawalRequest public manager;
     WithdrawalRequestViewer public viewer;
+    BaseWithdrawer public withdrawer;
     Bag public bagImplementation;
     BeaconProxyFactory public proxyFactoryImplementation;
     BeaconProxyFactory public proxyFactory;
@@ -48,6 +50,8 @@ contract WithdrawalRequestMainnetTest is Test, Actors {
         proxyFactory = BeaconProxyFactory(address(proxyFactoryProxy));
 
         WithdrawalRequest implementation = new WithdrawalRequest();
+        address predictedManager = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 1);
+        withdrawer = new BaseWithdrawer(address(vault), predictedManager);
         ERC1967Proxy proxy = new ERC1967Proxy(
             address(implementation),
             abi.encodeCall(
@@ -59,6 +63,7 @@ contract WithdrawalRequestMainnetTest is Test, Actors {
                     configurationManager,
                     pauser,
                     address(proxyFactory),
+                    address(withdrawer),
                     MIN_WITHDRAWAL_AMOUNT
                 )
             )
@@ -70,7 +75,7 @@ contract WithdrawalRequestMainnetTest is Test, Actors {
         proxyFactory.grantRole(creatorRole, address(manager));
 
         vm.startPrank(ADMIN);
-        vault.grantRole(vault.ASSET_WITHDRAWER_ROLE(), address(manager));
+        vault.grantRole(vault.ASSET_WITHDRAWER_ROLE(), address(withdrawer));
         vault.grantRole(vault.ASSET_MANAGER_ROLE(), address(this));
         vm.stopPrank();
 
@@ -81,7 +86,10 @@ contract WithdrawalRequestMainnetTest is Test, Actors {
         vault.processAccounting();
     }
 
-    function _claimSingleERC20(address bag, address asset, address recipient, uint256 amount) internal returns (uint256) {
+    function _claimSingleERC20(address bag, address asset, address recipient, uint256 amount)
+        internal
+        returns (uint256)
+    {
         address[] memory assets = new address[](1);
         assets[0] = asset;
         uint256[] memory amounts = new uint256[](1);

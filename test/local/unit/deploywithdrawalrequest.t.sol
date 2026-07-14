@@ -3,13 +3,23 @@ pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
 import {TimelockController} from "lib/openzeppelin-contracts/contracts/governance/TimelockController.sol";
+import {ERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
+import {MainnetContracts as MC} from "lib/yieldnest-vault/script/Contracts.sol";
 import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
+import {BaseWithdrawer} from "src/withdrawers/BaseWithdrawer.sol";
 import {DeployWithdrawalRequest} from "script/deploy/DeployWithdrawalRequest.s.sol";
 import {WithdrawalRequestViewer} from "views/WithdrawalRequestViewer.sol";
 
+contract DeploymentTokenMock is ERC20 {
+    constructor() ERC20("Token", "TKN") {}
+}
+
 contract DeployWithdrawalRequestTest is Test {
     function testRunDeploysAndRecordsViewer() public {
+        DeploymentTokenMock token = new DeploymentTokenMock();
+        vm.etch(MC.YNETHX, address(token).code);
+
         DeployWithdrawalRequest deployScript = new DeployWithdrawalRequest();
 
         deployScript.run();
@@ -18,7 +28,9 @@ contract DeployWithdrawalRequestTest is Test {
         TimelockController timelock = deployScript.timelock();
         WithdrawalRequest manager = deployScript.withdrawalRequest();
         BeaconProxyFactory proxyFactory = deployScript.proxyFactory();
+        BaseWithdrawer withdrawer = deployScript.requestWithdrawer();
         assertGt(address(viewer).code.length, 0);
+        assertGt(address(withdrawer).code.length, 0);
         assertGt(address(timelock).code.length, 0);
         assertEq(timelock.getMinDelay(), deployScript.minDelay());
         assertTrue(timelock.hasRole(timelock.DEFAULT_ADMIN_ROLE(), address(timelock)));
@@ -29,6 +41,7 @@ contract DeployWithdrawalRequestTest is Test {
         assertTrue(manager.hasRole(manager.DEFAULT_ADMIN_ROLE(), address(timelock)));
         assertTrue(manager.hasRole(manager.CONFIGURATION_MANAGER_ROLE(), address(timelock)));
         assertTrue(manager.hasRole(manager.RESOLVER_ROLE(), deployScript.resolver()));
+        assertEq(address(manager.withdrawer()), address(withdrawer));
         assertTrue(proxyFactory.hasRole(proxyFactory.DEFAULT_ADMIN_ROLE(), address(timelock)));
         assertTrue(proxyFactory.hasRole(proxyFactory.IMPLEMENTATION_MANAGER_ROLE(), address(timelock)));
 
@@ -38,6 +51,7 @@ contract DeployWithdrawalRequestTest is Test {
 
         assertEq(vm.parseJsonAddress(deploymentJson, ".timelock"), address(timelock));
         assertEq(vm.parseJsonAddress(deploymentJson, ".viewer"), address(viewer));
+        assertEq(vm.parseJsonAddress(deploymentJson, ".withdrawer"), address(withdrawer));
         assertEq(vm.parseJsonAddress(deploymentJson, ".withdrawalRequest"), address(manager));
         assertEq(vm.parseJsonAddress(deploymentJson, ".defaultAdmin"), address(timelock));
         assertEq(vm.parseJsonAddress(deploymentJson, ".resolver"), deployScript.resolver());

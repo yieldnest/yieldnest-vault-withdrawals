@@ -9,6 +9,7 @@ import {Bag} from "src/Bag.sol";
 import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
 import {IBag} from "src/interface/IBag.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
+import {BaseWithdrawer} from "src/withdrawers/BaseWithdrawer.sol";
 import {WithdrawalRequestViewer} from "views/WithdrawalRequestViewer.sol";
 
 contract ViewerVaultMock is ERC20 {
@@ -58,6 +59,10 @@ contract ViewerVaultMock is ERC20 {
 
     function getRate(address asset_) external view returns (uint256) {
         return assetRates[asset_];
+    }
+
+    function asset() external view returns (address) {
+        return assetList[0];
     }
 
     function convertToAssets(uint256 shares) external pure returns (uint256 assets) {
@@ -115,6 +120,8 @@ contract WithdrawalRequestViewerTest is Test {
         );
 
         WithdrawalRequest implementation = new WithdrawalRequest();
+        address predictedManager = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 1);
+        BaseWithdrawer withdrawer = new BaseWithdrawer(address(ynToken), predictedManager);
         manager = WithdrawalRequest(
             address(
                 new ERC1967Proxy(
@@ -128,6 +135,7 @@ contract WithdrawalRequestViewerTest is Test {
                             configurationManager,
                             pauser,
                             address(proxyFactory),
+                            address(withdrawer),
                             1 ether
                         )
                     )
