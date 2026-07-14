@@ -22,36 +22,33 @@ abstract contract BaseResolver is AccessControl, IResolver {
         _grantRole(RESOLVER_ROLE, resolver);
     }
 
-    function resolveWithdrawalRequest(uint256 id, address asset, uint256 assets)
+    function resolveWithdrawalRequest(uint256 id, address asset, uint256 sharesToResolve)
         external
         onlyRole(RESOLVER_ROLE)
         returns (uint256 amountBurned)
     {
-        amountBurned = _resolveWithdrawalRequest(id, asset, assets);
+        amountBurned = _resolveWithdrawalRequest(id, asset, sharesToResolve);
     }
 
-    function resolveWithdrawalRequest(uint256 id, address[] calldata assets, uint256[] calldata assetAmounts)
+    function resolveWithdrawalRequest(uint256 id, address[] calldata assets, uint256[] calldata shareAmounts)
         external
         onlyRole(RESOLVER_ROLE)
         returns (uint256[] memory amountsBurned)
     {
-        if (assets.length != assetAmounts.length) {
-            revert ArrayLengthMismatch(assets.length, assetAmounts.length);
+        if (assets.length != shareAmounts.length) {
+            revert ArrayLengthMismatch(assets.length, shareAmounts.length);
         }
 
         amountsBurned = new uint256[](assets.length);
         for (uint256 i = 0; i < assets.length; ++i) {
-            amountsBurned[i] = _resolveWithdrawalRequest(id, assets[i], assetAmounts[i]);
+            amountsBurned[i] = _resolveWithdrawalRequest(id, assets[i], shareAmounts[i]);
         }
     }
 
-    function _resolveWithdrawalRequest(uint256 id, address asset, uint256 assets)
+    function _resolveWithdrawalRequest(uint256 id, address asset, uint256 sharesToResolve)
         internal
         returns (uint256 amountBurned)
     {
-        uint256 feeShares = resolutionFee(id, asset, assets);
-        amountBurned = withdrawalRequest.resolveWithdrawalRequest(id, asset, assets, feeShares);
+        amountBurned = withdrawalRequest.resolveWithdrawalRequest(id, asset, sharesToResolve);
     }
-
-    function resolutionFee(uint256 id, address asset, uint256 assets) public view virtual returns (uint256 feeShares);
 }

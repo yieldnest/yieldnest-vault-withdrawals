@@ -6,6 +6,7 @@ import {IERC20Metadata} from "lib/openzeppelin-contracts/contracts/token/ERC20/e
 import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {IProvider} from "lib/yieldnest-vault/src/interface/IProvider.sol";
 import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
+import {IRedemptionRateProvider} from "src/interface/IRedemptionRateProvider.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 
 interface IWithdrawalRequestViewerVault is IERC20, IERC20Metadata {
@@ -37,7 +38,11 @@ contract WithdrawalRequestViewer {
         AssetBalance[] assetBalances;
     }
 
-    function getRequest(WithdrawalRequest withdrawalRequest, uint256 id) external view returns (RequestView memory view_) {
+    function getRequest(WithdrawalRequest withdrawalRequest, uint256 id)
+        external
+        view
+        returns (RequestView memory view_)
+    {
         WithdrawalRequest.Request memory request = withdrawalRequest.requests(id);
         IWithdrawalRequestViewerVault token = IWithdrawalRequestViewerVault(address(withdrawalRequest.token()));
 
@@ -110,17 +115,19 @@ contract WithdrawalRequestViewer {
         return _requestIsClaimed(request, token);
     }
 
-    function _requestIsClaimable(
-        WithdrawalRequest.Request memory request,
-        IWithdrawalRequestViewerVault token
-    ) internal view returns (bool) {
+    function _requestIsClaimable(WithdrawalRequest.Request memory request, IWithdrawalRequestViewerVault token)
+        internal
+        view
+        returns (bool)
+    {
         return request.amountLocked < 10 ** token.decimals() / 1e4;
     }
 
-    function _requestIsClaimed(
-        WithdrawalRequest.Request memory request,
-        IWithdrawalRequestViewerVault token
-    ) internal view returns (bool) {
+    function _requestIsClaimed(WithdrawalRequest.Request memory request, IWithdrawalRequestViewerVault token)
+        internal
+        view
+        returns (bool)
+    {
         if (!_requestIsClaimable(request, token)) return false;
 
         for (uint256 i = 0; i < request.assetsRedeemed.length; ++i) {
@@ -147,13 +154,48 @@ contract WithdrawalRequestViewer {
         assets = baseAssets.mulDiv(10 ** assetParams.decimals, rate, Math.Rounding.Floor);
     }
 
-    /// @notice Returns the asset amount a caller can pass to `resolveWithdrawalRequest` for the request's locked shares.
+    /// @notice Returns fixed-rate assets for the shares a caller can pass to `resolveWithdrawalRequest`.
+    function redemptionAssets(WithdrawalRequest withdrawalRequest, uint256 id, address asset, uint256 sharesToResolve)
+        public
+        view
+        returns (uint256 assets)
+    {
+        WithdrawalRequest.Request memory request = withdrawalRequest.requests(id);
+        assets = withdrawalRequest.redemptionRateProvider()
+            .redemptionAssets(
+                address(withdrawalRequest.token()), id, _rateProviderRequest(request), asset, sharesToResolve
+            );
+    }
+
+    /// @notice Returns the maximum shares a caller can pass to `resolveWithdrawalRequest`.
+    function maxResolutionShares(WithdrawalRequest withdrawalRequest, uint256 id)
+        external
+        view
+        returns (uint256 shares)
+    {
+        shares = withdrawalRequest.requests(id).amountLocked;
+    }
+
+    /// @notice Returns the fixed-rate asset output for resolving the request's full locked share balance.
     function maxResolutionAssets(WithdrawalRequest withdrawalRequest, uint256 id, address asset)
         external
         view
         returns (uint256 assets)
     {
         WithdrawalRequest.Request memory request = withdrawalRequest.requests(id);
-        assets = convertToAssets(withdrawalRequest, asset, request.amountLocked);
+        assets = redemptionAssets(withdrawalRequest, id, asset, request.amountLocked);
+    }
+
+    function _rateProviderRequest(WithdrawalRequest.Request memory request)
+        internal
+        pure
+        returns (IRedemptionRateProvider.Request memory request_)
+    {
+        request_ = IRedemptionRateProvider.Request({
+            bag: request.bag,
+            amountLocked: request.amountLocked,
+            assetsRedeemed: request.assetsRedeemed,
+            rateAtRequest: request.rateAtRequest
+        });
     }
 }

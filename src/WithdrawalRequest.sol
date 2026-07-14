@@ -17,6 +17,7 @@ import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/
 import {IBag} from "src/interface/IBag.sol";
 import {IAuth} from "src/interface/IAuth.sol";
 import {IProxyFactory} from "src/interface/IProxyFactory.sol";
+import {IRedemptionRateProvider} from "src/interface/IRedemptionRateProvider.sol";
 
 interface IWithdrawAssetVault is IERC20Metadata {
     function withdrawAsset(address asset_, uint256 assets, address receiver, address owner)
@@ -49,9 +50,10 @@ contract WithdrawalRequest is
     struct RequestStorage {
         IWithdrawAssetVault token;
         IProxyFactory proxyFactory;
+        IRedemptionRateProvider redemptionRateProvider;
         uint256 minWithdrawalAmount;
         uint256 nextRequestId;
-        address feeWallet;
+        address surplusCollector;
         mapping(uint256 id => Request request) requests;
     }
 
@@ -73,12 +75,14 @@ contract WithdrawalRequest is
         address indexed token,
         address asset,
         uint256 assetsWithdrawn,
-        uint256 feeShares,
+        uint256 sharesResolved,
         uint256 amountBurned,
+        uint256 surplusShares,
         uint256 amountLocked
     );
     event MinWithdrawalAmountUpdated(uint256 oldMinWithdrawalAmount, uint256 newMinWithdrawalAmount);
-    event FeeWalletUpdated(address oldFeeWallet, address newFeeWallet);
+    event RedemptionRateProviderUpdated(address oldRedemptionRateProvider, address newRedemptionRateProvider);
+    event SurplusCollectorUpdated(address oldSurplusCollector, address newSurplusCollector);
 
     bytes32 public constant RESOLVER_ROLE = keccak256("RESOLVER_ROLE");
     bytes32 public constant CONFIGURATION_MANAGER_ROLE = keccak256("CONFIGURATION_MANAGER_ROLE");
@@ -106,13 +110,14 @@ contract WithdrawalRequest is
         address configurationManager,
         address pauser,
         address proxyFactory_,
+        address redemptionRateProvider_,
         uint256 minWithdrawalAmount_,
-        address feeWallet_
+        address surplusCollector_
     ) external initializer {
         if (
             token_ == address(0) || defaultAdmin == address(0) || resolver == address(0)
                 || configurationManager == address(0) || pauser == address(0) || proxyFactory_ == address(0)
-                || feeWallet_ == address(0)
+                || redemptionRateProvider_ == address(0) || surplusCollector_ == address(0)
         ) {
             revert ZeroAddress();
         }
@@ -125,8 +130,9 @@ contract WithdrawalRequest is
         RequestStorage storage $ = _getRequestStorage();
         $.token = IWithdrawAssetVault(token_);
         $.proxyFactory = IProxyFactory(proxyFactory_);
+        $.redemptionRateProvider = IRedemptionRateProvider(redemptionRateProvider_);
         $.minWithdrawalAmount = minWithdrawalAmount_;
-        $.feeWallet = feeWallet_;
+        $.surplusCollector = surplusCollector_;
 
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
         _grantRole(RESOLVER_ROLE, resolver);
@@ -144,14 +150,24 @@ contract WithdrawalRequest is
         emit MinWithdrawalAmountUpdated(oldMinWithdrawalAmount, minWithdrawalAmount_);
     }
 
-    function setFeeWallet(address feeWallet_) external onlyRole(CONFIGURATION_MANAGER_ROLE) {
-        if (feeWallet_ == address(0)) revert ZeroAddress();
+    function setRedemptionRateProvider(address redemptionRateProvider_) external onlyRole(CONFIGURATION_MANAGER_ROLE) {
+        if (redemptionRateProvider_ == address(0)) revert ZeroAddress();
 
         RequestStorage storage $ = _getRequestStorage();
-        address oldFeeWallet = $.feeWallet;
-        $.feeWallet = feeWallet_;
+        address oldRedemptionRateProvider = address($.redemptionRateProvider);
+        $.redemptionRateProvider = IRedemptionRateProvider(redemptionRateProvider_);
 
-        emit FeeWalletUpdated(oldFeeWallet, feeWallet_);
+        emit RedemptionRateProviderUpdated(oldRedemptionRateProvider, redemptionRateProvider_);
+    }
+
+    function setSurplusCollector(address surplusCollector_) external onlyRole(CONFIGURATION_MANAGER_ROLE) {
+        if (surplusCollector_ == address(0)) revert ZeroAddress();
+
+        RequestStorage storage $ = _getRequestStorage();
+        address oldSurplusCollector = $.surplusCollector;
+        $.surplusCollector = surplusCollector_;
+
+        emit SurplusCollectorUpdated(oldSurplusCollector, surplusCollector_);
     }
 
     // --- Requests ---
@@ -182,21 +198,20 @@ contract WithdrawalRequest is
 
     // --- Resolution ---
 
-    /// @notice Resolves part or all of a request and sends a flat yn-token share fee to the fee wallet.
+    /// @notice Resolves part or all of a request at the configured redemption rate.
     /// @param id Request id to resolve.
     /// @param asset Asset to withdraw from the yn-token.
-    /// @param assets Amount of `asset` to leave in the request bag.
-    /// @param feeShares Amount of locked yn-token shares to send to the configured fee wallet.
+    /// @param sharesToResolve Amount of locked yn-token shares to resolve at the configured redemption rate.
     /// @return amountBurned Amount of locked yn-token shares burned by the withdrawal.
-    function resolveWithdrawalRequest(uint256 id, address asset, uint256 assets, uint256 feeShares)
+    function resolveWithdrawalRequest(uint256 id, address asset, uint256 sharesToResolve)
         external
         onlyRole(RESOLVER_ROLE)
         returns (uint256 amountBurned)
     {
-        (amountBurned,) = _resolveWithdrawalRequest(id, asset, assets, feeShares);
+        (amountBurned,) = _resolveWithdrawalRequest(id, asset, sharesToResolve);
     }
 
-    function _resolveWithdrawalRequest(uint256 id, address asset, uint256 assets, uint256 feeShares)
+    function _resolveWithdrawalRequest(uint256 id, address asset, uint256 sharesToResolve)
         internal
         returns (uint256 tokenAmountBurned, uint256 assetsWithdrawn)
     {
@@ -206,16 +221,15 @@ contract WithdrawalRequest is
         Request storage request = $.requests[id];
         if (!_requestExists(request)) revert RequestNotFound(id);
 
-        if (assets == 0) revert ZeroAmount();
+        if (sharesToResolve == 0) revert ZeroAmount();
+        if (sharesToResolve > request.amountLocked) {
+            revert InsufficientLockedAmount(id, request.amountLocked, sharesToResolve);
+        }
 
         address bag = request.bag;
-        if (feeShares != 0) {
-            if (feeShares > request.amountLocked) {
-                revert InsufficientLockedAmount(id, request.amountLocked, feeShares);
-            }
-            IERC20(address($.token)).safeTransfer($.feeWallet, feeShares);
-            request.amountLocked -= feeShares;
-        }
+        uint256 assets = $.redemptionRateProvider
+            .redemptionAssets(address($.token), id, _rateProviderRequest(request), asset, sharesToResolve);
+        if (assets == 0) revert ZeroAmount();
 
         uint256 tokenBalanceBefore = $.token.balanceOf(address(this));
         uint256 bagAssetBalanceBefore = IERC20(asset).balanceOf(bag);
@@ -229,8 +243,8 @@ contract WithdrawalRequest is
             }
         }
 
-        if (tokenAmountBurned > request.amountLocked) {
-            revert InsufficientLockedAmount(id, request.amountLocked, tokenAmountBurned);
+        if (tokenAmountBurned > sharesToResolve) {
+            revert InsufficientLockedAmount(id, sharesToResolve, tokenAmountBurned);
         }
 
         assetsWithdrawn = IERC20(asset).balanceOf(bag) - bagAssetBalanceBefore;
@@ -238,7 +252,11 @@ contract WithdrawalRequest is
 
         _recordAssetRedeemed(request, asset);
 
-        request.amountLocked -= tokenAmountBurned;
+        uint256 surplusShares = sharesToResolve - tokenAmountBurned;
+        request.amountLocked -= sharesToResolve;
+        if (surplusShares != 0) {
+            IERC20(address($.token)).safeTransfer($.surplusCollector, surplusShares);
+        }
 
         emit WithdrawalRequestResolved(
             id,
@@ -246,10 +264,24 @@ contract WithdrawalRequest is
             address($.token),
             asset,
             assetsWithdrawn,
-            feeShares,
+            sharesToResolve,
             tokenAmountBurned,
+            surplusShares,
             request.amountLocked
         );
+    }
+
+    function _rateProviderRequest(Request storage request)
+        internal
+        view
+        returns (IRedemptionRateProvider.Request memory request_)
+    {
+        request_ = IRedemptionRateProvider.Request({
+            bag: request.bag,
+            amountLocked: request.amountLocked,
+            assetsRedeemed: request.assetsRedeemed,
+            rateAtRequest: request.rateAtRequest
+        });
     }
 
     function _recordAssetRedeemed(Request storage request, address asset) internal {
@@ -290,10 +322,16 @@ contract WithdrawalRequest is
         return _getRequestStorage().minWithdrawalAmount;
     }
 
-    /// @notice Returns the wallet that receives resolution fees.
-    /// @return The configured fee wallet.
-    function feeWallet() public view returns (address) {
-        return _getRequestStorage().feeWallet;
+    /// @notice Returns the provider used to compute fixed redemption asset amounts.
+    /// @return The configured redemption rate provider.
+    function redemptionRateProvider() public view returns (IRedemptionRateProvider) {
+        return _getRequestStorage().redemptionRateProvider;
+    }
+
+    /// @notice Returns the wallet that receives surplus shares from positive rate movement.
+    /// @return The configured surplus collector.
+    function surplusCollector() public view returns (address) {
+        return _getRequestStorage().surplusCollector;
     }
 
     /// @notice Returns the next withdrawal request id to be assigned.

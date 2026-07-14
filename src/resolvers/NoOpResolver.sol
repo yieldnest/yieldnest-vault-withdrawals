@@ -10,8 +10,4 @@ contract NoOpResolver is BaseResolver {
     constructor(WithdrawalRequest withdrawalRequest_, address defaultAdmin, address resolver)
         BaseResolver(withdrawalRequest_, defaultAdmin, resolver)
     {}
-
-    function resolutionFee(uint256, address, uint256) public pure override returns (uint256) {
-        return 0;
-    }
 }

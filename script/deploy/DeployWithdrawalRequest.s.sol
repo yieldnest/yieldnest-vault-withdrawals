@@ -8,6 +8,7 @@ import {MainnetContracts as MC} from "lib/yieldnest-vault/script/Contracts.sol";
 import {BaseScript} from "lib/yieldnest-vault/script/BaseScript.sol";
 import {Bag} from "src/Bag.sol";
 import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
+import {RequestRateProvider} from "src/RequestRateProvider.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 import {WithdrawalRequestViewer} from "views/WithdrawalRequestViewer.sol";
 
@@ -17,6 +18,7 @@ contract DeployWithdrawalRequest is BaseScript {
     Bag public bagImplementation;
     BeaconProxyFactory public proxyFactoryImplementation;
     BeaconProxyFactory public proxyFactory;
+    RequestRateProvider public redemptionRateProvider;
     WithdrawalRequest public requestImplementation;
     WithdrawalRequest public withdrawalRequest;
     WithdrawalRequestViewer public withdrawalRequestViewer;
@@ -28,7 +30,7 @@ contract DeployWithdrawalRequest is BaseScript {
     address public resolver;
     address public configurationManager;
     address public pauser;
-    address public feeWallet;
+    address public surplusCollector;
     address public proposer;
     address public executor;
     address public predictedProxy;
@@ -46,7 +48,7 @@ contract DeployWithdrawalRequest is BaseScript {
 
         deployer = tx.origin;
         uint256 nonce = vm.getNonce(deployer);
-        predictedProxy = vm.computeCreateAddress(deployer, nonce + 5);
+        predictedProxy = vm.computeCreateAddress(deployer, nonce + 6);
 
         _deployTimelockController();
         defaultAdmin = address(timelock);
@@ -61,6 +63,7 @@ contract DeployWithdrawalRequest is BaseScript {
             )
         );
         proxyFactory = BeaconProxyFactory(address(proxyFactoryProxy));
+        redemptionRateProvider = new RequestRateProvider();
         requestImplementation = new WithdrawalRequest();
         proxy = new ERC1967Proxy(
             address(requestImplementation),
@@ -73,8 +76,9 @@ contract DeployWithdrawalRequest is BaseScript {
                     configurationManager,
                     pauser,
                     address(proxyFactory),
+                    address(redemptionRateProvider),
                     MIN_WITHDRAWAL_AMOUNT,
-                    feeWallet
+                    surplusCollector
                 )
             )
         );
@@ -95,7 +99,7 @@ contract DeployWithdrawalRequest is BaseScript {
         executor = actors.ADMIN();
         resolver = actors.ADMIN();
         pauser = actors.PAUSER();
-        feeWallet = actors.ADMIN();
+        surplusCollector = actors.ADMIN();
     }
 
     function _verifyDeploymentParams() internal view virtual {
@@ -104,7 +108,7 @@ contract DeployWithdrawalRequest is BaseScript {
         if (executor == address(0)) revert InvalidSetup();
         if (resolver == address(0)) revert InvalidSetup();
         if (pauser == address(0)) revert InvalidSetup();
-        if (feeWallet == address(0)) revert InvalidSetup();
+        if (surplusCollector == address(0)) revert InvalidSetup();
     }
 
     function _deployTimelockController() internal virtual {
@@ -132,7 +136,10 @@ contract DeployWithdrawalRequest is BaseScript {
         if (!withdrawalRequest.hasRole(withdrawalRequest.RESOLVER_ROLE(), resolver)) {
             revert InvalidSetup();
         }
-        if (withdrawalRequest.feeWallet() != feeWallet) revert InvalidSetup();
+        if (address(withdrawalRequest.redemptionRateProvider()) != address(redemptionRateProvider)) {
+            revert InvalidSetup();
+        }
+        if (withdrawalRequest.surplusCollector() != surplusCollector) revert InvalidSetup();
         if (!proxyFactory.hasRole(proxyFactory.DEFAULT_ADMIN_ROLE(), address(timelock))) revert InvalidSetup();
         if (!proxyFactory.hasRole(proxyFactory.IMPLEMENTATION_MANAGER_ROLE(), address(timelock))) {
             revert InvalidSetup();
@@ -155,6 +162,7 @@ contract DeployWithdrawalRequest is BaseScript {
         vm.serializeAddress(symbol(), "proxyFactory", address(proxyFactory));
         vm.serializeAddress(symbol(), "proxyFactoryProxy", address(proxyFactoryProxy));
         vm.serializeAddress(symbol(), "beacon", proxyFactory.beacon());
+        vm.serializeAddress(symbol(), "redemptionRateProvider", address(redemptionRateProvider));
         vm.serializeAddress(symbol(), "proxy", address(proxy));
         vm.serializeAddress(symbol(), "predictedProxy", predictedProxy);
         vm.serializeAddress(symbol(), "withdrawalRequest", address(withdrawalRequest));
@@ -164,7 +172,7 @@ contract DeployWithdrawalRequest is BaseScript {
         vm.serializeUint(symbol(), "timelockMinDelay", minDelay);
         vm.serializeAddress(symbol(), "defaultAdmin", defaultAdmin);
         vm.serializeAddress(symbol(), "resolver", resolver);
-        vm.serializeAddress(symbol(), "feeWallet", feeWallet);
+        vm.serializeAddress(symbol(), "surplusCollector", surplusCollector);
         vm.serializeAddress(symbol(), "configurationManager", configurationManager);
         vm.serializeAddress(symbol(), "pauser", pauser);
         vm.serializeAddress(symbol(), "proposer", proposer);
