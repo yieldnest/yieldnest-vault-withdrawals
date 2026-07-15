@@ -28,7 +28,7 @@ contract DeployWithdrawalRequestTest is Test {
         WithdrawalRequestViewer viewer = deployScript.withdrawalRequestViewer();
         TimelockController timelock = deployScript.timelock();
         WithdrawalRequest manager = deployScript.withdrawalRequest();
-        BeaconProxyFactory proxyFactory = deployScript.proxyFactory();
+        BeaconProxyFactory bagFactory = deployScript.bagFactory();
         BaseWithdrawer withdrawer = deployScript.requestWithdrawer();
         MinAmountRequestPolicy requestPolicy = deployScript.requestPolicy();
         assertGt(address(viewer).code.length, 0);
@@ -46,8 +46,8 @@ contract DeployWithdrawalRequestTest is Test {
         assertTrue(manager.hasRole(manager.RESOLVER_ROLE(), deployScript.resolver()));
         assertEq(address(manager.withdrawer()), address(withdrawer));
         assertEq(address(manager.requestPolicy()), address(requestPolicy));
-        assertTrue(proxyFactory.hasRole(proxyFactory.DEFAULT_ADMIN_ROLE(), address(timelock)));
-        assertTrue(proxyFactory.hasRole(proxyFactory.IMPLEMENTATION_MANAGER_ROLE(), address(timelock)));
+        assertTrue(bagFactory.hasRole(bagFactory.DEFAULT_ADMIN_ROLE(), address(timelock)));
+        assertTrue(bagFactory.hasRole(bagFactory.IMPLEMENTATION_MANAGER_ROLE(), address(timelock)));
 
         string memory deploymentFilePath =
             string.concat(vm.projectRoot(), "/deployments/", deployScript.label(), ".json");
@@ -55,6 +55,12 @@ contract DeployWithdrawalRequestTest is Test {
 
         assertEq(vm.parseJsonAddress(deploymentJson, ".timelock"), address(timelock));
         assertEq(vm.parseJsonAddress(deploymentJson, ".viewer"), address(viewer));
+        assertEq(vm.parseJsonAddress(deploymentJson, ".bagFactory"), address(bagFactory));
+        assertEq(vm.parseJsonAddress(deploymentJson, ".bagFactoryProxy"), address(deployScript.bagFactoryProxy()));
+        assertEq(
+            vm.parseJsonAddress(deploymentJson, ".bagFactoryImplementation"),
+            address(deployScript.bagFactoryImplementation())
+        );
         assertEq(vm.parseJsonAddress(deploymentJson, ".withdrawer"), address(withdrawer));
         assertEq(vm.parseJsonAddress(deploymentJson, ".requestPolicy"), address(requestPolicy));
         assertEq(vm.parseJsonAddress(deploymentJson, ".withdrawalRequest"), address(manager));

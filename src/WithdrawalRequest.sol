@@ -17,7 +17,7 @@ import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/
 import {IBag} from "src/interface/IBag.sol";
 import {IAuth} from "src/interface/IAuth.sol";
 import {IResolver} from "src/interface/IResolver.sol";
-import {IProxyFactory} from "src/interface/IProxyFactory.sol";
+import {IFactory} from "src/interface/IFactory.sol";
 import {IRequestPolicy} from "src/interface/IRequestPolicy.sol";
 import {IWithdrawer} from "src/interface/IWithdrawer.sol";
 
@@ -52,7 +52,7 @@ contract WithdrawalRequest is
     /// @custom:storage-location erc7201:yieldnest.storage.withdrawal_request_manager
     struct RequestStorage {
         IWithdrawAssetVault token;
-        IProxyFactory proxyFactory;
+        IFactory bagFactory;
         IWithdrawer withdrawer;
         IRequestPolicy requestPolicy;
         uint256 nextRequestId;
@@ -108,13 +108,13 @@ contract WithdrawalRequest is
         address resolver,
         address configurationManager,
         address pauser,
-        address proxyFactory_,
+        address bagFactory_,
         address withdrawer_,
         address requestPolicy_
     ) external initializer {
         if (
             token_ == address(0) || defaultAdmin == address(0) || resolver == address(0)
-                || configurationManager == address(0) || pauser == address(0) || proxyFactory_ == address(0)
+                || configurationManager == address(0) || pauser == address(0) || bagFactory_ == address(0)
                 || withdrawer_ == address(0) || requestPolicy_ == address(0)
         ) {
             revert ZeroAddress();
@@ -125,7 +125,7 @@ contract WithdrawalRequest is
         __ERC721Enumerable_init();
         __Pausable_init();
 
-        _initializeStorage(token_, proxyFactory_, withdrawer_, requestPolicy_);
+        _initializeStorage(token_, bagFactory_, withdrawer_, requestPolicy_);
 
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
         _grantRole(RESOLVER_ROLE, resolver);
@@ -133,12 +133,12 @@ contract WithdrawalRequest is
         _grantRole(PAUSER_ROLE, pauser);
     }
 
-    function _initializeStorage(address token_, address proxyFactory_, address withdrawer_, address requestPolicy_)
+    function _initializeStorage(address token_, address bagFactory_, address withdrawer_, address requestPolicy_)
         internal
     {
         RequestStorage storage $ = _getRequestStorage();
         $.token = IWithdrawAssetVault(token_);
-        $.proxyFactory = IProxyFactory(proxyFactory_);
+        $.bagFactory = IFactory(bagFactory_);
         $.withdrawer = IWithdrawer(withdrawer_);
         $.requestPolicy = IRequestPolicy(requestPolicy_);
         IERC20(token_).forceApprove(withdrawer_, type(uint256).max);
@@ -185,7 +185,7 @@ contract WithdrawalRequest is
         uint256 rateAtRequest = $.token.convertToAssets(10 ** $.token.decimals());
 
         id = $.nextRequestId++;
-        address bag = $.proxyFactory.create(abi.encodeCall(IBag.initialize, (address(this), id)));
+        address bag = $.bagFactory.create(abi.encodeCall(IBag.initialize, (address(this), id)));
         $.requests[id].bag = bag;
         $.requests[id].amountLocked = amount;
         $.requests[id].rateAtRequest = rateAtRequest;
@@ -300,8 +300,8 @@ contract WithdrawalRequest is
 
     /// @notice Returns the factory used to create request bags.
     /// @return The factory contract.
-    function proxyFactory() public view returns (IProxyFactory) {
-        return _getRequestStorage().proxyFactory;
+    function bagFactory() public view returns (IFactory) {
+        return _getRequestStorage().bagFactory;
     }
 
     /// @notice Returns the adapter used to withdraw assets from the configured yn-token.

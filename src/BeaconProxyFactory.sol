@@ -7,11 +7,11 @@ import {
 import {Initializable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import {BeaconProxy} from "lib/openzeppelin-contracts/contracts/proxy/beacon/BeaconProxy.sol";
 import {UpgradeableBeacon} from "lib/openzeppelin-contracts/contracts/proxy/beacon/UpgradeableBeacon.sol";
-import {IProxyFactory} from "src/interface/IProxyFactory.sol";
+import {IFactory} from "src/interface/IFactory.sol";
 
 /// @title BeaconProxyFactory
 /// @notice Shared beacon proxy factory and implementation upgrade manager.
-contract BeaconProxyFactory is Initializable, AccessControlUpgradeable, IProxyFactory {
+contract BeaconProxyFactory is Initializable, AccessControlUpgradeable, IFactory {
     bytes32 public constant CREATOR_ROLE = keccak256("CREATOR_ROLE");
     bytes32 public constant IMPLEMENTATION_MANAGER_ROLE = keccak256("IMPLEMENTATION_MANAGER_ROLE");
 

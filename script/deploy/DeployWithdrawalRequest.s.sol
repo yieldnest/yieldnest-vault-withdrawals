@@ -17,14 +17,14 @@ contract DeployWithdrawalRequest is BaseScript {
     uint256 public constant MIN_WITHDRAWAL_AMOUNT = 10 ether;
 
     Bag public bagImplementation;
-    BeaconProxyFactory public proxyFactoryImplementation;
-    BeaconProxyFactory public proxyFactory;
+    BeaconProxyFactory public bagFactoryImplementation;
+    BeaconProxyFactory public bagFactory;
     BaseWithdrawer public requestWithdrawer;
     MinAmountRequestPolicy public requestPolicy;
     WithdrawalRequest public requestImplementation;
     WithdrawalRequest public withdrawalRequest;
     WithdrawalRequestViewer public withdrawalRequestViewer;
-    ERC1967Proxy public proxyFactoryProxy;
+    ERC1967Proxy public bagFactoryProxy;
     ERC1967Proxy public proxy;
 
     address public token;
@@ -56,14 +56,14 @@ contract DeployWithdrawalRequest is BaseScript {
         configurationManager = address(timelock);
 
         bagImplementation = new Bag();
-        proxyFactoryImplementation = new BeaconProxyFactory();
-        proxyFactoryProxy = new ERC1967Proxy(
-            address(proxyFactoryImplementation),
+        bagFactoryImplementation = new BeaconProxyFactory();
+        bagFactoryProxy = new ERC1967Proxy(
+            address(bagFactoryImplementation),
             abi.encodeCall(
                 BeaconProxyFactory.initialize, (address(bagImplementation), defaultAdmin, predictedProxy, defaultAdmin)
             )
         );
-        proxyFactory = BeaconProxyFactory(address(proxyFactoryProxy));
+        bagFactory = BeaconProxyFactory(address(bagFactoryProxy));
         requestWithdrawer = new BaseWithdrawer(token, predictedProxy);
         requestPolicy = new MinAmountRequestPolicy(MIN_WITHDRAWAL_AMOUNT);
         requestImplementation = new WithdrawalRequest();
@@ -77,7 +77,7 @@ contract DeployWithdrawalRequest is BaseScript {
                     resolver,
                     configurationManager,
                     pauser,
-                    address(proxyFactory),
+                    address(bagFactory),
                     address(requestWithdrawer),
                     address(requestPolicy)
                 )
@@ -137,8 +137,8 @@ contract DeployWithdrawalRequest is BaseScript {
         }
         if (address(withdrawalRequest.withdrawer()) != address(requestWithdrawer)) revert InvalidSetup();
         if (address(withdrawalRequest.requestPolicy()) != address(requestPolicy)) revert InvalidSetup();
-        if (!proxyFactory.hasRole(proxyFactory.DEFAULT_ADMIN_ROLE(), address(timelock))) revert InvalidSetup();
-        if (!proxyFactory.hasRole(proxyFactory.IMPLEMENTATION_MANAGER_ROLE(), address(timelock))) {
+        if (!bagFactory.hasRole(bagFactory.DEFAULT_ADMIN_ROLE(), address(timelock))) revert InvalidSetup();
+        if (!bagFactory.hasRole(bagFactory.IMPLEMENTATION_MANAGER_ROLE(), address(timelock))) {
             revert InvalidSetup();
         }
     }
@@ -155,10 +155,10 @@ contract DeployWithdrawalRequest is BaseScript {
         vm.serializeAddress(symbol(), "implementation", address(requestImplementation));
         vm.serializeAddress(symbol(), "timelock", address(timelock));
         vm.serializeAddress(symbol(), "bagImplementation", address(bagImplementation));
-        vm.serializeAddress(symbol(), "proxyFactoryImplementation", address(proxyFactoryImplementation));
-        vm.serializeAddress(symbol(), "proxyFactory", address(proxyFactory));
-        vm.serializeAddress(symbol(), "proxyFactoryProxy", address(proxyFactoryProxy));
-        vm.serializeAddress(symbol(), "beacon", proxyFactory.beacon());
+        vm.serializeAddress(symbol(), "bagFactoryImplementation", address(bagFactoryImplementation));
+        vm.serializeAddress(symbol(), "bagFactory", address(bagFactory));
+        vm.serializeAddress(symbol(), "bagFactoryProxy", address(bagFactoryProxy));
+        vm.serializeAddress(symbol(), "beacon", bagFactory.beacon());
         vm.serializeAddress(symbol(), "withdrawer", address(requestWithdrawer));
         vm.serializeAddress(symbol(), "requestPolicy", address(requestPolicy));
         vm.serializeAddress(symbol(), "proxy", address(proxy));

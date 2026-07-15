@@ -24,8 +24,8 @@ contract WithdrawalRequestMainnetTest is Test, Actors {
     BaseWithdrawer public withdrawer;
     MinAmountRequestPolicy public requestPolicy;
     Bag public bagImplementation;
-    BeaconProxyFactory public proxyFactoryImplementation;
-    BeaconProxyFactory public proxyFactory;
+    BeaconProxyFactory public bagFactoryImplementation;
+    BeaconProxyFactory public bagFactory;
 
     address public requester;
     address public resolver;
@@ -44,12 +44,12 @@ contract WithdrawalRequestMainnetTest is Test, Actors {
         pauser = makeAddr("pauser");
 
         bagImplementation = new Bag();
-        proxyFactoryImplementation = new BeaconProxyFactory();
-        ERC1967Proxy proxyFactoryProxy = new ERC1967Proxy(
-            address(proxyFactoryImplementation),
+        bagFactoryImplementation = new BeaconProxyFactory();
+        ERC1967Proxy bagFactoryProxy = new ERC1967Proxy(
+            address(bagFactoryImplementation),
             abi.encodeCall(BeaconProxyFactory.initialize, (address(bagImplementation), ADMIN, ADMIN, ADMIN))
         );
-        proxyFactory = BeaconProxyFactory(address(proxyFactoryProxy));
+        bagFactory = BeaconProxyFactory(address(bagFactoryProxy));
 
         WithdrawalRequest implementation = new WithdrawalRequest();
         address predictedManager = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 2);
@@ -65,7 +65,7 @@ contract WithdrawalRequestMainnetTest is Test, Actors {
                     resolver,
                     configurationManager,
                     pauser,
-                    address(proxyFactory),
+                    address(bagFactory),
                     address(withdrawer),
                     address(requestPolicy)
                 )
@@ -73,9 +73,9 @@ contract WithdrawalRequestMainnetTest is Test, Actors {
         );
         manager = WithdrawalRequest(address(proxy));
 
-        bytes32 creatorRole = proxyFactory.CREATOR_ROLE();
+        bytes32 creatorRole = bagFactory.CREATOR_ROLE();
         vm.prank(ADMIN);
-        proxyFactory.grantRole(creatorRole, address(manager));
+        bagFactory.grantRole(creatorRole, address(manager));
 
         vm.startPrank(ADMIN);
         vault.grantRole(vault.ASSET_WITHDRAWER_ROLE(), address(withdrawer));
@@ -316,7 +316,7 @@ contract WithdrawalRequestMainnetTest is Test, Actors {
         WithdrawalRequest.Request memory request = manager.requests(requestId);
         assertTrue(manager.requestExists(requestId));
         assertFalse(manager.requestExists(requestId + 1));
-        assertEq(address(manager.proxyFactory()), address(proxyFactory));
+        assertEq(address(manager.bagFactory()), address(bagFactory));
         assertTrue(request.bag != address(0));
         assertEq(manager.ownerOf(requestId), owner);
         assertEq(IBag(request.bag).ownerRegistry(), address(manager));

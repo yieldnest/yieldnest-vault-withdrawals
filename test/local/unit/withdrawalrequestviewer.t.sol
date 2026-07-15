@@ -93,7 +93,7 @@ contract WithdrawalRequestViewerTest is Test {
     ViewerVaultMock ynToken;
     ViewerAssetMock asset;
     ViewerAssetMock secondAsset;
-    BeaconProxyFactory proxyFactory;
+    BeaconProxyFactory bagFactory;
 
     address admin = address(0xA11CE);
     address resolver = address(0xF0111);
@@ -110,11 +110,11 @@ contract WithdrawalRequestViewerTest is Test {
         viewer = new WithdrawalRequestViewer();
 
         Bag bagImplementation = new Bag();
-        BeaconProxyFactory proxyFactoryImplementation = new BeaconProxyFactory();
-        proxyFactory = BeaconProxyFactory(
+        BeaconProxyFactory bagFactoryImplementation = new BeaconProxyFactory();
+        bagFactory = BeaconProxyFactory(
             address(
                 new ERC1967Proxy(
-                    address(proxyFactoryImplementation),
+                    address(bagFactoryImplementation),
                     abi.encodeCall(BeaconProxyFactory.initialize, (address(bagImplementation), admin, admin, admin))
                 )
             )
@@ -136,7 +136,7 @@ contract WithdrawalRequestViewerTest is Test {
                             resolver,
                             configurationManager,
                             pauser,
-                            address(proxyFactory),
+                            address(bagFactory),
                             address(withdrawer),
                             address(requestPolicy)
                         )
@@ -145,9 +145,9 @@ contract WithdrawalRequestViewerTest is Test {
             )
         );
 
-        bytes32 creatorRole = proxyFactory.CREATOR_ROLE();
+        bytes32 creatorRole = bagFactory.CREATOR_ROLE();
         vm.prank(admin);
-        proxyFactory.grantRole(creatorRole, address(manager));
+        bagFactory.grantRole(creatorRole, address(manager));
 
         address[] memory assets = new address[](2);
         assets[0] = address(asset);
