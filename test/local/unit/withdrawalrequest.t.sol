@@ -121,6 +121,7 @@ contract WithdrawalRequestTest is Test {
     address pauser = address(0xAA05E);
     address user = address(0xB0B);
     address receiver = address(0xCA11);
+    address collector = address(0xC011EC7);
     uint256 minWithdrawalAmount = 1 ether;
 
     function setUp() public {
@@ -672,7 +673,8 @@ contract WithdrawalRequestTest is Test {
     }
 
     function testFixedRateWithdrawerRejectsNonDefaultAsset() public {
-        FixedRateWithdrawer fixedRateWithdrawer = new FixedRateWithdrawer(address(ynToken), address(manager), 1 ether);
+        FixedRateWithdrawer fixedRateWithdrawer =
+            new FixedRateWithdrawer(address(ynToken), address(manager), 1 ether, collector);
 
         vm.prank(configurationManager);
         manager.setWithdrawer(address(fixedRateWithdrawer));
@@ -685,8 +687,9 @@ contract WithdrawalRequestTest is Test {
         manager.resolveWithdrawalRequest(id, address(secondAsset), 1 ether);
     }
 
-    function testFixedRateWithdrawerRevertsWhenRateIsBelowFixedRate() public {
-        FixedRateWithdrawer fixedRateWithdrawer = new FixedRateWithdrawer(address(ynToken), address(manager), 1 ether);
+    function testFixedRateWithdrawerReturnsActualBurnWhenRateIsBelowFixedRate() public {
+        FixedRateWithdrawer fixedRateWithdrawer =
+            new FixedRateWithdrawer(address(ynToken), address(manager), 1 ether, collector);
 
         vm.prank(configurationManager);
         manager.setWithdrawer(address(fixedRateWithdrawer));
@@ -695,13 +698,18 @@ contract WithdrawalRequestTest is Test {
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, user);
 
-        vm.expectRevert(abi.encodeWithSelector(FixedRateWithdrawer.RateUnavailable.selector, 2 ether, 1 ether));
         vm.prank(resolver);
-        manager.resolveWithdrawalRequest(id, address(asset), 1 ether);
+        uint256 amountBurned = manager.resolveWithdrawalRequest(id, address(asset), 1 ether);
+
+        WithdrawalRequest.Request memory request = manager.requests(id);
+        assertEq(amountBurned, 2 ether);
+        assertEq(request.amountLocked, 8 ether);
+        assertEq(ynToken.balanceOf(collector), 0);
     }
 
     function testFixedRateWithdrawerAllowsDefaultAssetAtFixedRate() public {
-        FixedRateWithdrawer fixedRateWithdrawer = new FixedRateWithdrawer(address(ynToken), address(manager), 1 ether);
+        FixedRateWithdrawer fixedRateWithdrawer =
+            new FixedRateWithdrawer(address(ynToken), address(manager), 1 ether, collector);
 
         vm.prank(configurationManager);
         manager.setWithdrawer(address(fixedRateWithdrawer));
@@ -716,6 +724,26 @@ contract WithdrawalRequestTest is Test {
         assertEq(amountBurned, 1 ether);
         assertEq(request.amountLocked, 9 ether);
         assertEq(asset.balanceOf(request.bag), 1 ether);
+    }
+
+    function testFixedRateWithdrawerTransfersSurplusSharesToCollector() public {
+        FixedRateWithdrawer fixedRateWithdrawer =
+            new FixedRateWithdrawer(address(ynToken), address(manager), 0.5 ether, collector);
+
+        vm.prank(configurationManager);
+        manager.setWithdrawer(address(fixedRateWithdrawer));
+
+        vm.prank(user);
+        uint256 id = manager.requestWithdrawal(10 ether, user);
+
+        vm.prank(resolver);
+        uint256 amountBurned = manager.resolveWithdrawalRequest(id, address(asset), 1 ether);
+
+        WithdrawalRequest.Request memory request = manager.requests(id);
+        assertEq(amountBurned, 2 ether);
+        assertEq(request.amountLocked, 8 ether);
+        assertEq(asset.balanceOf(request.bag), 1 ether);
+        assertEq(ynToken.balanceOf(collector), 1 ether);
     }
 
     function testFuzzResolveWithdrawalRequestBurnsLockedTokenAndSubtractsBurnedAmount(
