@@ -12,6 +12,8 @@ import {IFactory} from "src/interface/IFactory.sol";
 /// @title BeaconProxyFactory
 /// @notice Shared beacon proxy factory and implementation upgrade manager.
 contract BeaconProxyFactory is Initializable, AccessControlUpgradeable, IFactory {
+    string public constant VERSION = "0.1.0";
+
     bytes32 public constant CREATOR_ROLE = keccak256("CREATOR_ROLE");
     bytes32 public constant IMPLEMENTATION_MANAGER_ROLE = keccak256("IMPLEMENTATION_MANAGER_ROLE");
 

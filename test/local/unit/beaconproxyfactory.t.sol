@@ -71,6 +71,7 @@ contract BeaconProxyFactoryTest is Test {
         assertFalse(factory.hasRole(factory.DEFAULT_ADMIN_ROLE(), creator));
         assertFalse(factory.hasRole(factory.CREATOR_ROLE(), admin));
         assertFalse(factory.hasRole(factory.IMPLEMENTATION_MANAGER_ROLE(), admin));
+        assertEq(factory.VERSION(), "0.1.0");
         assertTrue(factory.beacon() != address(0));
         assertEq(factory.implementation(), address(bagImplementation));
     }
