@@ -8,6 +8,7 @@ import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
 import {Bag} from "src/Bag.sol";
 import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
 import {IBag} from "src/interface/IBag.sol";
+import {MinAmountRequestPolicy} from "src/request-policies/MinAmountRequestPolicy.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 import {BaseWithdrawer} from "src/withdrawers/BaseWithdrawer.sol";
 import {WithdrawalRequestViewer} from "views/WithdrawalRequestViewer.sol";
@@ -120,8 +121,9 @@ contract WithdrawalRequestViewerTest is Test {
         );
 
         WithdrawalRequest implementation = new WithdrawalRequest();
-        address predictedManager = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 1);
+        address predictedManager = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 2);
         BaseWithdrawer withdrawer = new BaseWithdrawer(address(ynToken), predictedManager);
+        MinAmountRequestPolicy requestPolicy = new MinAmountRequestPolicy(1 ether);
         manager = WithdrawalRequest(
             address(
                 new ERC1967Proxy(
@@ -136,7 +138,7 @@ contract WithdrawalRequestViewerTest is Test {
                             pauser,
                             address(proxyFactory),
                             address(withdrawer),
-                            1 ether
+                            address(requestPolicy)
                         )
                     )
                 )

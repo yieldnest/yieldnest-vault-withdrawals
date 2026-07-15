@@ -6,6 +6,7 @@ import {TimelockController} from "lib/openzeppelin-contracts/contracts/governanc
 import {ERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 import {MainnetContracts as MC} from "lib/yieldnest-vault/script/Contracts.sol";
 import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
+import {MinAmountRequestPolicy} from "src/request-policies/MinAmountRequestPolicy.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 import {BaseWithdrawer} from "src/withdrawers/BaseWithdrawer.sol";
 import {DeployWithdrawalRequest} from "script/deploy/DeployWithdrawalRequest.s.sol";
@@ -29,8 +30,10 @@ contract DeployWithdrawalRequestTest is Test {
         WithdrawalRequest manager = deployScript.withdrawalRequest();
         BeaconProxyFactory proxyFactory = deployScript.proxyFactory();
         BaseWithdrawer withdrawer = deployScript.requestWithdrawer();
+        MinAmountRequestPolicy requestPolicy = deployScript.requestPolicy();
         assertGt(address(viewer).code.length, 0);
         assertGt(address(withdrawer).code.length, 0);
+        assertGt(address(requestPolicy).code.length, 0);
         assertGt(address(timelock).code.length, 0);
         assertEq(timelock.getMinDelay(), deployScript.minDelay());
         assertTrue(timelock.hasRole(timelock.DEFAULT_ADMIN_ROLE(), address(timelock)));
@@ -42,6 +45,7 @@ contract DeployWithdrawalRequestTest is Test {
         assertTrue(manager.hasRole(manager.CONFIGURATION_MANAGER_ROLE(), address(timelock)));
         assertTrue(manager.hasRole(manager.RESOLVER_ROLE(), deployScript.resolver()));
         assertEq(address(manager.withdrawer()), address(withdrawer));
+        assertEq(address(manager.requestPolicy()), address(requestPolicy));
         assertTrue(proxyFactory.hasRole(proxyFactory.DEFAULT_ADMIN_ROLE(), address(timelock)));
         assertTrue(proxyFactory.hasRole(proxyFactory.IMPLEMENTATION_MANAGER_ROLE(), address(timelock)));
 
@@ -52,6 +56,7 @@ contract DeployWithdrawalRequestTest is Test {
         assertEq(vm.parseJsonAddress(deploymentJson, ".timelock"), address(timelock));
         assertEq(vm.parseJsonAddress(deploymentJson, ".viewer"), address(viewer));
         assertEq(vm.parseJsonAddress(deploymentJson, ".withdrawer"), address(withdrawer));
+        assertEq(vm.parseJsonAddress(deploymentJson, ".requestPolicy"), address(requestPolicy));
         assertEq(vm.parseJsonAddress(deploymentJson, ".withdrawalRequest"), address(manager));
         assertEq(vm.parseJsonAddress(deploymentJson, ".defaultAdmin"), address(timelock));
         assertEq(vm.parseJsonAddress(deploymentJson, ".resolver"), deployScript.resolver());

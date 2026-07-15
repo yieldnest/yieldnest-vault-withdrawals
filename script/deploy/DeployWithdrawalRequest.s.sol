@@ -8,6 +8,7 @@ import {MainnetContracts as MC} from "lib/yieldnest-vault/script/Contracts.sol";
 import {BaseScript} from "lib/yieldnest-vault/script/BaseScript.sol";
 import {Bag} from "src/Bag.sol";
 import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
+import {MinAmountRequestPolicy} from "src/request-policies/MinAmountRequestPolicy.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 import {BaseWithdrawer} from "src/withdrawers/BaseWithdrawer.sol";
 import {WithdrawalRequestViewer} from "views/WithdrawalRequestViewer.sol";
@@ -19,6 +20,7 @@ contract DeployWithdrawalRequest is BaseScript {
     BeaconProxyFactory public proxyFactoryImplementation;
     BeaconProxyFactory public proxyFactory;
     BaseWithdrawer public requestWithdrawer;
+    MinAmountRequestPolicy public requestPolicy;
     WithdrawalRequest public requestImplementation;
     WithdrawalRequest public withdrawalRequest;
     WithdrawalRequestViewer public withdrawalRequestViewer;
@@ -47,7 +49,7 @@ contract DeployWithdrawalRequest is BaseScript {
 
         deployer = tx.origin;
         uint256 nonce = vm.getNonce(deployer);
-        predictedProxy = vm.computeCreateAddress(deployer, nonce + 6);
+        predictedProxy = vm.computeCreateAddress(deployer, nonce + 7);
 
         _deployTimelockController();
         defaultAdmin = address(timelock);
@@ -63,6 +65,7 @@ contract DeployWithdrawalRequest is BaseScript {
         );
         proxyFactory = BeaconProxyFactory(address(proxyFactoryProxy));
         requestWithdrawer = new BaseWithdrawer(token, predictedProxy);
+        requestPolicy = new MinAmountRequestPolicy(MIN_WITHDRAWAL_AMOUNT);
         requestImplementation = new WithdrawalRequest();
         proxy = new ERC1967Proxy(
             address(requestImplementation),
@@ -76,7 +79,7 @@ contract DeployWithdrawalRequest is BaseScript {
                     pauser,
                     address(proxyFactory),
                     address(requestWithdrawer),
-                    MIN_WITHDRAWAL_AMOUNT
+                    address(requestPolicy)
                 )
             )
         );
@@ -133,6 +136,7 @@ contract DeployWithdrawalRequest is BaseScript {
             revert InvalidSetup();
         }
         if (address(withdrawalRequest.withdrawer()) != address(requestWithdrawer)) revert InvalidSetup();
+        if (address(withdrawalRequest.requestPolicy()) != address(requestPolicy)) revert InvalidSetup();
         if (!proxyFactory.hasRole(proxyFactory.DEFAULT_ADMIN_ROLE(), address(timelock))) revert InvalidSetup();
         if (!proxyFactory.hasRole(proxyFactory.IMPLEMENTATION_MANAGER_ROLE(), address(timelock))) {
             revert InvalidSetup();
@@ -156,6 +160,7 @@ contract DeployWithdrawalRequest is BaseScript {
         vm.serializeAddress(symbol(), "proxyFactoryProxy", address(proxyFactoryProxy));
         vm.serializeAddress(symbol(), "beacon", proxyFactory.beacon());
         vm.serializeAddress(symbol(), "withdrawer", address(requestWithdrawer));
+        vm.serializeAddress(symbol(), "requestPolicy", address(requestPolicy));
         vm.serializeAddress(symbol(), "proxy", address(proxy));
         vm.serializeAddress(symbol(), "predictedProxy", predictedProxy);
         vm.serializeAddress(symbol(), "withdrawalRequest", address(withdrawalRequest));

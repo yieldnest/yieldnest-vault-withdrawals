@@ -12,6 +12,7 @@ import {MainnetContracts as MC} from "lib/yieldnest-vault/script/Contracts.sol";
 import {IBag} from "src/interface/IBag.sol";
 import {Bag} from "src/Bag.sol";
 import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
+import {MinAmountRequestPolicy} from "src/request-policies/MinAmountRequestPolicy.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 import {BaseWithdrawer} from "src/withdrawers/BaseWithdrawer.sol";
 import {WithdrawalRequestViewer} from "views/WithdrawalRequestViewer.sol";
@@ -21,6 +22,7 @@ contract WithdrawalRequestMainnetTest is Test, Actors {
     WithdrawalRequest public manager;
     WithdrawalRequestViewer public viewer;
     BaseWithdrawer public withdrawer;
+    MinAmountRequestPolicy public requestPolicy;
     Bag public bagImplementation;
     BeaconProxyFactory public proxyFactoryImplementation;
     BeaconProxyFactory public proxyFactory;
@@ -50,8 +52,9 @@ contract WithdrawalRequestMainnetTest is Test, Actors {
         proxyFactory = BeaconProxyFactory(address(proxyFactoryProxy));
 
         WithdrawalRequest implementation = new WithdrawalRequest();
-        address predictedManager = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 1);
+        address predictedManager = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 2);
         withdrawer = new BaseWithdrawer(address(vault), predictedManager);
+        requestPolicy = new MinAmountRequestPolicy(MIN_WITHDRAWAL_AMOUNT);
         ERC1967Proxy proxy = new ERC1967Proxy(
             address(implementation),
             abi.encodeCall(
@@ -64,7 +67,7 @@ contract WithdrawalRequestMainnetTest is Test, Actors {
                     pauser,
                     address(proxyFactory),
                     address(withdrawer),
-                    MIN_WITHDRAWAL_AMOUNT
+                    address(requestPolicy)
                 )
             )
         );
@@ -255,14 +258,16 @@ contract WithdrawalRequestMainnetTest is Test, Actors {
     }
 
     function test_withdrawalRequest_respectsMinimumAndPause() public {
+        MinAmountRequestPolicy newRequestPolicy = new MinAmountRequestPolicy(2 ether);
+
         vm.prank(configurationManager);
-        manager.setMinWithdrawalAmount(2 ether);
+        manager.setRequestPolicy(address(newRequestPolicy));
 
         uint256 depositedShares = _depositIntoYnETHx(MC.WETH, requester, 5 ether);
 
         vm.startPrank(requester);
         IERC20(address(vault)).approve(address(manager), depositedShares);
-        vm.expectRevert(abi.encodeWithSelector(WithdrawalRequest.AmountBelowMinimum.selector, 1 ether, 2 ether));
+        vm.expectRevert(abi.encodeWithSelector(MinAmountRequestPolicy.AmountBelowMinimum.selector, 1 ether, 2 ether));
         manager.requestWithdrawal(1 ether, requester);
         vm.stopPrank();
 

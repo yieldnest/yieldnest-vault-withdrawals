@@ -18,6 +18,7 @@ import {IBag} from "src/interface/IBag.sol";
 import {IAuth} from "src/interface/IAuth.sol";
 import {IResolver} from "src/interface/IResolver.sol";
 import {IProxyFactory} from "src/interface/IProxyFactory.sol";
+import {IRequestPolicy} from "src/interface/IRequestPolicy.sol";
 import {IWithdrawer} from "src/interface/IWithdrawer.sol";
 
 interface IWithdrawAssetVault is IERC20Metadata {
@@ -53,14 +54,13 @@ contract WithdrawalRequest is
         IWithdrawAssetVault token;
         IProxyFactory proxyFactory;
         IWithdrawer withdrawer;
-        uint256 minWithdrawalAmount;
+        IRequestPolicy requestPolicy;
         uint256 nextRequestId;
         mapping(uint256 id => Request request) requests;
     }
 
     error ZeroAddress();
     error ZeroAmount();
-    error AmountBelowMinimum(uint256 amount, uint256 minWithdrawalAmount);
     error RequestNotFound(uint256 id);
     error InsufficientLockedAmount(uint256 id, uint256 amountLocked, uint256 amountBurned);
     error InvalidTokenBalanceChange(uint256 balanceBefore, uint256 balanceAfter);
@@ -80,7 +80,7 @@ contract WithdrawalRequest is
         uint256 amountBurned,
         uint256 amountLocked
     );
-    event MinWithdrawalAmountUpdated(uint256 oldMinWithdrawalAmount, uint256 newMinWithdrawalAmount);
+    event RequestPolicyUpdated(address oldRequestPolicy, address newRequestPolicy);
     event WithdrawerUpdated(address oldWithdrawer, address newWithdrawer);
 
     bytes32 public constant RESOLVER_ROLE = keccak256("RESOLVER_ROLE");
@@ -110,12 +110,12 @@ contract WithdrawalRequest is
         address pauser,
         address proxyFactory_,
         address withdrawer_,
-        uint256 minWithdrawalAmount_
+        address requestPolicy_
     ) external initializer {
         if (
             token_ == address(0) || defaultAdmin == address(0) || resolver == address(0)
                 || configurationManager == address(0) || pauser == address(0) || proxyFactory_ == address(0)
-                || withdrawer_ == address(0)
+                || withdrawer_ == address(0) || requestPolicy_ == address(0)
         ) {
             revert ZeroAddress();
         }
@@ -125,7 +125,7 @@ contract WithdrawalRequest is
         __ERC721Enumerable_init();
         __Pausable_init();
 
-        _initializeStorage(token_, proxyFactory_, withdrawer_, minWithdrawalAmount_);
+        _initializeStorage(token_, proxyFactory_, withdrawer_, requestPolicy_);
 
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
         _grantRole(RESOLVER_ROLE, resolver);
@@ -133,29 +133,18 @@ contract WithdrawalRequest is
         _grantRole(PAUSER_ROLE, pauser);
     }
 
-    function _initializeStorage(
-        address token_,
-        address proxyFactory_,
-        address withdrawer_,
-        uint256 minWithdrawalAmount_
-    ) internal {
+    function _initializeStorage(address token_, address proxyFactory_, address withdrawer_, address requestPolicy_)
+        internal
+    {
         RequestStorage storage $ = _getRequestStorage();
         $.token = IWithdrawAssetVault(token_);
         $.proxyFactory = IProxyFactory(proxyFactory_);
         $.withdrawer = IWithdrawer(withdrawer_);
-        $.minWithdrawalAmount = minWithdrawalAmount_;
+        $.requestPolicy = IRequestPolicy(requestPolicy_);
         IERC20(token_).forceApprove(withdrawer_, type(uint256).max);
     }
 
     // --- Configuration ---
-
-    function setMinWithdrawalAmount(uint256 minWithdrawalAmount_) external onlyRole(CONFIGURATION_MANAGER_ROLE) {
-        RequestStorage storage $ = _getRequestStorage();
-        uint256 oldMinWithdrawalAmount = $.minWithdrawalAmount;
-        $.minWithdrawalAmount = minWithdrawalAmount_;
-
-        emit MinWithdrawalAmountUpdated(oldMinWithdrawalAmount, minWithdrawalAmount_);
-    }
 
     function setWithdrawer(address withdrawer_) external onlyRole(CONFIGURATION_MANAGER_ROLE) {
         if (withdrawer_ == address(0)) revert ZeroAddress();
@@ -169,6 +158,16 @@ contract WithdrawalRequest is
         emit WithdrawerUpdated(oldWithdrawer, withdrawer_);
     }
 
+    function setRequestPolicy(address requestPolicy_) external onlyRole(CONFIGURATION_MANAGER_ROLE) {
+        if (requestPolicy_ == address(0)) revert ZeroAddress();
+
+        RequestStorage storage $ = _getRequestStorage();
+        address oldRequestPolicy = address($.requestPolicy);
+        $.requestPolicy = IRequestPolicy(requestPolicy_);
+
+        emit RequestPolicyUpdated(oldRequestPolicy, requestPolicy_);
+    }
+
     // --- Requests ---
 
     /// @notice Locks yn-tokens in this contract and creates a withdrawal request.
@@ -180,7 +179,7 @@ contract WithdrawalRequest is
         if (receiver == address(0)) revert ZeroAddress();
 
         RequestStorage storage $ = _getRequestStorage();
-        if (amount < $.minWithdrawalAmount) revert AmountBelowMinimum(amount, $.minWithdrawalAmount);
+        $.requestPolicy.validateRequest(msg.sender, receiver, amount);
 
         IERC20(address($.token)).safeTransferFrom(msg.sender, address(this), amount);
         uint256 rateAtRequest = $.token.convertToAssets(10 ** $.token.decimals());
@@ -311,16 +310,16 @@ contract WithdrawalRequest is
         return _getRequestStorage().withdrawer;
     }
 
-    /// @notice Returns the minimum yn-token share amount required to open a request.
-    /// @return The minimum amount to lock.
-    function minWithdrawalAmount() public view returns (uint256) {
-        return _getRequestStorage().minWithdrawalAmount;
-    }
-
     /// @notice Returns the next withdrawal request id to be assigned.
     /// @return The next request id.
     function nextRequestId() public view returns (uint256) {
         return _getRequestStorage().nextRequestId;
+    }
+
+    /// @notice Returns the policy that validates request creation.
+    /// @return The configured request policy.
+    function requestPolicy() public view returns (IRequestPolicy) {
+        return _getRequestStorage().requestPolicy;
     }
 
     /// @notice Returns a withdrawal request by id.

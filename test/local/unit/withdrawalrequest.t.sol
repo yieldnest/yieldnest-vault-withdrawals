@@ -11,6 +11,7 @@ import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
 import {IBag} from "src/interface/IBag.sol";
 import {Bag} from "src/Bag.sol";
 import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
+import {MinAmountRequestPolicy} from "src/request-policies/MinAmountRequestPolicy.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 import {BaseWithdrawer} from "src/withdrawers/BaseWithdrawer.sol";
 import {FixedRateWithdrawer} from "src/withdrawers/FixedRateWithdrawer.sol";
@@ -109,6 +110,7 @@ contract WithdrawalRequestTest is Test {
     WithdrawalAssetMock secondAsset;
     WithdrawalRequestViewer viewer;
     BaseWithdrawer withdrawer;
+    MinAmountRequestPolicy requestPolicy;
     Bag bagImplementation;
     BeaconProxyFactory proxyFactoryImplementation;
     BeaconProxyFactory proxyFactory;
@@ -135,8 +137,9 @@ contract WithdrawalRequestTest is Test {
         proxyFactory = BeaconProxyFactory(address(proxyFactoryProxy));
 
         WithdrawalRequest implementation = new WithdrawalRequest();
-        address predictedManager = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 1);
+        address predictedManager = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 2);
         withdrawer = new BaseWithdrawer(address(ynToken), predictedManager);
+        requestPolicy = new MinAmountRequestPolicy(minWithdrawalAmount);
         ERC1967Proxy proxy = new ERC1967Proxy(
             address(implementation),
             abi.encodeCall(
@@ -149,7 +152,7 @@ contract WithdrawalRequestTest is Test {
                     pauser,
                     address(proxyFactory),
                     address(withdrawer),
-                    minWithdrawalAmount
+                    address(requestPolicy)
                 )
             )
         );
@@ -215,6 +218,7 @@ contract WithdrawalRequestTest is Test {
         assertEq(manager.name(), "MAX Vault Withdrawal Request");
         assertEq(manager.symbol(), "ynWREQ");
         assertEq(address(manager.withdrawer()), address(withdrawer));
+        assertEq(address(manager.requestPolicy()), address(requestPolicy));
         assertEq(ynToken.allowance(address(manager), address(withdrawer)), type(uint256).max);
         assertTrue(manager.supportsInterface(type(IERC721Enumerable).interfaceId));
         assertEq(IBag(request.bag).ownerRegistry(), address(manager));
@@ -443,7 +447,7 @@ contract WithdrawalRequestTest is Test {
     function testRequestWithdrawalRevertsBelowMinimumAmount() public {
         vm.expectRevert(
             abi.encodeWithSelector(
-                WithdrawalRequest.AmountBelowMinimum.selector, minWithdrawalAmount - 1, minWithdrawalAmount
+                MinAmountRequestPolicy.AmountBelowMinimum.selector, minWithdrawalAmount - 1, minWithdrawalAmount
             )
         );
         vm.prank(user);
@@ -454,7 +458,7 @@ contract WithdrawalRequestTest is Test {
         amount = uint96(bound(amount, 1, minWithdrawalAmount - 1));
 
         vm.expectRevert(
-            abi.encodeWithSelector(WithdrawalRequest.AmountBelowMinimum.selector, amount, minWithdrawalAmount)
+            abi.encodeWithSelector(MinAmountRequestPolicy.AmountBelowMinimum.selector, amount, minWithdrawalAmount)
         );
         vm.prank(user);
         manager.requestWithdrawal(amount, user);
@@ -471,31 +475,45 @@ contract WithdrawalRequestTest is Test {
         manager.requests(123);
     }
 
-    function testSetMinWithdrawalAmountRequiresConfigurationManagerRole() public {
+    function testSetRequestPolicyRequiresConfigurationManagerRole() public {
+        MinAmountRequestPolicy newRequestPolicy = new MinAmountRequestPolicy(2 ether);
+
         vm.expectRevert(
             abi.encodeWithSelector(
                 IAccessControl.AccessControlUnauthorizedAccount.selector, user, manager.CONFIGURATION_MANAGER_ROLE()
             )
         );
         vm.prank(user);
-        manager.setMinWithdrawalAmount(2 ether);
+        manager.setRequestPolicy(address(newRequestPolicy));
     }
 
-    function testSetMinWithdrawalAmountUpdatesMinimum() public {
-        vm.expectEmit(true, true, true, true, address(manager));
-        emit WithdrawalRequest.MinWithdrawalAmountUpdated(minWithdrawalAmount, 2 ether);
+    function testSetRequestPolicyUpdatesPolicy() public {
+        MinAmountRequestPolicy newRequestPolicy = new MinAmountRequestPolicy(2 ether);
+
+        vm.expectEmit(false, false, false, true, address(manager));
+        emit WithdrawalRequest.RequestPolicyUpdated(address(requestPolicy), address(newRequestPolicy));
 
         vm.prank(configurationManager);
-        manager.setMinWithdrawalAmount(2 ether);
+        manager.setRequestPolicy(address(newRequestPolicy));
 
-        assertEq(manager.minWithdrawalAmount(), 2 ether);
+        assertEq(address(manager.requestPolicy()), address(newRequestPolicy));
     }
 
-    function testFuzzSetMinWithdrawalAmountUpdatesMinimum(uint128 newMinWithdrawalAmount) public {
-        vm.prank(configurationManager);
-        manager.setMinWithdrawalAmount(newMinWithdrawalAmount);
+    function testSetRequestPolicyUpdatesMinimumValidation() public {
+        MinAmountRequestPolicy newRequestPolicy = new MinAmountRequestPolicy(2 ether);
 
-        assertEq(manager.minWithdrawalAmount(), newMinWithdrawalAmount);
+        vm.prank(configurationManager);
+        manager.setRequestPolicy(address(newRequestPolicy));
+
+        vm.expectRevert(abi.encodeWithSelector(MinAmountRequestPolicy.AmountBelowMinimum.selector, 1 ether, 2 ether));
+        vm.prank(user);
+        manager.requestWithdrawal(1 ether, user);
+    }
+
+    function testSetRequestPolicyRevertsForZeroAddress() public {
+        vm.expectRevert(WithdrawalRequest.ZeroAddress.selector);
+        vm.prank(configurationManager);
+        manager.setRequestPolicy(address(0));
     }
 
     function testSetWithdrawerUpdatesWithdrawerAndApproval() public {
