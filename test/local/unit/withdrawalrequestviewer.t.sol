@@ -4,6 +4,8 @@ pragma solidity ^0.8.24;
 import "forge-std/Test.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {ERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
+import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
 import {Bag} from "src/Bag.sol";
 import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
@@ -14,6 +16,8 @@ import {BaseWithdrawer} from "src/withdrawers/BaseWithdrawer.sol";
 import {WithdrawalRequestViewer} from "views/WithdrawalRequestViewer.sol";
 
 contract ViewerVaultMock is ERC20 {
+    using SafeERC20 for IERC20;
+
     address[] internal assetList;
     mapping(address asset => uint8 decimals_) internal assetDecimals;
     mapping(address asset => uint256 rate) internal assetRates;
@@ -39,7 +43,7 @@ contract ViewerVaultMock is ERC20 {
     {
         shares = assets;
         _burn(owner, shares);
-        ERC20(asset_).transfer(receiver, assets);
+        IERC20(asset_).safeTransfer(receiver, assets);
     }
 
     function totalBaseAssets() external view returns (uint256) {
