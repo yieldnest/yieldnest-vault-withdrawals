@@ -3,6 +3,8 @@ pragma solidity ^0.8.24;
 
 import {IAccessControl} from "lib/openzeppelin-contracts/contracts/access/IAccessControl.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC721Enumerable} from "lib/openzeppelin-contracts/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
 import {Initializable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import {PausableUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
@@ -35,6 +37,40 @@ contract ReentrantResolveWithdrawer is IWithdrawer {
 
     function convertToAssets(uint256) external pure returns (uint256) {
         return 0;
+    }
+}
+
+/// @notice Hypothetical withdrawer that redeems the yn-token in kind. Instead of burning shares to
+/// produce an underlying asset, it transfers the yn-token itself from the manager into the request bag.
+/// The manager's balance delta still equals the returned "burned" amount, so the resolution invariants hold.
+contract InKindWithdrawer is IWithdrawer {
+    using SafeERC20 for IERC20;
+
+    IERC20 internal immutable token;
+    address internal immutable withdrawalRequest;
+
+    error Unauthorized(address caller);
+    error InvalidAsset(address asset);
+
+    constructor(address token_, address withdrawalRequest_) {
+        token = IERC20(token_);
+        withdrawalRequest = withdrawalRequest_;
+    }
+
+    function withdrawAsset(uint256, address asset, uint256 assets, address receiver, address owner)
+        external
+        returns (uint256 shares)
+    {
+        if (msg.sender != withdrawalRequest) revert Unauthorized(msg.sender);
+        if (asset != address(token)) revert InvalidAsset(asset);
+
+        // No burn: move the yn-token in kind from the manager (owner) into the request bag (receiver).
+        token.safeTransferFrom(owner, receiver, assets);
+        return assets;
+    }
+
+    function convertToAssets(uint256 shares) external pure returns (uint256) {
+        return shares;
     }
 }
 
@@ -729,6 +765,46 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         assertEq(_claimSingleERC20(request.bag, address(asset), user, 4 ether)[0], 4 ether);
         assertEq(asset.balanceOf(user), 4 ether);
         assertEq(asset.balanceOf(request.bag), 0);
+    }
+
+    function testInKindWithdrawerResolvesYnTokenIntoBagWithoutBurning() public {
+        InKindWithdrawer inKindWithdrawer = new InKindWithdrawer(address(ynToken), address(manager));
+
+        vm.prank(configurationManager);
+        manager.setWithdrawer(address(inKindWithdrawer));
+
+        uint256 totalSupplyBefore = ynToken.totalSupply();
+
+        vm.prank(user);
+        uint256 id = manager.requestWithdrawal(10 ether, user);
+
+        WithdrawalRequest.Request memory request = manager.requests(id);
+
+        // The resolved asset is the yn-token itself, delivered in kind rather than burned.
+        vm.expectEmit(true, true, true, true, address(manager));
+        emit WithdrawalRequest.WithdrawalRequestResolved(
+            id, user, address(ynToken), address(ynToken), 4 ether, 4 ether, 6 ether
+        );
+
+        vm.prank(resolver);
+        uint256 amountBurned = manager.resolveWithdrawalRequest(id, address(ynToken), 4 ether);
+
+        request = manager.requests(id);
+
+        // Nothing was burned: total supply is unchanged, the shares just moved into the bag.
+        assertEq(ynToken.totalSupply(), totalSupplyBefore);
+        assertEq(amountBurned, 4 ether);
+        assertEq(request.amountLocked, 6 ether);
+        assertEq(ynToken.balanceOf(address(manager)), 6 ether);
+        assertEq(ynToken.balanceOf(request.bag), 4 ether);
+        assertEq(request.assetsRedeemed.length, 1);
+        assertEq(request.assetsRedeemed[0], address(ynToken));
+
+        // The owner claims the yn-token shares straight out of the bag.
+        vm.prank(user);
+        assertEq(_claimSingleERC20(request.bag, address(ynToken), user, 4 ether)[0], 4 ether);
+        assertEq(ynToken.balanceOf(user), 94 ether);
+        assertEq(ynToken.balanceOf(request.bag), 0);
     }
 
     function testResolveWithdrawalRequestTracksUniqueRedeemedAssets() public {
