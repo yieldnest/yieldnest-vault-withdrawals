@@ -37,7 +37,11 @@ contract WithdrawalRequestViewer {
         AssetBalance[] assetBalances;
     }
 
-    function getRequest(WithdrawalRequest withdrawalRequest, uint256 id) external view returns (RequestView memory view_) {
+    function getRequest(WithdrawalRequest withdrawalRequest, uint256 id)
+        external
+        view
+        returns (RequestView memory view_)
+    {
         WithdrawalRequest.Request memory request = withdrawalRequest.requests(id);
         IWithdrawalRequestViewerVault token = IWithdrawalRequestViewerVault(address(withdrawalRequest.token()));
 
@@ -110,17 +114,19 @@ contract WithdrawalRequestViewer {
         return _requestIsClaimed(request, token);
     }
 
-    function _requestIsClaimable(
-        WithdrawalRequest.Request memory request,
-        IWithdrawalRequestViewerVault token
-    ) internal view returns (bool) {
+    function _requestIsClaimable(WithdrawalRequest.Request memory request, IWithdrawalRequestViewerVault token)
+        internal
+        view
+        returns (bool)
+    {
         return request.amountLocked < 10 ** token.decimals() / 1e4;
     }
 
-    function _requestIsClaimed(
-        WithdrawalRequest.Request memory request,
-        IWithdrawalRequestViewerVault token
-    ) internal view returns (bool) {
+    function _requestIsClaimed(WithdrawalRequest.Request memory request, IWithdrawalRequestViewerVault token)
+        internal
+        view
+        returns (bool)
+    {
         if (!_requestIsClaimable(request, token)) return false;
 
         for (uint256 i = 0; i < request.assetsRedeemed.length; ++i) {
@@ -145,6 +151,12 @@ contract WithdrawalRequestViewer {
         IVault.AssetParams memory assetParams = token.getAsset(asset);
         uint256 rate = IProvider(token.provider()).getRate(asset);
         assets = baseAssets.mulDiv(10 ** assetParams.decimals, rate, Math.Rounding.Floor);
+    }
+
+    /// @notice Returns the current default-asset redemption rate for one full yn-token share unit.
+    function currentRedemptionRate(WithdrawalRequest withdrawalRequest) external view returns (uint256 assets) {
+        IWithdrawalRequestViewerVault token = IWithdrawalRequestViewerVault(address(withdrawalRequest.token()));
+        assets = withdrawalRequest.withdrawer().convertToAssets(10 ** token.decimals());
     }
 
     /// @notice Returns the asset amount a caller can pass to `resolveWithdrawalRequest` for the request's locked shares.

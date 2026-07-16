@@ -42,13 +42,24 @@ contract FixedRateWithdrawer is BaseWithdrawer {
         address defaultAsset = IDefaultAssetVault(address(token)).asset();
         if (asset != defaultAsset) revert InvalidAsset(asset);
 
-        uint256 shareUnit = 10 ** token.decimals();
-        uint256 fixedRateShares = assets.mulDiv(shareUnit, fixedRate, Math.Rounding.Ceil);
+        uint256 fixedRateShares = _convertToShares(assets);
 
         uint256 sharesBurned = token.withdrawAsset(asset, assets, receiver, owner);
         if (fixedRateShares <= sharesBurned) return sharesBurned;
 
         IERC20(address(token)).safeTransferFrom(owner, collector, fixedRateShares - sharesBurned);
         return fixedRateShares;
+    }
+
+    function convertToAssets(uint256 shares) public view override returns (uint256 assets) {
+        return shares.mulDiv(fixedRate, _shareUnit(), Math.Rounding.Floor);
+    }
+
+    function _convertToShares(uint256 assets) internal view returns (uint256 shares) {
+        return assets.mulDiv(_shareUnit(), fixedRate, Math.Rounding.Ceil);
+    }
+
+    function _shareUnit() internal view returns (uint256) {
+        return 10 ** token.decimals();
     }
 }

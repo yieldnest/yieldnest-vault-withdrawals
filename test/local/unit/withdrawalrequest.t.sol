@@ -555,9 +555,26 @@ contract WithdrawalRequestTest is Test {
         withdrawer.withdrawAsset(0, address(asset), 1 ether, user, address(manager));
     }
 
+    function testBaseWithdrawerConvertToAssetsUsesVaultRate() public view {
+        assertEq(withdrawer.convertToAssets(1 ether), 1 ether);
+    }
+
     function testConvertToAssets() public view {
         assertEq(viewer.convertToAssets(manager, address(asset), 0), 0);
         assertEq(viewer.convertToAssets(manager, address(asset), 10 ether), 10 ether);
+    }
+
+    function testCurrentRedemptionRateUsesConfiguredWithdrawer() public {
+        assertEq(viewer.currentRedemptionRate(manager), 1 ether);
+
+        FixedRateWithdrawer fixedRateWithdrawer =
+            new FixedRateWithdrawer(address(ynToken), address(manager), 0.5 ether, collector);
+
+        vm.prank(configurationManager);
+        manager.setWithdrawer(address(fixedRateWithdrawer));
+
+        assertEq(fixedRateWithdrawer.convertToAssets(1 ether), 0.5 ether);
+        assertEq(viewer.currentRedemptionRate(manager), 0.5 ether);
     }
 
     function testFuzzConvertToAssetsReturnsAssetsForShares(uint128 shares) public view {

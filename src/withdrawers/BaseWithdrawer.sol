@@ -8,6 +8,7 @@ interface IWithdrawerVault is IERC20Metadata {
     function withdrawAsset(address asset_, uint256 assets, address receiver, address owner)
         external
         returns (uint256 shares);
+    function convertToAssets(uint256 shares) external view returns (uint256 assets);
 }
 
 /// @title BaseWithdrawer
@@ -33,6 +34,10 @@ contract BaseWithdrawer is IWithdrawer {
     {
         _checkWithdrawalRequest();
         shares = token.withdrawAsset(asset, assets, receiver, owner);
+    }
+
+    function convertToAssets(uint256 shares) public view virtual returns (uint256 assets) {
+        return token.convertToAssets(shares);
     }
 
     function _checkWithdrawalRequest() internal view {
