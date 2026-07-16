@@ -247,6 +247,7 @@ contract WithdrawalRequest is
         uint256 tokenBalanceBefore = $.token.balanceOf(address(this));
         uint256 bagAssetBalanceBefore = IERC20(asset).balanceOf(bag);
 
+        // withdrawAsset to bag and burn yn-tokens
         tokenAmountBurned = $.withdrawer.withdrawAsset(id, asset, assets, bag, address(this));
 
         {
@@ -254,14 +255,15 @@ contract WithdrawalRequest is
             if (tokenBalanceBefore - tokenBalanceAfter != tokenAmountBurned) {
                 revert InvalidTokenBalanceChange(tokenBalanceBefore, tokenBalanceAfter);
             }
-        }
 
-        if (tokenAmountBurned > request.amountLocked) {
-            revert InsufficientLockedAmount(id, request.amountLocked, tokenAmountBurned);
-        }
+            if (tokenAmountBurned > request.amountLocked) {
+                revert InsufficientLockedAmount(id, request.amountLocked, tokenAmountBurned);
+            }
 
-        assetsWithdrawn = IERC20(asset).balanceOf(bag) - bagAssetBalanceBefore;
-        if (assetsWithdrawn != assets) revert UnexpectedAssetsWithdrawn(assets, assetsWithdrawn);
+            assetsWithdrawn = IERC20(asset).balanceOf(bag) - bagAssetBalanceBefore;
+            if (assetsWithdrawn != assets) revert UnexpectedAssetsWithdrawn(assets, assetsWithdrawn);
+
+        }
 
         _recordAssetRedeemed(request, asset);
 

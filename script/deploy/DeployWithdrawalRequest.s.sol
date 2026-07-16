@@ -14,7 +14,7 @@ import {BaseWithdrawer} from "src/withdrawers/BaseWithdrawer.sol";
 import {WithdrawalRequestViewer} from "views/WithdrawalRequestViewer.sol";
 
 contract DeployWithdrawalRequest is BaseScript {
-    uint256 public constant MIN_WITHDRAWAL_AMOUNT = 10 ether;
+    uint256 public constant MIN_WITHDRAWAL_AMOUNT = 0.0001 ether;
 
     Bag public bagImplementation;
     BeaconProxyFactory public bagFactoryImplementation;
