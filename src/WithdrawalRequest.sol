@@ -13,6 +13,9 @@ import {ERC721Upgradeable} from "lib/openzeppelin-contracts-upgradeable/contract
 import {IERC20Metadata} from "lib/openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Initializable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import {PausableUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
+import {
+    ReentrancyGuardUpgradeable
+} from "lib/openzeppelin-contracts-upgradeable/contracts/utils/ReentrancyGuardUpgradeable.sol";
 import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IBag} from "src/interface/IBag.sol";
 import {IAuth} from "src/interface/IAuth.sol";
@@ -35,6 +38,7 @@ contract WithdrawalRequest is
     AccessControlUpgradeable,
     ERC721EnumerableUpgradeable,
     PausableUpgradeable,
+    ReentrancyGuardUpgradeable,
     IAuth,
     IResolver
 {
@@ -124,6 +128,7 @@ contract WithdrawalRequest is
         __ERC721_init("MAX Vault Withdrawal Request", "ynWREQ");
         __ERC721Enumerable_init();
         __Pausable_init();
+        __ReentrancyGuard_init();
 
         _initializeStorage(token_, bagFactory_, withdrawer_, requestPolicy_);
 
@@ -205,6 +210,7 @@ contract WithdrawalRequest is
         external
         override
         onlyRole(RESOLVER_ROLE)
+        nonReentrant
         returns (uint256 amountBurned)
     {
         (amountBurned,) = _resolveWithdrawalRequest(id, asset, assets);
@@ -219,6 +225,7 @@ contract WithdrawalRequest is
         external
         override
         onlyRole(RESOLVER_ROLE)
+        nonReentrant
         returns (uint256[] memory amountsBurned)
     {
         if (assets.length != assetAmounts.length) {
@@ -262,7 +269,6 @@ contract WithdrawalRequest is
 
             assetsWithdrawn = IERC20(asset).balanceOf(bag) - bagAssetBalanceBefore;
             if (assetsWithdrawn != assets) revert UnexpectedAssetsWithdrawn(assets, assetsWithdrawn);
-
         }
 
         _recordAssetRedeemed(request, asset);

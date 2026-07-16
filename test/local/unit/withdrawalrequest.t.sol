@@ -6,7 +6,11 @@ import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/E
 import {IERC721Enumerable} from "lib/openzeppelin-contracts/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
 import {Initializable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import {PausableUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
+import {
+    ReentrancyGuardUpgradeable
+} from "lib/openzeppelin-contracts-upgradeable/contracts/utils/ReentrancyGuardUpgradeable.sol";
 import {IBag} from "src/interface/IBag.sol";
+import {IWithdrawer} from "src/interface/IWithdrawer.sol";
 import {Bag} from "src/Bag.sol";
 import {MinAmountRequestPolicy} from "src/request-policies/MinAmountRequestPolicy.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
@@ -14,6 +18,25 @@ import {BaseWithdrawer} from "src/withdrawers/BaseWithdrawer.sol";
 import {FixedRateWithdrawer} from "src/withdrawers/FixedRateWithdrawer.sol";
 import {SetupWithdrawalRequest} from "test/local/unit/helpers/SetupWithdrawalRequest.sol";
 import {WithdrawalRequestViewer} from "views/WithdrawalRequestViewer.sol";
+
+contract ReentrantResolveWithdrawer is IWithdrawer {
+    WithdrawalRequest internal manager;
+    address internal reentrantAsset;
+
+    function arm(WithdrawalRequest manager_, address reentrantAsset_) external {
+        manager = manager_;
+        reentrantAsset = reentrantAsset_;
+    }
+
+    function withdrawAsset(uint256 requestId, address, uint256, address, address) external returns (uint256) {
+        manager.resolveWithdrawalRequest(requestId, reentrantAsset, 1);
+        return 0;
+    }
+
+    function convertToAssets(uint256) external pure returns (uint256) {
+        return 0;
+    }
+}
 
 contract WithdrawalRequestTest is SetupWithdrawalRequest {
     function setUp() public {
@@ -756,6 +779,25 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         vm.expectRevert(abi.encodeWithSelector(WithdrawalRequest.ArrayLengthMismatch.selector, 2, 1));
         vm.prank(resolver);
         manager.resolveWithdrawalRequest(id, assets, assetAmounts);
+    }
+
+    function testResolveWithdrawalRequestRevertsOnReentrancy() public {
+        ReentrantResolveWithdrawer reentrantWithdrawer = new ReentrantResolveWithdrawer();
+        reentrantWithdrawer.arm(manager, address(asset));
+
+        vm.startPrank(admin);
+        manager.grantRole(manager.RESOLVER_ROLE(), address(reentrantWithdrawer));
+        vm.stopPrank();
+
+        vm.prank(configurationManager);
+        manager.setWithdrawer(address(reentrantWithdrawer));
+
+        vm.prank(user);
+        uint256 id = manager.requestWithdrawal(10 ether, user);
+
+        vm.expectRevert(ReentrancyGuardUpgradeable.ReentrancyGuardReentrantCall.selector);
+        vm.prank(resolver);
+        manager.resolveWithdrawalRequest(id, address(asset), 1 ether);
     }
 
     function testResolveWithdrawalRequestRevertsForZeroAsset() public {
