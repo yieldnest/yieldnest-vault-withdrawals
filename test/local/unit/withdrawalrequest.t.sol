@@ -404,7 +404,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         assertEq(asset.balanceOf(request.bag), 0);
     }
 
-    function testBagClaimAllowsApprovedRequestOperator() public {
+    function testBagClaimRejectsApprovedRequestOperator() public {
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, user);
 
@@ -416,15 +416,19 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
 
         assertTrue(manager.isAuthorized(receiver, id));
 
+        vm.expectRevert(abi.encodeWithSelector(IBag.NotRequestOwner.selector, receiver));
         vm.prank(receiver);
-        uint256 amountClaimed = _claimSingleERC20(request.bag, address(asset), receiver, 4 ether)[0];
+        _claimSingleERC20(request.bag, address(asset), receiver, 4 ether);
+
+        vm.prank(user);
+        uint256 amountClaimed = _claimSingleERC20(request.bag, address(asset), user, 4 ether)[0];
 
         assertEq(amountClaimed, 4 ether);
-        assertEq(asset.balanceOf(receiver), 4 ether);
+        assertEq(asset.balanceOf(user), 4 ether);
         assertEq(asset.balanceOf(request.bag), 0);
     }
 
-    function testBagClaimAllowsApprovedForAllRequestOperator() public {
+    function testBagClaimRejectsApprovedForAllRequestOperator() public {
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, user);
 
@@ -436,11 +440,15 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
 
         assertTrue(manager.isAuthorized(receiver, id));
 
+        vm.expectRevert(abi.encodeWithSelector(IBag.NotRequestOwner.selector, receiver));
         vm.prank(receiver);
-        uint256 amountClaimed = _claimSingleERC20(request.bag, address(asset), receiver, 4 ether)[0];
+        _claimSingleERC20(request.bag, address(asset), receiver, 4 ether);
+
+        vm.prank(user);
+        uint256 amountClaimed = _claimSingleERC20(request.bag, address(asset), user, 4 ether)[0];
 
         assertEq(amountClaimed, 4 ether);
-        assertEq(asset.balanceOf(receiver), 4 ether);
+        assertEq(asset.balanceOf(user), 4 ether);
         assertEq(asset.balanceOf(request.bag), 0);
     }
 

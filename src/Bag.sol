@@ -13,7 +13,7 @@ import {IBag} from "src/interface/IBag.sol";
 import {IAuth} from "src/interface/IAuth.sol";
 
 /// @title Bag
-/// @notice Per-request asset container whose request NFT owner or approved operator can claim received assets.
+/// @notice Per-request asset container whose current request NFT owner can claim received assets.
 contract Bag is Initializable, ReentrancyGuardUpgradeable, IBag {
     using SafeERC20 for IERC20;
     using Address for address payable;
@@ -43,7 +43,7 @@ contract Bag is Initializable, ReentrancyGuardUpgradeable, IBag {
 
     modifier onlyAuthorized() {
         BagStorage storage $ = _getBagStorage();
-        if (!$.ownerRegistry.isAuthorized(msg.sender, $.id)) revert NotRequestOwner(msg.sender);
+        if ($.ownerRegistry.ownerOf($.id) != msg.sender) revert NotRequestOwner(msg.sender);
         _;
     }
 
