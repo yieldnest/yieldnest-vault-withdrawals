@@ -3,4 +3,6 @@ pragma solidity ^0.8.24;
 
 interface IRequestPolicy {
     function validateRequest(address caller, address receiver, uint256 amount) external view;
+
+    function minWithdrawalAmount() external view returns (uint256);
 }

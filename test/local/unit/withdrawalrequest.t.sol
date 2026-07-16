@@ -564,8 +564,8 @@ contract WithdrawalRequestTest is Test {
         assertEq(viewer.convertToAssets(manager, address(asset), 10 ether), 10 ether);
     }
 
-    function testCurrentRedemptionRateUsesConfiguredWithdrawer() public {
-        assertEq(viewer.currentRedemptionRate(manager), 1 ether);
+    function testConvertToAssetsAtRedemptionRateUsesConfiguredWithdrawer() public {
+        assertEq(viewer.convertToAssetsAtRedemptionRate(manager, 1 ether), 1 ether);
 
         FixedRateWithdrawer fixedRateWithdrawer =
             new FixedRateWithdrawer(address(ynToken), address(manager), 0.5 ether, collector);
@@ -574,7 +574,19 @@ contract WithdrawalRequestTest is Test {
         manager.setWithdrawer(address(fixedRateWithdrawer));
 
         assertEq(fixedRateWithdrawer.convertToAssets(1 ether), 0.5 ether);
-        assertEq(viewer.currentRedemptionRate(manager), 0.5 ether);
+        assertEq(viewer.convertToAssetsAtRedemptionRate(manager, 1 ether), 0.5 ether);
+        assertEq(viewer.convertToAssetsAtRedemptionRate(manager, 2 ether), 1 ether);
+    }
+
+    function testMinWithdrawalAmountUsesConfiguredRequestPolicy() public {
+        assertEq(viewer.minWithdrawalAmount(manager), minWithdrawalAmount);
+
+        MinAmountRequestPolicy newRequestPolicy = new MinAmountRequestPolicy(2 ether);
+
+        vm.prank(configurationManager);
+        manager.setRequestPolicy(address(newRequestPolicy));
+
+        assertEq(viewer.minWithdrawalAmount(manager), 2 ether);
     }
 
     function testFuzzConvertToAssetsReturnsAssetsForShares(uint128 shares) public view {

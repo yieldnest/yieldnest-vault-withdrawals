@@ -153,10 +153,28 @@ contract WithdrawalRequestViewer {
         assets = baseAssets.mulDiv(10 ** assetParams.decimals, rate, Math.Rounding.Floor);
     }
 
-    /// @notice Returns the current default-asset redemption rate for one full yn-token share unit.
-    function currentRedemptionRate(WithdrawalRequest withdrawalRequest) external view returns (uint256 assets) {
-        IWithdrawalRequestViewerVault token = IWithdrawalRequestViewerVault(address(withdrawalRequest.token()));
-        assets = withdrawalRequest.withdrawer().convertToAssets(10 ** token.decimals());
+    /// @notice Converts yn-token shares to default-asset units using the configured redemption withdrawer.
+    /// @dev This reflects the rate that the current withdrawer applies for redemption UI display.
+    /// For `BaseWithdrawer`, this delegates to the vault's ERC4626-style `convertToAssets`.
+    /// For fixed-rate withdrawers, this returns the assets implied by the fixed redemption rate.
+    /// It is intentionally separate from `convertToAssets`, which estimates per-asset resolution amounts.
+    /// @param withdrawalRequest Withdrawal request contract whose configured withdrawer provides the redemption rate.
+    /// @param shares Amount of yn-token shares to convert.
+    /// @return assets Amount of the vault default asset implied by the configured redemption rate.
+    function convertToAssetsAtRedemptionRate(WithdrawalRequest withdrawalRequest, uint256 shares)
+        external
+        view
+        returns (uint256 assets)
+    {
+        assets = withdrawalRequest.withdrawer().convertToAssets(shares);
+    }
+
+    /// @notice Returns the minimum yn-token share amount required to create a withdrawal request.
+    /// @dev Reads the value from the currently configured request policy, so it reflects policy updates.
+    /// @param withdrawalRequest Withdrawal request contract whose policy defines request admission rules.
+    /// @return amount Minimum amount of yn-token shares that can be locked in a new request.
+    function minWithdrawalAmount(WithdrawalRequest withdrawalRequest) external view returns (uint256 amount) {
+        amount = withdrawalRequest.requestPolicy().minWithdrawalAmount();
     }
 
     /// @notice Returns the asset amount a caller can pass to `resolveWithdrawalRequest` for the request's locked shares.
