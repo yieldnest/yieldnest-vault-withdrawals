@@ -41,7 +41,7 @@ contract Bag is Initializable, ReentrancyGuardUpgradeable, IBag {
         _disableInitializers();
     }
 
-    modifier onlyAuthorized() {
+    modifier onlyOwner() {
         BagStorage storage $ = _getBagStorage();
         if ($.ownerRegistry.ownerOf($.id) != msg.sender) revert NotRequestOwner(msg.sender);
         _;
@@ -82,7 +82,7 @@ contract Bag is Initializable, ReentrancyGuardUpgradeable, IBag {
     /// @return amounts The amounts claimed.
     function claim(address[] calldata assets, address payable recipient, uint256[] calldata amounts)
         external
-        onlyAuthorized
+        onlyOwner
         nonReentrant
         returns (uint256[] memory)
     {
@@ -110,7 +110,7 @@ contract Bag is Initializable, ReentrancyGuardUpgradeable, IBag {
     /// @param asset ERC721 asset to claim.
     /// @param recipient Receiver of the claimed token.
     /// @param tokenId Token id to claim.
-    function claimERC721(address asset, address recipient, uint256 tokenId) external onlyAuthorized nonReentrant {
+    function claimERC721(address asset, address recipient, uint256 tokenId) external onlyOwner nonReentrant {
         if (asset == address(0) || recipient == address(0)) revert ZeroAddress();
 
         IERC721(asset).safeTransferFrom(address(this), recipient, tokenId);
