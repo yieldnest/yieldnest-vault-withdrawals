@@ -450,7 +450,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         vm.prank(user);
         manager.approve(receiver, id);
 
-        assertTrue(manager.isAuthorized(receiver, id));
+        assertEq(manager.getApproved(id), receiver);
 
         vm.expectRevert(abi.encodeWithSelector(IBag.NotRequestOwner.selector, receiver));
         vm.prank(receiver);
@@ -474,7 +474,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         vm.prank(user);
         manager.setApprovalForAll(receiver, true);
 
-        assertTrue(manager.isAuthorized(receiver, id));
+        assertTrue(manager.isApprovedForAll(user, receiver));
 
         vm.expectRevert(abi.encodeWithSelector(IBag.NotRequestOwner.selector, receiver));
         vm.prank(receiver);

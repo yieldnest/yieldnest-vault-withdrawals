@@ -88,22 +88,13 @@ contract ReentrantERC721Claimer is IERC721Receiver {
 
 contract OwnerRegistryMock {
     mapping(uint256 id => address owner) internal owners;
-    mapping(uint256 id => mapping(address spender => bool authorized)) internal authorizations;
 
     function setOwner(uint256 id, address owner) external {
         owners[id] = owner;
     }
 
-    function setAuthorized(uint256 id, address spender, bool authorized) external {
-        authorizations[id][spender] = authorized;
-    }
-
     function ownerOf(uint256 id) external view returns (address) {
         return owners[id];
-    }
-
-    function isAuthorized(address spender, uint256 id) external view returns (bool) {
-        return spender == owners[id] || authorizations[id][spender];
     }
 }
 
@@ -273,9 +264,8 @@ contract BagTest is Test {
         bag.claim(assets, payable(recipient), amounts);
     }
 
-    function testClaimRejectsAuthorizedOperator() public {
+    function testClaimRejectsNonOwnerAndAllowsOwner() public {
         token.mint(address(bag), 12 ether);
-        ownerRegistry.setAuthorized(requestId, other, true);
 
         vm.expectRevert(abi.encodeWithSelector(IBag.NotRequestOwner.selector, other));
         vm.prank(other);

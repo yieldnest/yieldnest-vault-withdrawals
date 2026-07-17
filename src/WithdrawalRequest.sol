@@ -347,15 +347,6 @@ contract WithdrawalRequest is
         return _requestExists(_getRequestStorage().requests[id]);
     }
 
-    /// @notice Returns whether `spender` owns or is approved to operate the request NFT.
-    /// @param spender Account to check.
-    /// @param id Request id to query.
-    /// @return True if `spender` is the owner, approved address, or approved operator.
-    function isAuthorized(address spender, uint256 id) external view override returns (bool) {
-        address owner = ownerOf(id);
-        return _isAuthorized(owner, spender, id);
-    }
-
     function _requestExists(Request memory request) internal pure returns (bool) {
         return request.bag != address(0);
     }
