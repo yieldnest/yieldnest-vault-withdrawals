@@ -6,6 +6,7 @@ import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/E
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC721Enumerable} from "lib/openzeppelin-contracts/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
+import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {Initializable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import {PausableUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
 import {
@@ -71,6 +72,55 @@ contract InKindWithdrawer is IWithdrawer {
 
     function convertToAssets(uint256 shares) external pure returns (uint256) {
         return shares;
+    }
+}
+
+interface IRequestRateWithdrawerVault is IERC20 {
+    function asset() external view returns (address);
+    function decimals() external view returns (uint8);
+    function withdrawAsset(address asset_, uint256 assets, address receiver, address owner)
+        external
+        returns (uint256 shares);
+    function convertToAssets(uint256 shares) external view returns (uint256 assets);
+}
+
+/// @notice Hypothetical test-only withdrawer that charges each request at its recorded request-time rate.
+contract RequestRateWithdrawer is IWithdrawer {
+    using Math for uint256;
+    using SafeERC20 for IRequestRateWithdrawerVault;
+
+    WithdrawalRequest internal immutable manager;
+    IRequestRateWithdrawerVault internal immutable token;
+    address internal immutable collector;
+
+    error Unauthorized(address caller);
+    error InvalidAsset(address asset);
+
+    constructor(address manager_, address token_, address collector_) {
+        manager = WithdrawalRequest(manager_);
+        token = IRequestRateWithdrawerVault(token_);
+        collector = collector_;
+    }
+
+    function withdrawAsset(uint256 requestId, address asset, uint256 assets, address receiver, address owner)
+        external
+        returns (uint256 shares)
+    {
+        if (msg.sender != address(manager)) revert Unauthorized(msg.sender);
+        if (asset != token.asset()) revert InvalidAsset(asset);
+
+        WithdrawalRequest.Request memory request = manager.requests(requestId);
+        uint256 sharesAtRequestRate = assets.mulDiv(10 ** token.decimals(), request.rateAtRequest, Math.Rounding.Ceil);
+
+        uint256 sharesBurned = token.withdrawAsset(asset, assets, receiver, owner);
+        if (sharesAtRequestRate <= sharesBurned) return sharesBurned;
+
+        token.safeTransferFrom(owner, collector, sharesAtRequestRate - sharesBurned);
+        return sharesAtRequestRate;
+    }
+
+    function convertToAssets(uint256 shares) external view returns (uint256 assets) {
+        return token.convertToAssets(shares);
     }
 }
 
@@ -978,6 +1028,33 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         uint256 amountBurned = manager.resolveWithdrawalRequest(id, address(asset), 1 ether);
 
         WithdrawalRequest.Request memory request = manager.requests(id);
+        assertEq(amountBurned, 2 ether);
+        assertEq(request.amountLocked, 8 ether);
+        assertEq(asset.balanceOf(request.bag), 1 ether);
+        assertEq(ynToken.balanceOf(collector), 1 ether);
+    }
+
+    function testRequestRateWithdrawerChargesRateRecordedAtRequestTime() public {
+        RequestRateWithdrawer requestRateWithdrawer =
+            new RequestRateWithdrawer(address(manager), address(ynToken), collector);
+
+        vm.prank(configurationManager);
+        manager.setWithdrawer(address(requestRateWithdrawer));
+
+        ynToken.setConvertToAssetsRate(0.5 ether);
+
+        vm.prank(user);
+        uint256 id = manager.requestWithdrawal(10 ether, user);
+
+        WithdrawalRequest.Request memory request = manager.requests(id);
+        assertEq(request.rateAtRequest, 0.5 ether);
+
+        ynToken.setConvertToAssetsRate(1 ether);
+
+        vm.prank(resolver);
+        uint256 amountBurned = manager.resolveWithdrawalRequest(id, address(asset), 1 ether);
+
+        request = manager.requests(id);
         assertEq(amountBurned, 2 ether);
         assertEq(request.amountLocked, 8 ether);
         assertEq(asset.balanceOf(request.bag), 1 ether);
