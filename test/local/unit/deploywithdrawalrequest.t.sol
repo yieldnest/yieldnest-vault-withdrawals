@@ -8,7 +8,7 @@ import {MainnetContracts as MC} from "lib/yieldnest-vault/script/Contracts.sol";
 import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
 import {MinAmountRequestPolicy} from "src/request-policies/MinAmountRequestPolicy.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
-import {BaseWithdrawer} from "src/withdrawers/BaseWithdrawer.sol";
+import {LiveRateWithdrawer} from "src/withdrawers/LiveRateWithdrawer.sol";
 import {DeployWithdrawalRequest} from "script/deploy/DeployWithdrawalRequest.s.sol";
 import {WithdrawalRequestViewer} from "views/WithdrawalRequestViewer.sol";
 
@@ -29,7 +29,7 @@ contract DeployWithdrawalRequestTest is Test {
         TimelockController timelock = deployScript.timelock();
         WithdrawalRequest manager = deployScript.withdrawalRequest();
         BeaconProxyFactory bagFactory = deployScript.bagFactory();
-        BaseWithdrawer withdrawer = deployScript.requestWithdrawer();
+        LiveRateWithdrawer withdrawer = deployScript.requestWithdrawer();
         MinAmountRequestPolicy requestPolicy = deployScript.requestPolicy();
         assertGt(address(viewer).code.length, 0);
         assertGt(address(withdrawer).code.length, 0);

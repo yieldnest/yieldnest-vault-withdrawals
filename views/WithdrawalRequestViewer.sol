@@ -181,7 +181,7 @@ contract WithdrawalRequestViewer {
 
     /// @notice Converts yn-token shares to default-asset units using the configured redemption withdrawer.
     /// @dev This reflects the rate that the current withdrawer applies for redemption UI display.
-    /// For `BaseWithdrawer`, this delegates to the vault's ERC4626-style `convertToAssets`.
+    /// For `LiveRateWithdrawer`, this delegates to the vault's ERC4626-style `convertToAssets`.
     /// For fixed-rate withdrawers, this returns the assets implied by the fixed redemption rate.
     /// It is intentionally separate from `convertToAssets`, which estimates per-asset resolution amounts.
     /// @param withdrawalRequest Withdrawal request contract whose configured withdrawer provides the redemption rate.

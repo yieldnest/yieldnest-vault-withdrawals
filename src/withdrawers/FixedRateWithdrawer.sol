@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
-import {BaseWithdrawer} from "src/withdrawers/BaseWithdrawer.sol";
+import {LiveRateWithdrawer} from "src/withdrawers/LiveRateWithdrawer.sol";
 
 interface IDefaultAssetVault {
     /// @notice Returns the vault default asset.
@@ -14,7 +14,7 @@ interface IDefaultAssetVault {
 
 /// @title FixedRateWithdrawer
 /// @notice Withdrawer adapter that enforces a minimum redemption rate for the vault default asset.
-contract FixedRateWithdrawer is BaseWithdrawer {
+contract FixedRateWithdrawer is LiveRateWithdrawer {
     using SafeERC20 for IERC20;
     using Math for uint256;
 
@@ -30,7 +30,7 @@ contract FixedRateWithdrawer is BaseWithdrawer {
     /// @param fixedRate_ Fixed default-asset amount per whole share unit.
     /// @param collector_ Receiver of shares charged above the vault-burned amount.
     constructor(address token_, address withdrawalRequest_, uint256 fixedRate_, address collector_)
-        BaseWithdrawer(token_, withdrawalRequest_)
+        LiveRateWithdrawer(token_, withdrawalRequest_)
     {
         if (fixedRate_ == 0) revert InvalidRate();
         if (collector_ == address(0)) revert ZeroAddress();

@@ -12,7 +12,7 @@ import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
 import {IBag} from "src/interface/IBag.sol";
 import {MinAmountRequestPolicy} from "src/request-policies/MinAmountRequestPolicy.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
-import {BaseWithdrawer} from "src/withdrawers/BaseWithdrawer.sol";
+import {LiveRateWithdrawer} from "src/withdrawers/LiveRateWithdrawer.sol";
 import {WithdrawalRequestViewer} from "views/WithdrawalRequestViewer.sol";
 
 contract ViewerVaultMock is ERC20 {
@@ -126,7 +126,7 @@ contract WithdrawalRequestViewerTest is Test {
 
         WithdrawalRequest implementation = new WithdrawalRequest();
         address predictedManager = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 2);
-        BaseWithdrawer withdrawer = new BaseWithdrawer(address(ynToken), predictedManager);
+        LiveRateWithdrawer withdrawer = new LiveRateWithdrawer(address(ynToken), predictedManager);
         MinAmountRequestPolicy requestPolicy = new MinAmountRequestPolicy(1 ether);
         manager = WithdrawalRequest(
             address(

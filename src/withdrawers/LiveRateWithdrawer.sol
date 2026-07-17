@@ -21,9 +21,9 @@ interface IWithdrawerVault is IERC20Metadata {
     function convertToAssets(uint256 shares) external view returns (uint256 assets);
 }
 
-/// @title BaseWithdrawer
-/// @notice Authorized adapter that forwards withdrawal requests to the configured vault.
-contract BaseWithdrawer is IWithdrawer {
+/// @title LiveRateWithdrawer
+/// @notice Authorized adapter that forwards withdrawals to the configured vault at its live redemption rate.
+contract LiveRateWithdrawer is IWithdrawer {
     IWithdrawerVault public immutable token;
     address public immutable withdrawalRequest;
 

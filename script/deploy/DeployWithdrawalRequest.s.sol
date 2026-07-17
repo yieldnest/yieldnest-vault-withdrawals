@@ -10,7 +10,7 @@ import {Bag} from "src/Bag.sol";
 import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
 import {MinAmountRequestPolicy} from "src/request-policies/MinAmountRequestPolicy.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
-import {BaseWithdrawer} from "src/withdrawers/BaseWithdrawer.sol";
+import {LiveRateWithdrawer} from "src/withdrawers/LiveRateWithdrawer.sol";
 import {WithdrawalRequestViewer} from "views/WithdrawalRequestViewer.sol";
 
 contract DeployWithdrawalRequest is BaseScript {
@@ -19,7 +19,7 @@ contract DeployWithdrawalRequest is BaseScript {
     Bag public bagImplementation;
     BeaconProxyFactory public bagFactoryImplementation;
     BeaconProxyFactory public bagFactory;
-    BaseWithdrawer public requestWithdrawer;
+    LiveRateWithdrawer public requestWithdrawer;
     MinAmountRequestPolicy public requestPolicy;
     WithdrawalRequest public requestImplementation;
     WithdrawalRequest public withdrawalRequest;
@@ -67,7 +67,7 @@ contract DeployWithdrawalRequest is BaseScript {
             )
         );
         bagFactory = BeaconProxyFactory(address(bagFactoryProxy));
-        requestWithdrawer = new BaseWithdrawer(token, predictedProxy);
+        requestWithdrawer = new LiveRateWithdrawer(token, predictedProxy);
         requestPolicy = new MinAmountRequestPolicy(MIN_WITHDRAWAL_AMOUNT);
         requestImplementation = new WithdrawalRequest();
         proxy = new ERC1967Proxy(

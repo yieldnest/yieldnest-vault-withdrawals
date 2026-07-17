@@ -17,7 +17,7 @@ import {IWithdrawer} from "src/interface/IWithdrawer.sol";
 import {Bag} from "src/Bag.sol";
 import {MinAmountRequestPolicy} from "src/request-policies/MinAmountRequestPolicy.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
-import {BaseWithdrawer} from "src/withdrawers/BaseWithdrawer.sol";
+import {LiveRateWithdrawer} from "src/withdrawers/LiveRateWithdrawer.sol";
 import {FixedRateWithdrawer} from "src/withdrawers/FixedRateWithdrawer.sol";
 import {SetupWithdrawalRequest} from "test/local/unit/helpers/SetupWithdrawalRequest.sol";
 import {WithdrawalRequestViewer} from "views/WithdrawalRequestViewer.sol";
@@ -631,7 +631,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
     }
 
     function testSetWithdrawerUpdatesWithdrawerAndApproval() public {
-        BaseWithdrawer newWithdrawer = new BaseWithdrawer(address(ynToken), address(manager));
+        LiveRateWithdrawer newWithdrawer = new LiveRateWithdrawer(address(ynToken), address(manager));
 
         vm.expectEmit(false, false, false, true, address(manager));
         emit WithdrawalRequest.WithdrawerUpdated(address(withdrawer), address(newWithdrawer));
@@ -645,7 +645,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
     }
 
     function testSetWithdrawerRequiresConfigurationManagerRole() public {
-        BaseWithdrawer newWithdrawer = new BaseWithdrawer(address(ynToken), address(manager));
+        LiveRateWithdrawer newWithdrawer = new LiveRateWithdrawer(address(ynToken), address(manager));
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -662,21 +662,21 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         manager.setWithdrawer(address(0));
     }
 
-    function testBaseWithdrawerConstructorRevertsForZeroAddresses() public {
-        vm.expectRevert(BaseWithdrawer.ZeroAddress.selector);
-        new BaseWithdrawer(address(0), address(manager));
+    function testLiveRateWithdrawerConstructorRevertsForZeroAddresses() public {
+        vm.expectRevert(LiveRateWithdrawer.ZeroAddress.selector);
+        new LiveRateWithdrawer(address(0), address(manager));
 
-        vm.expectRevert(BaseWithdrawer.ZeroAddress.selector);
-        new BaseWithdrawer(address(ynToken), address(0));
+        vm.expectRevert(LiveRateWithdrawer.ZeroAddress.selector);
+        new LiveRateWithdrawer(address(ynToken), address(0));
     }
 
-    function testBaseWithdrawerRejectsUnauthorizedCaller() public {
-        vm.expectRevert(abi.encodeWithSelector(BaseWithdrawer.Unauthorized.selector, user));
+    function testLiveRateWithdrawerRejectsUnauthorizedCaller() public {
+        vm.expectRevert(abi.encodeWithSelector(LiveRateWithdrawer.Unauthorized.selector, user));
         vm.prank(user);
         withdrawer.withdrawAsset(0, address(asset), 1 ether, user, address(manager));
     }
 
-    function testBaseWithdrawerForwardsWithdrawalAndReturnsBurnedShares() public {
+    function testLiveRateWithdrawerForwardsWithdrawalAndReturnsBurnedShares() public {
         ynToken.mint(address(manager), 2 ether);
 
         vm.prank(address(manager));
@@ -687,7 +687,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         assertEq(ynToken.balanceOf(address(manager)), 0);
     }
 
-    function testBaseWithdrawerConvertToAssetsUsesVaultRate() public view {
+    function testLiveRateWithdrawerConvertToAssetsUsesVaultRate() public view {
         assertEq(withdrawer.convertToAssets(1 ether), 1 ether);
     }
 
@@ -971,7 +971,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         vm.expectRevert(FixedRateWithdrawer.InvalidRate.selector);
         new FixedRateWithdrawer(address(ynToken), address(manager), 0, collector);
 
-        vm.expectRevert(BaseWithdrawer.ZeroAddress.selector);
+        vm.expectRevert(LiveRateWithdrawer.ZeroAddress.selector);
         new FixedRateWithdrawer(address(ynToken), address(manager), 1 ether, address(0));
     }
 
