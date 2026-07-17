@@ -168,34 +168,6 @@ contract WithdrawalRequest is
         IERC20(token_).forceApprove(withdrawer_, type(uint256).max);
     }
 
-    // --- Configuration ---
-
-    /// @notice Updates the withdrawer adapter and refreshes yn-token allowance.
-    /// @param withdrawer_ New withdrawer adapter address.
-    function setWithdrawer(address withdrawer_) external onlyRole(CONFIGURATION_MANAGER_ROLE) {
-        if (withdrawer_ == address(0)) revert ZeroAddress();
-
-        RequestStorage storage $ = _getRequestStorage();
-        address oldWithdrawer = address($.withdrawer);
-        IERC20(address($.token)).forceApprove(oldWithdrawer, 0);
-        $.withdrawer = IWithdrawer(withdrawer_);
-        IERC20(address($.token)).forceApprove(withdrawer_, type(uint256).max);
-
-        emit WithdrawerUpdated(oldWithdrawer, withdrawer_);
-    }
-
-    /// @notice Updates the request policy used to validate new withdrawal requests.
-    /// @param requestPolicy_ New request policy address.
-    function setRequestPolicy(address requestPolicy_) external onlyRole(CONFIGURATION_MANAGER_ROLE) {
-        if (requestPolicy_ == address(0)) revert ZeroAddress();
-
-        RequestStorage storage $ = _getRequestStorage();
-        address oldRequestPolicy = address($.requestPolicy);
-        $.requestPolicy = IRequestPolicy(requestPolicy_);
-
-        emit RequestPolicyUpdated(oldRequestPolicy, requestPolicy_);
-    }
-
     // --- Requests ---
 
     /// @notice Locks yn-tokens in this contract and creates a withdrawal request.
@@ -309,6 +281,34 @@ contract WithdrawalRequest is
         }
 
         request.assetsRedeemed.push(asset);
+    }
+
+    // --- Configuration ---
+
+    /// @notice Updates the withdrawer adapter and refreshes yn-token allowance.
+    /// @param withdrawer_ New withdrawer adapter address.
+    function setWithdrawer(address withdrawer_) external onlyRole(CONFIGURATION_MANAGER_ROLE) {
+        if (withdrawer_ == address(0)) revert ZeroAddress();
+
+        RequestStorage storage $ = _getRequestStorage();
+        address oldWithdrawer = address($.withdrawer);
+        IERC20(address($.token)).forceApprove(oldWithdrawer, 0);
+        $.withdrawer = IWithdrawer(withdrawer_);
+        IERC20(address($.token)).forceApprove(withdrawer_, type(uint256).max);
+
+        emit WithdrawerUpdated(oldWithdrawer, withdrawer_);
+    }
+
+    /// @notice Updates the request policy used to validate new withdrawal requests.
+    /// @param requestPolicy_ New request policy address.
+    function setRequestPolicy(address requestPolicy_) external onlyRole(CONFIGURATION_MANAGER_ROLE) {
+        if (requestPolicy_ == address(0)) revert ZeroAddress();
+
+        RequestStorage storage $ = _getRequestStorage();
+        address oldRequestPolicy = address($.requestPolicy);
+        $.requestPolicy = IRequestPolicy(requestPolicy_);
+
+        emit RequestPolicyUpdated(oldRequestPolicy, requestPolicy_);
     }
 
     // --- Pause ---
