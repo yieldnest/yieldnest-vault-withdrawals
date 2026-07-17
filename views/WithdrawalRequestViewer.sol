@@ -9,8 +9,17 @@ import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 
 interface IWithdrawalRequestViewerVault is IERC20, IERC20Metadata {
+    /// @notice Returns vault configuration for an asset.
+    /// @param asset_ Asset to query.
+    /// @return Asset parameters recorded by the vault.
     function getAsset(address asset_) external view returns (IVault.AssetParams memory);
+
+    /// @notice Returns the vault rate provider.
+    /// @return Provider address.
     function provider() external view returns (address);
+
+    /// @notice Returns total vault assets in base units.
+    /// @return Total base assets.
     function totalBaseAssets() external view returns (uint256);
 }
 
@@ -37,6 +46,10 @@ contract WithdrawalRequestViewer {
         AssetBalance[] assetBalances;
     }
 
+    /// @notice Returns the full view of one withdrawal request.
+    /// @param withdrawalRequest Withdrawal request contract to inspect.
+    /// @param id Request id to inspect.
+    /// @return view_ Aggregated request, owner, bag, and asset balance data.
     function getRequest(WithdrawalRequest withdrawalRequest, uint256 id)
         external
         view
@@ -49,6 +62,9 @@ contract WithdrawalRequestViewer {
     }
 
     /// @notice Returns requests currently owned by `owner`.
+    /// @param withdrawalRequest Withdrawal request contract to inspect.
+    /// @param owner Request NFT owner to query.
+    /// @return requests_ Aggregated views for all request NFTs currently owned by `owner`.
     function getInProgressRequestsForOwner(WithdrawalRequest withdrawalRequest, address owner)
         external
         view
@@ -95,6 +111,9 @@ contract WithdrawalRequestViewer {
     /// @dev UI-only heuristic: this indicates that most of the position has been withdrawn.
     /// It works well for ETH and USDC-style assets where resolution can leave a trace
     /// amount of locked yn-token behind. It is not a protocol-level claimability invariant.
+    /// @param withdrawalRequest Withdrawal request contract to inspect.
+    /// @param id Request id to inspect.
+    /// @return True if the request exists and its remaining locked shares are below the dust threshold.
     function requestIsClaimable(WithdrawalRequest withdrawalRequest, uint256 id) external view returns (bool) {
         if (!withdrawalRequest.requestExists(id)) return false;
 
@@ -105,6 +124,9 @@ contract WithdrawalRequestViewer {
     }
 
     /// @notice Returns true when the request is claimable and its bag has no balances for redeemed assets.
+    /// @param withdrawalRequest Withdrawal request contract to inspect.
+    /// @param id Request id to inspect.
+    /// @return True if the request is claimable and all tracked bag asset balances are zero.
     function requestIsClaimed(WithdrawalRequest withdrawalRequest, uint256 id) external view returns (bool) {
         if (!withdrawalRequest.requestExists(id)) return false;
 
@@ -138,6 +160,10 @@ contract WithdrawalRequestViewer {
 
     /// @notice Converts yn-token shares into the maximum amount of a vault asset withdrawable from the configured token.
     /// @dev Rounds down so callers do not intentionally request assets requiring more shares than are locked.
+    /// @param withdrawalRequest Withdrawal request contract whose token is used for conversion.
+    /// @param asset Asset to estimate.
+    /// @param shares Amount of yn-token shares to convert.
+    /// @return assets Estimated amount of `asset` withdrawable for `shares`.
     function convertToAssets(WithdrawalRequest withdrawalRequest, address asset, uint256 shares)
         public
         view
@@ -178,6 +204,10 @@ contract WithdrawalRequestViewer {
     }
 
     /// @notice Returns the asset amount a caller can pass to `resolveWithdrawalRequest` for the request's locked shares.
+    /// @param withdrawalRequest Withdrawal request contract to inspect.
+    /// @param id Request id whose locked shares are converted.
+    /// @param asset Asset to estimate.
+    /// @return assets Estimated maximum amount of `asset` resolvable for the request.
     function maxResolutionAssets(WithdrawalRequest withdrawalRequest, uint256 id, address asset)
         external
         view

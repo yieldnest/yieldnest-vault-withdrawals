@@ -10,10 +10,14 @@ contract MinAmountRequestPolicy is IRequestPolicy {
 
     error AmountBelowMinimum(uint256 amount, uint256 minWithdrawalAmount);
 
+    /// @notice Deploys a policy with a fixed minimum withdrawal amount.
+    /// @param minWithdrawalAmount_ Minimum yn-token share amount required for each request.
     constructor(uint256 minWithdrawalAmount_) {
         minWithdrawalAmount = minWithdrawalAmount_;
     }
 
+    /// @notice Reverts if the requested amount is below the configured minimum.
+    /// @param amount Amount of yn-token shares the request would lock.
     function validateRequest(address, address, uint256 amount) external view {
         if (amount < minWithdrawalAmount) revert AmountBelowMinimum(amount, minWithdrawalAmount);
     }

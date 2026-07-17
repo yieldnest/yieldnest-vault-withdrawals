@@ -42,6 +42,11 @@ contract BeaconProxyFactory is Initializable, AccessControlUpgradeable, IFactory
         _disableInitializers();
     }
 
+    /// @notice Initializes the factory, beacon, and access-control roles.
+    /// @param implementation_ Initial implementation used by the beacon.
+    /// @param defaultAdmin Account granted the default admin role.
+    /// @param creator Account allowed to create beacon proxies.
+    /// @param implementationManager Account allowed to upgrade the beacon implementation.
     function initialize(address implementation_, address defaultAdmin, address creator, address implementationManager)
         external
         initializer

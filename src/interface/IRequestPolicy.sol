@@ -2,7 +2,13 @@
 pragma solidity ^0.8.24;
 
 interface IRequestPolicy {
+    /// @notice Validates whether a withdrawal request may be created.
+    /// @param caller Account creating the request.
+    /// @param receiver Account that will receive the request NFT.
+    /// @param amount Amount of yn-token shares to lock.
     function validateRequest(address caller, address receiver, uint256 amount) external view;
 
+    /// @notice Returns the minimum yn-token share amount required by the policy.
+    /// @return Minimum withdrawal amount in yn-token shares.
     function minWithdrawalAmount() external view returns (uint256);
 }

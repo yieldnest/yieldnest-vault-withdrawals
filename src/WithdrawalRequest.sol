@@ -25,9 +25,19 @@ import {IRequestPolicy} from "src/interface/IRequestPolicy.sol";
 import {IWithdrawer} from "src/interface/IWithdrawer.sol";
 
 interface IWithdrawAssetVault is IERC20Metadata {
+    /// @notice Withdraws a vault asset to a receiver and consumes shares from owner.
+    /// @param asset_ Asset to withdraw.
+    /// @param assets Amount of `asset_` to withdraw.
+    /// @param receiver Receiver of the withdrawn asset.
+    /// @param owner Owner whose shares are consumed.
+    /// @return shares Amount of shares consumed.
     function withdrawAsset(address asset_, uint256 assets, address receiver, address owner)
         external
         returns (uint256 shares);
+
+    /// @notice Converts shares to the vault default asset amount.
+    /// @param shares Amount of shares to convert.
+    /// @return assets Amount of default asset represented by `shares`.
     function convertToAssets(uint256 shares) external view returns (uint256 assets);
 }
 
@@ -106,6 +116,15 @@ contract WithdrawalRequest is
         _disableInitializers();
     }
 
+    /// @notice Initializes the withdrawal request contract and its roles.
+    /// @param token_ yn-token shares locked and resolved by this contract.
+    /// @param defaultAdmin Account granted the default admin role.
+    /// @param resolver Account granted permission to resolve requests.
+    /// @param configurationManager Account granted permission to update configurable modules.
+    /// @param pauser Account granted permission to pause and unpause request creation.
+    /// @param bagFactory_ Factory used to deploy request bags.
+    /// @param withdrawer_ Adapter used to withdraw assets from the yn-token.
+    /// @param requestPolicy_ Policy used to validate request creation.
     function initialize(
         address token_,
         address defaultAdmin,
@@ -151,6 +170,8 @@ contract WithdrawalRequest is
 
     // --- Configuration ---
 
+    /// @notice Updates the withdrawer adapter and refreshes yn-token allowance.
+    /// @param withdrawer_ New withdrawer adapter address.
     function setWithdrawer(address withdrawer_) external onlyRole(CONFIGURATION_MANAGER_ROLE) {
         if (withdrawer_ == address(0)) revert ZeroAddress();
 
@@ -163,6 +184,8 @@ contract WithdrawalRequest is
         emit WithdrawerUpdated(oldWithdrawer, withdrawer_);
     }
 
+    /// @notice Updates the request policy used to validate new withdrawal requests.
+    /// @param requestPolicy_ New request policy address.
     function setRequestPolicy(address requestPolicy_) external onlyRole(CONFIGURATION_MANAGER_ROLE) {
         if (requestPolicy_ == address(0)) revert ZeroAddress();
 
@@ -290,10 +313,12 @@ contract WithdrawalRequest is
 
     // --- Pause ---
 
+    /// @notice Pauses new withdrawal request creation.
     function pause() external onlyRole(PAUSER_ROLE) {
         _pause();
     }
 
+    /// @notice Unpauses new withdrawal request creation.
     function unpause() external onlyRole(PAUSER_ROLE) {
         _unpause();
     }
@@ -351,10 +376,16 @@ contract WithdrawalRequest is
         return request.bag != address(0);
     }
 
+    /// @notice Returns the owner of a request NFT.
+    /// @param id Request id to query.
+    /// @return Owner of the request NFT.
     function ownerOf(uint256 id) public view override(ERC721Upgradeable, IERC721, IAuth) returns (address) {
         return super.ownerOf(id);
     }
 
+    /// @notice Returns whether this contract supports an interface id.
+    /// @param interfaceId Interface id to query.
+    /// @return True if the interface is supported.
     function supportsInterface(bytes4 interfaceId)
         public
         view

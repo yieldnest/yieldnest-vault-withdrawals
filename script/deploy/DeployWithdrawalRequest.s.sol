@@ -36,10 +36,13 @@ contract DeployWithdrawalRequest is BaseScript {
     address public executor;
     address public predictedProxy;
 
+    /// @notice Returns the deployment symbol used for labels and output JSON.
+    /// @return Script deployment symbol.
     function symbol() public pure override returns (string memory) {
         return "withdrawalRequest-ynETHx";
     }
 
+    /// @notice Deploys the withdrawal request system and writes deployment metadata.
     function run() public {
         vm.startBroadcast();
 
@@ -118,6 +121,7 @@ contract DeployWithdrawalRequest is BaseScript {
         timelock = new TimelockController(minDelay, proposers, executors, address(0));
     }
 
+    /// @notice Verifies deployed contracts, roles, and module wiring.
     function _verifySetup() public view virtual {
         if (address(timelock) == address(0)) revert InvalidSetup();
         if (address(withdrawalRequest) != predictedProxy) revert InvalidSetup();
@@ -143,10 +147,14 @@ contract DeployWithdrawalRequest is BaseScript {
         }
     }
 
+    /// @notice Returns the deployment label including chain id.
+    /// @return Deployment label.
     function label() public view returns (string memory) {
         return string.concat(symbol(), "-", Strings.toString(block.chainid));
     }
 
+    /// @notice Returns the output JSON path for this deployment.
+    /// @return Deployment file path.
     function deploymentFilePath() public view returns (string memory) {
         return _deploymentFilePath();
     }

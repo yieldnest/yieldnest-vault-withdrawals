@@ -7,6 +7,8 @@ import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {BaseWithdrawer} from "src/withdrawers/BaseWithdrawer.sol";
 
 interface IDefaultAssetVault {
+    /// @notice Returns the vault default asset.
+    /// @return Default asset address.
     function asset() external view returns (address);
 }
 
@@ -22,6 +24,11 @@ contract FixedRateWithdrawer is BaseWithdrawer {
     error InvalidAsset(address asset);
     error InvalidRate();
 
+    /// @notice Deploys a fixed-rate withdrawer for the vault default asset.
+    /// @param token_ Vault token to withdraw assets from.
+    /// @param withdrawalRequest_ Withdrawal request contract authorized to call this withdrawer.
+    /// @param fixedRate_ Fixed default-asset amount per whole share unit.
+    /// @param collector_ Receiver of shares charged above the vault-burned amount.
     constructor(address token_, address withdrawalRequest_, uint256 fixedRate_, address collector_)
         BaseWithdrawer(token_, withdrawalRequest_)
     {
@@ -32,6 +39,12 @@ contract FixedRateWithdrawer is BaseWithdrawer {
         collector = collector_;
     }
 
+    /// @notice Withdraws the vault default asset while charging shares at the fixed redemption rate.
+    /// @param asset Asset to withdraw, which must be the vault default asset.
+    /// @param assets Amount of `asset` to withdraw.
+    /// @param receiver Receiver of the withdrawn asset.
+    /// @param owner Owner whose shares are burned or transferred to the collector.
+    /// @return shares Amount of shares consumed at the fixed-rate policy.
     function withdrawAsset(uint256, address asset, uint256 assets, address receiver, address owner)
         external
         override
@@ -51,6 +64,9 @@ contract FixedRateWithdrawer is BaseWithdrawer {
         return fixedRateShares;
     }
 
+    /// @notice Converts shares to default-asset units at the fixed redemption rate.
+    /// @param shares Amount of shares to convert.
+    /// @return assets Amount of default asset implied by the fixed rate.
     function convertToAssets(uint256 shares) public view override returns (uint256 assets) {
         return shares.mulDiv(fixedRate, _shareUnit(), Math.Rounding.Floor);
     }
