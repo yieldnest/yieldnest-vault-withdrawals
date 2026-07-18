@@ -40,6 +40,7 @@ contract WithdrawalRequestViewer {
         address token;
         uint256 amountLocked;
         uint256 rateAtRequest;
+        bytes data;
         uint256 tokenBalance;
         bool isClaimable;
         bool isClaimed;
@@ -100,6 +101,7 @@ contract WithdrawalRequestViewer {
             token: address(token),
             amountLocked: request.amountLocked,
             rateAtRequest: request.rateAtRequest,
+            data: request.data,
             tokenBalance: token.balanceOf(address(withdrawalRequest)),
             isClaimable: isClaimable,
             isClaimed: _requestIsClaimed(request, token),

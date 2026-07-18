@@ -185,8 +185,10 @@ contract WithdrawalRequestViewerTest is Test {
     }
 
     function testGetRequestReturnsOwnerBagTokenAndAssetBalances() public {
+        bytes memory data = abi.encodePacked("viewer-data");
+
         vm.prank(user);
-        uint256 id = manager.requestWithdrawal(10 ether, receiver);
+        uint256 id = manager.requestWithdrawal(10 ether, receiver, data);
 
         vm.prank(resolver);
         manager.resolveWithdrawalRequest(id, address(asset), 4 ether);
@@ -200,6 +202,7 @@ contract WithdrawalRequestViewerTest is Test {
         assertEq(view_.token, address(ynToken));
         assertEq(view_.amountLocked, 6 ether);
         assertEq(view_.rateAtRequest, 1 ether);
+        assertEq(keccak256(view_.data), keccak256(data));
         assertEq(view_.tokenBalance, 6 ether);
         assertFalse(view_.isClaimable);
         assertFalse(view_.isClaimed);

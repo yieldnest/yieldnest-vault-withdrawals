@@ -61,6 +61,7 @@ contract WithdrawalRequest is
         uint256 amountLocked;
         address[] assetsRedeemed;
         uint256 rateAtRequest;
+        bytes data;
     }
 
     /// @custom:storage-location erc7201:yieldnest.storage.withdrawal_request_manager
@@ -81,9 +82,10 @@ contract WithdrawalRequest is
     error InvalidAssetBalanceChange(uint256 balanceBefore, uint256 balanceAfter);
     error UnexpectedAssetsWithdrawn(uint256 expectedAssets, uint256 actualAssets);
     error ArrayLengthMismatch(uint256 assetsLength, uint256 assetAmountsLength);
+    error DataTooLong(uint256 length, uint256 maxLength);
 
     event WithdrawalRequested(
-        uint256 indexed id, address indexed owner, address indexed token, address bag, uint256 amountLocked
+        uint256 indexed id, address indexed owner, address indexed token, address bag, uint256 amountLocked, bytes data
     );
     event WithdrawalRequestResolved(
         uint256 indexed id,
@@ -100,6 +102,7 @@ contract WithdrawalRequest is
     bytes32 public constant RESOLVER_ROLE = keccak256("RESOLVER_ROLE");
     bytes32 public constant CONFIGURATION_MANAGER_ROLE = keccak256("CONFIGURATION_MANAGER_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+    uint256 public constant MAX_DATA_LENGTH = 1024;
 
     // keccak256(abi.encode(uint256(keccak256("yieldnest.storage.withdrawal_request_manager")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant RequestStorageLocation =
@@ -174,8 +177,26 @@ contract WithdrawalRequest is
     /// @param receiver Receiver of the request NFT that controls claims.
     /// @return id Generated request id.
     function requestWithdrawal(uint256 amount, address receiver) external whenNotPaused returns (uint256 id) {
+        id = _requestWithdrawal(amount, receiver, "");
+    }
+
+    /// @notice Locks yn-tokens in this contract and creates a withdrawal request with bounded data.
+    /// @param amount Amount of configured yn-token shares to lock.
+    /// @param receiver Receiver of the request NFT that controls claims.
+    /// @param data Arbitrary request metadata, capped at `MAX_DATA_LENGTH` bytes.
+    /// @return id Generated request id.
+    function requestWithdrawal(uint256 amount, address receiver, bytes calldata data)
+        external
+        whenNotPaused
+        returns (uint256 id)
+    {
+        id = _requestWithdrawal(amount, receiver, data);
+    }
+
+    function _requestWithdrawal(uint256 amount, address receiver, bytes memory data) internal returns (uint256 id) {
         if (amount == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
+        if (data.length > MAX_DATA_LENGTH) revert DataTooLong(data.length, MAX_DATA_LENGTH);
 
         RequestStorage storage $ = _getRequestStorage();
         $.requestPolicy.validateRequest(msg.sender, receiver, amount);
@@ -188,9 +209,10 @@ contract WithdrawalRequest is
         $.requests[id].bag = bag;
         $.requests[id].amountLocked = amount;
         $.requests[id].rateAtRequest = rateAtRequest;
+        $.requests[id].data = data;
         _mint(receiver, id);
 
-        emit WithdrawalRequested(id, receiver, address($.token), bag, amount);
+        emit WithdrawalRequested(id, receiver, address($.token), bag, amount, data);
     }
 
     // --- Resolution ---

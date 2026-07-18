@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {IAccessControl} from "lib/openzeppelin-contracts/contracts/access/IAccessControl.sol";
+import {Vm} from "forge-std/Vm.sol";
 import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -327,7 +328,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
 
     function testRequestWithdrawalTransfersTokenAndRecordsRequest() public {
         vm.expectEmit(true, false, true, false, address(manager));
-        emit WithdrawalRequest.WithdrawalRequested(0, user, address(ynToken), address(0), 10 ether);
+        emit WithdrawalRequest.WithdrawalRequested(0, user, address(ynToken), address(0), 10 ether, "");
 
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, user);
@@ -353,6 +354,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         assertEq(IBag(request.bag).id(), id);
         assertEq(request.amountLocked, 10 ether);
         assertEq(request.rateAtRequest, 1 ether);
+        assertEq(request.data.length, 0);
     }
 
     function testRequestWithdrawalRecordsRateAtCreation() public {
@@ -366,6 +368,68 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         WithdrawalRequest.Request memory request = manager.requests(id);
         assertEq(request.amountLocked, 10 ether);
         assertEq(request.rateAtRequest, 2 ether);
+    }
+
+    function testRequestWithdrawalStoresBoundedData() public {
+        bytes memory data = abi.encodePacked("integration-reference", uint256(42));
+
+        vm.prank(user);
+        uint256 id = manager.requestWithdrawal(10 ether, user, data);
+
+        WithdrawalRequest.Request memory request = manager.requests(id);
+        assertEq(keccak256(request.data), keccak256(data));
+    }
+
+    function testRequestWithdrawalEmitsData() public {
+        bytes memory data = abi.encodePacked("event-data");
+
+        vm.recordLogs();
+        vm.prank(user);
+        manager.requestWithdrawal(10 ether, user, data);
+
+        bytes32 eventSignature = keccak256("WithdrawalRequested(uint256,address,address,address,uint256,bytes)");
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        bool found;
+
+        for (uint256 i = 0; i < entries.length; ++i) {
+            if (entries[i].emitter != address(manager) || entries[i].topics[0] != eventSignature) continue;
+
+            (address bag, uint256 amountLocked, bytes memory emittedData) =
+                abi.decode(entries[i].data, (address, uint256, bytes));
+
+            assertEq(uint256(entries[i].topics[1]), 0);
+            assertEq(address(uint160(uint256(entries[i].topics[2]))), user);
+            assertEq(address(uint160(uint256(entries[i].topics[3]))), address(ynToken));
+            assertTrue(bag != address(0));
+            assertEq(amountLocked, 10 ether);
+            assertEq(keccak256(emittedData), keccak256(data));
+            found = true;
+        }
+
+        assertTrue(found);
+    }
+
+    function testRequestWithdrawalAllowsMaxLengthData() public {
+        bytes memory data = new bytes(manager.MAX_DATA_LENGTH());
+        data[0] = 0x01;
+        data[data.length - 1] = 0x02;
+
+        vm.prank(user);
+        uint256 id = manager.requestWithdrawal(10 ether, user, data);
+
+        WithdrawalRequest.Request memory request = manager.requests(id);
+        assertEq(request.data.length, manager.MAX_DATA_LENGTH());
+        assertEq(keccak256(request.data), keccak256(data));
+    }
+
+    function testRequestWithdrawalRevertsWhenDataIsTooLong() public {
+        bytes memory data = new bytes(manager.MAX_DATA_LENGTH() + 1);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(WithdrawalRequest.DataTooLong.selector, data.length, manager.MAX_DATA_LENGTH())
+        );
+        vm.prank(user);
+        manager.requestWithdrawal(10 ether, user, data);
     }
 
     function testRequestWithdrawalCreatesBagForEachRequest() public {
@@ -419,8 +483,10 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
     }
 
     function testViewerReturnsFullRequestPicture() public {
+        bytes memory data = abi.encodePacked("ui-data");
+
         vm.prank(user);
-        uint256 id = manager.requestWithdrawal(10 ether, receiver);
+        uint256 id = manager.requestWithdrawal(10 ether, receiver, data);
 
         WithdrawalRequest.Request memory request = manager.requests(id);
         WithdrawalRequestViewer.RequestView memory view_ = viewer.getRequest(manager, id);
@@ -430,6 +496,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         assertEq(view_.token, address(ynToken));
         assertEq(view_.amountLocked, 10 ether);
         assertEq(view_.rateAtRequest, 1 ether);
+        assertEq(keccak256(view_.data), keccak256(data));
         assertEq(view_.tokenBalance, 10 ether);
         assertEq(view_.assetBalances.length, 0);
     }
