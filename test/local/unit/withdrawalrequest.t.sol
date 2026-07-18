@@ -75,6 +75,28 @@ contract InKindWithdrawer is IWithdrawer {
     }
 }
 
+contract DrainingWithdrawer is IWithdrawer {
+    using SafeERC20 for IERC20;
+
+    IERC20 internal immutable token;
+
+    constructor(address token_) {
+        token = IERC20(token_);
+    }
+
+    function drain(address owner, address recipient, uint256 amount) external {
+        token.safeTransferFrom(owner, recipient, amount);
+    }
+
+    function withdrawAsset(uint256, address, uint256, address, address) external pure returns (uint256) {
+        return 0;
+    }
+
+    function convertToAssets(uint256) external pure returns (uint256) {
+        return 0;
+    }
+}
+
 interface IRequestRateWithdrawerVault is IERC20 {
     function asset() external view returns (address);
     function decimals() external view returns (uint8);
@@ -325,7 +347,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         assertEq(manager.symbol(), "ynWREQ");
         assertEq(address(manager.withdrawer()), address(withdrawer));
         assertEq(address(manager.requestPolicy()), address(requestPolicy));
-        assertEq(ynToken.allowance(address(manager), address(withdrawer)), type(uint256).max);
+        assertEq(ynToken.allowance(address(manager), address(withdrawer)), 0);
         assertTrue(manager.supportsInterface(type(IERC721Enumerable).interfaceId));
         assertEq(IBag(request.bag).ownerRegistry(), address(manager));
         assertEq(IBag(request.bag).id(), id);
@@ -630,7 +652,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         manager.setRequestPolicy(address(0));
     }
 
-    function testSetWithdrawerUpdatesWithdrawerAndApproval() public {
+    function testSetWithdrawerUpdatesWithdrawerAndRevokesOldApproval() public {
         LiveRateWithdrawer newWithdrawer = new LiveRateWithdrawer(address(ynToken), address(manager));
 
         vm.expectEmit(false, false, false, true, address(manager));
@@ -641,7 +663,25 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
 
         assertEq(address(manager.withdrawer()), address(newWithdrawer));
         assertEq(ynToken.allowance(address(manager), address(withdrawer)), 0);
-        assertEq(ynToken.allowance(address(manager), address(newWithdrawer)), type(uint256).max);
+        assertEq(ynToken.allowance(address(manager), address(newWithdrawer)), 0);
+    }
+
+    function testConfiguredWithdrawerCannotDrainLockedSharesOutsideResolution() public {
+        DrainingWithdrawer drainingWithdrawer = new DrainingWithdrawer(address(ynToken));
+
+        vm.prank(configurationManager);
+        manager.setWithdrawer(address(drainingWithdrawer));
+
+        vm.prank(user);
+        manager.requestWithdrawal(10 ether, user);
+
+        assertEq(ynToken.allowance(address(manager), address(drainingWithdrawer)), 0);
+
+        vm.expectRevert();
+        drainingWithdrawer.drain(address(manager), collector, 10 ether);
+
+        assertEq(ynToken.balanceOf(address(manager)), 10 ether);
+        assertEq(ynToken.balanceOf(collector), 0);
     }
 
     function testSetWithdrawerRequiresConfigurationManagerRole() public {
@@ -803,6 +843,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
 
         assertEq(amountBurned, 4 ether);
         assertEq(ynToken.balanceOf(address(manager)), 6 ether);
+        assertEq(ynToken.allowance(address(manager), address(withdrawer)), 0);
         assertEq(asset.balanceOf(address(manager)), 0);
         request = manager.requests(id);
         assertEq(asset.balanceOf(request.bag), 4 ether);

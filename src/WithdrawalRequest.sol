@@ -165,7 +165,6 @@ contract WithdrawalRequest is
         $.bagFactory = IFactory(bagFactory_);
         $.withdrawer = IWithdrawer(withdrawer_);
         $.requestPolicy = IRequestPolicy(requestPolicy_);
-        IERC20(token_).forceApprove(withdrawer_, type(uint256).max);
     }
 
     // --- Requests ---
@@ -250,7 +249,9 @@ contract WithdrawalRequest is
         uint256 bagAssetBalanceBefore = IERC20(asset).balanceOf(bag);
 
         // withdrawAsset to bag and burn yn-tokens
+        IERC20(address($.token)).forceApprove(address($.withdrawer), request.amountLocked);
         tokenAmountBurned = $.withdrawer.withdrawAsset(id, asset, assets, bag, address(this));
+        IERC20(address($.token)).forceApprove(address($.withdrawer), 0);
 
         {
             uint256 tokenBalanceAfter = $.token.balanceOf(address(this));
@@ -285,7 +286,7 @@ contract WithdrawalRequest is
 
     // --- Configuration ---
 
-    /// @notice Updates the withdrawer adapter and refreshes yn-token allowance.
+    /// @notice Updates the withdrawer adapter and revokes allowance from the old adapter.
     /// @param withdrawer_ New withdrawer adapter address.
     function setWithdrawer(address withdrawer_) external onlyRole(CONFIGURATION_MANAGER_ROLE) {
         if (withdrawer_ == address(0)) revert ZeroAddress();
@@ -294,7 +295,6 @@ contract WithdrawalRequest is
         address oldWithdrawer = address($.withdrawer);
         IERC20(address($.token)).forceApprove(oldWithdrawer, 0);
         $.withdrawer = IWithdrawer(withdrawer_);
-        IERC20(address($.token)).forceApprove(withdrawer_, type(uint256).max);
 
         emit WithdrawerUpdated(oldWithdrawer, withdrawer_);
     }
