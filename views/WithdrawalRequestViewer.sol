@@ -216,6 +216,11 @@ contract WithdrawalRequestViewer {
         returns (uint256 assets)
     {
         WithdrawalRequest.Request memory request = withdrawalRequest.requests(id);
+        IWithdrawalRequestViewerVault token = IWithdrawalRequestViewerVault(address(withdrawalRequest.token()));
+
         assets = convertToAssets(withdrawalRequest, asset, request.amountLocked);
+
+        uint256 tokenAssetBalance = IERC20(asset).balanceOf(address(token));
+        if (assets > tokenAssetBalance) assets = tokenAssetBalance;
     }
 }

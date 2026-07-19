@@ -325,6 +325,17 @@ contract WithdrawalRequestViewerTest is Test {
         assertEq(viewer.maxResolutionAssets(manager, id, address(asset)), 6 ether);
     }
 
+    function testMaxResolutionAssetsCapsByTokenAssetBalance() public {
+        vm.prank(user);
+        uint256 id = manager.requestWithdrawal(10 ether, receiver);
+
+        vm.prank(address(ynToken));
+        assertTrue(asset.transfer(other, 95 ether));
+
+        assertEq(viewer.convertToAssets(manager, address(asset), 10 ether), 10 ether);
+        assertEq(viewer.maxResolutionAssets(manager, id, address(asset)), 5 ether);
+    }
+
     function testViewerRevertsForMissingRequest() public {
         assertFalse(viewer.requestIsClaimable(manager, 123));
         assertFalse(viewer.requestIsClaimed(manager, 123));

@@ -210,6 +210,9 @@ contract WithdrawalRequest is
         $.requests[id].amountLocked = amount;
         $.requests[id].rateAtRequest = rateAtRequest;
         $.requests[id].data = data;
+
+        // Anyone can mint a request NFT to any receiver, so a receiver's enumerable token list can be
+        // increased without their consent. The cost is bounded by the configured minimum withdrawal amount.
         _mint(receiver, id);
 
         emit WithdrawalRequested(id, receiver, address($.token), bag, amount, data);
