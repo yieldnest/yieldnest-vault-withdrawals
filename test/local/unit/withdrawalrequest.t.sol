@@ -647,6 +647,64 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         assertEq(request.bag.balance, 0);
     }
 
+    function testBurnRequiresRequestOwner() public {
+        vm.prank(user);
+        uint256 id = manager.requestWithdrawal(10 ether, user);
+
+        vm.expectRevert(abi.encodeWithSelector(WithdrawalRequest.NotRequestOwner.selector, receiver));
+        vm.prank(receiver);
+        manager.burn(id);
+    }
+
+    function testBurnRevertsWhenLockedAmountRemaining() public {
+        vm.prank(user);
+        uint256 id = manager.requestWithdrawal(10 ether, user);
+
+        vm.expectRevert(abi.encodeWithSelector(WithdrawalRequest.RequestNotBurnable.selector, id));
+        vm.prank(user);
+        manager.burn(id);
+    }
+
+    function testBurnRevertsWhenBagAssetBalanceRemaining() public {
+        vm.prank(user);
+        uint256 id = manager.requestWithdrawal(10 ether, user);
+
+        vm.prank(resolver);
+        manager.resolveWithdrawalRequest(id, address(asset), 10 ether);
+
+        vm.expectRevert(abi.encodeWithSelector(WithdrawalRequest.RequestNotBurnable.selector, id));
+        vm.prank(user);
+        manager.burn(id);
+    }
+
+    function testBurnRemovesClaimedRequestAndNFT() public {
+        vm.prank(user);
+        uint256 id = manager.requestWithdrawal(10 ether, user);
+
+        vm.prank(resolver);
+        manager.resolveWithdrawalRequest(id, address(asset), 10 ether);
+
+        WithdrawalRequest.Request memory request = manager.requests(id);
+
+        vm.prank(user);
+        assertEq(_claimSingleERC20(request.bag, address(asset), user, 10 ether)[0], 10 ether);
+
+        vm.expectEmit(true, true, true, true, address(manager));
+        emit WithdrawalRequest.WithdrawalRequestBurned(id, user, request.bag);
+
+        vm.prank(user);
+        manager.burn(id);
+
+        assertFalse(manager.requestExists(id));
+        assertEq(manager.balanceOf(user), 0);
+
+        vm.expectRevert(abi.encodeWithSelector(WithdrawalRequest.RequestNotFound.selector, id));
+        manager.requests(id);
+
+        vm.expectRevert();
+        manager.ownerOf(id);
+    }
+
     function testRequestWithdrawalRevertsBelowMinimumAmount() public {
         vm.expectRevert(
             abi.encodeWithSelector(

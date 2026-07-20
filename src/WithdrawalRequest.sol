@@ -83,10 +83,13 @@ contract WithdrawalRequest is
     error UnexpectedAssetsWithdrawn(uint256 expectedAssets, uint256 actualAssets);
     error ArrayLengthMismatch(uint256 assetsLength, uint256 assetAmountsLength);
     error DataTooLong(uint256 length, uint256 maxLength);
+    error NotRequestOwner(address caller);
+    error RequestNotBurnable(uint256 id);
 
     event WithdrawalRequested(
         uint256 indexed id, address indexed owner, address indexed token, address bag, uint256 amountLocked, bytes data
     );
+    event WithdrawalRequestBurned(uint256 indexed id, address indexed owner, address bag);
     event WithdrawalRequestResolved(
         uint256 indexed id,
         address indexed owner,
@@ -216,6 +219,30 @@ contract WithdrawalRequest is
         _mint(receiver, id);
 
         emit WithdrawalRequested(id, receiver, address($.token), bag, amount, data);
+    }
+
+    /// @notice Burns a fully resolved and claimed request NFT.
+    /// @dev The caller must own the request NFT. Burning is allowed only after the locked yn-token balance is zero
+    /// and all tracked redeemed asset balances in the request bag have been claimed.
+    /// @param id Request id to burn.
+    function burn(uint256 id) external {
+        RequestStorage storage $ = _getRequestStorage();
+        Request storage request = $.requests[id];
+        if (!_requestExists(request)) revert RequestNotFound(id);
+
+        address owner = ownerOf(id);
+        if (owner != msg.sender) revert NotRequestOwner(msg.sender);
+
+        if (request.amountLocked != 0) revert RequestNotBurnable(id);
+        for (uint256 i = 0; i < request.assetsRedeemed.length; ++i) {
+            if (IERC20(request.assetsRedeemed[i]).balanceOf(request.bag) != 0) revert RequestNotBurnable(id);
+        }
+
+        address bag = request.bag;
+        delete $.requests[id];
+        _burn(id);
+
+        emit WithdrawalRequestBurned(id, owner, bag);
     }
 
     // --- Resolution ---
