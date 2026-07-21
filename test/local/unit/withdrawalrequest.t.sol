@@ -3,7 +3,9 @@ pragma solidity ^0.8.24;
 
 import {IAccessControl} from "lib/openzeppelin-contracts/contracts/access/IAccessControl.sol";
 import {Vm} from "forge-std/Vm.sol";
-import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {
+    TransparentUpgradeableProxy
+} from "lib/openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC721Enumerable} from "lib/openzeppelin-contracts/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
@@ -217,8 +219,9 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         WithdrawalRequest implementation = new WithdrawalRequest();
 
         vm.expectRevert(WithdrawalRequest.ZeroAddress.selector);
-        new ERC1967Proxy(
+        new TransparentUpgradeableProxy(
             address(implementation),
+            admin_,
             _defaultInitializeCall(
                 token_,
                 admin_,

@@ -2,7 +2,9 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
-import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {
+    TransparentUpgradeableProxy
+} from "lib/openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {ERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -131,8 +133,9 @@ contract SetupWithdrawalRequest is Test {
         viewer = new WithdrawalRequestViewer();
         bagImplementation = new Bag();
         bagFactoryImplementation = new BeaconProxyFactory();
-        ERC1967Proxy bagFactoryProxy = new ERC1967Proxy(
+        TransparentUpgradeableProxy bagFactoryProxy = new TransparentUpgradeableProxy(
             address(bagFactoryImplementation),
+            admin,
             abi.encodeCall(BeaconProxyFactory.initialize, (address(bagImplementation), admin, admin, admin))
         );
         bagFactory = BeaconProxyFactory(address(bagFactoryProxy));
@@ -141,8 +144,9 @@ contract SetupWithdrawalRequest is Test {
         address predictedManager = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 2);
         withdrawer = new BaseWithdrawer(address(ynToken), predictedManager);
         requestPolicy = new MinAmountRequestPolicy(minWithdrawalAmount);
-        ERC1967Proxy proxy = new ERC1967Proxy(
+        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
             address(implementation),
+            admin,
             abi.encodeCall(
                 WithdrawalRequest.initialize,
                 (

@@ -2,7 +2,9 @@
 pragma solidity ^0.8.24;
 
 import {TimelockController} from "lib/openzeppelin-contracts/contracts/governance/TimelockController.sol";
-import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {
+    TransparentUpgradeableProxy
+} from "lib/openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {Strings} from "lib/openzeppelin-contracts/contracts/utils/Strings.sol";
 import {MainnetContracts as MC} from "lib/yieldnest-vault/script/Contracts.sol";
 import {BaseScript} from "lib/yieldnest-vault/script/BaseScript.sol";
@@ -25,8 +27,8 @@ contract DeployWithdrawalRequest is BaseScript {
     WithdrawalRequest public requestImplementation;
     WithdrawalRequest public withdrawalRequest;
     WithdrawalRequestViewer public withdrawalRequestViewer;
-    ERC1967Proxy public bagFactoryProxy;
-    ERC1967Proxy public proxy;
+    TransparentUpgradeableProxy public bagFactoryProxy;
+    TransparentUpgradeableProxy public proxy;
 
     address public token;
     address public defaultAdmin;
@@ -61,8 +63,9 @@ contract DeployWithdrawalRequest is BaseScript {
 
         bagImplementation = new Bag();
         bagFactoryImplementation = new BeaconProxyFactory();
-        bagFactoryProxy = new ERC1967Proxy(
+        bagFactoryProxy = new TransparentUpgradeableProxy(
             address(bagFactoryImplementation),
+            defaultAdmin,
             abi.encodeCall(
                 BeaconProxyFactory.initialize, (address(bagImplementation), defaultAdmin, predictedProxy, defaultAdmin)
             )
@@ -71,8 +74,9 @@ contract DeployWithdrawalRequest is BaseScript {
         requestWithdrawer = new BaseWithdrawer(token, predictedProxy);
         requestPolicy = new MinAmountRequestPolicy(MIN_WITHDRAWAL_AMOUNT);
         requestImplementation = new WithdrawalRequest();
-        proxy = new ERC1967Proxy(
+        proxy = new TransparentUpgradeableProxy(
             address(requestImplementation),
+            defaultAdmin,
             abi.encodeCall(
                 WithdrawalRequest.initialize,
                 (

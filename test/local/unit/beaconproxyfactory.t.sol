@@ -3,7 +3,9 @@ pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
 import {IAccessControl} from "lib/openzeppelin-contracts/contracts/access/IAccessControl.sol";
-import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {
+    TransparentUpgradeableProxy
+} from "lib/openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {Initializable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import {IBag} from "src/interface/IBag.sol";
 import {Bag} from "src/Bag.sol";
@@ -49,8 +51,9 @@ contract BeaconProxyFactoryTest is Test {
         ownerRegistry = new BeaconOwnerRegistryMock();
         factory = BeaconProxyFactory(
             address(
-                new ERC1967Proxy(
+                new TransparentUpgradeableProxy(
                     address(implementation),
+                    admin,
                     abi.encodeCall(
                         BeaconProxyFactory.initialize,
                         (address(bagImplementation), admin, creator, implementationManager)
@@ -74,16 +77,18 @@ contract BeaconProxyFactoryTest is Test {
 
     function testInitializeRevertsForZeroImplementation() public {
         vm.expectRevert(BeaconProxyFactory.ZeroAddress.selector);
-        new ERC1967Proxy(
+        new TransparentUpgradeableProxy(
             address(implementation),
+            admin,
             abi.encodeCall(BeaconProxyFactory.initialize, (address(0), admin, creator, implementationManager))
         );
     }
 
     function testInitializeRevertsForZeroAdmin() public {
         vm.expectRevert(BeaconProxyFactory.ZeroAddress.selector);
-        new ERC1967Proxy(
+        new TransparentUpgradeableProxy(
             address(implementation),
+            admin,
             abi.encodeCall(
                 BeaconProxyFactory.initialize, (address(bagImplementation), address(0), creator, implementationManager)
             )
@@ -92,8 +97,9 @@ contract BeaconProxyFactoryTest is Test {
 
     function testInitializeRevertsForZeroCreator() public {
         vm.expectRevert(BeaconProxyFactory.ZeroAddress.selector);
-        new ERC1967Proxy(
+        new TransparentUpgradeableProxy(
             address(implementation),
+            admin,
             abi.encodeCall(
                 BeaconProxyFactory.initialize, (address(bagImplementation), admin, address(0), implementationManager)
             )
@@ -102,8 +108,9 @@ contract BeaconProxyFactoryTest is Test {
 
     function testInitializeRevertsForZeroImplementationManager() public {
         vm.expectRevert(BeaconProxyFactory.ZeroAddress.selector);
-        new ERC1967Proxy(
+        new TransparentUpgradeableProxy(
             address(implementation),
+            admin,
             abi.encodeCall(BeaconProxyFactory.initialize, (address(bagImplementation), admin, creator, address(0)))
         );
     }

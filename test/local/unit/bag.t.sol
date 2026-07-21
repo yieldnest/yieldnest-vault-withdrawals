@@ -2,7 +2,9 @@
 pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
-import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {
+    TransparentUpgradeableProxy
+} from "lib/openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {ERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 import {ERC721} from "lib/openzeppelin-contracts/contracts/token/ERC721/ERC721.sol";
 import {IERC721Receiver} from "lib/openzeppelin-contracts/contracts/token/ERC721/IERC721Receiver.sol";
@@ -126,8 +128,8 @@ contract BagTest is Test {
         ownerRegistry.setOwner(id_, owner_);
         return Bag(
             payable(address(
-                    new ERC1967Proxy(
-                        address(implementation), abi.encodeCall(Bag.initialize, (address(ownerRegistry), id_))
+                    new TransparentUpgradeableProxy(
+                        address(implementation), owner_, abi.encodeCall(Bag.initialize, (address(ownerRegistry), id_))
                     )
                 ))
         );
@@ -183,7 +185,9 @@ contract BagTest is Test {
 
     function testInitializeRevertsForZeroOwnerRegistry() public {
         vm.expectRevert(IBag.ZeroAddress.selector);
-        new ERC1967Proxy(address(implementation), abi.encodeCall(Bag.initialize, (address(0), requestId)));
+        new TransparentUpgradeableProxy(
+            address(implementation), owner, abi.encodeCall(Bag.initialize, (address(0), requestId))
+        );
     }
 
     function testImplementationCannotBeInitialized() public {

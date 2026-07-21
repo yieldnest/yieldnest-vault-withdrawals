@@ -2,7 +2,9 @@
 pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
-import {ERC1967Proxy} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {
+    TransparentUpgradeableProxy
+} from "lib/openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {PausableUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
 import {BaseVault} from "lib/yieldnest-vault/src/BaseVault.sol";
@@ -46,8 +48,9 @@ contract WithdrawalRequestMainnetTest is Test, Actors {
 
         bagImplementation = new Bag();
         bagFactoryImplementation = new BeaconProxyFactory();
-        ERC1967Proxy bagFactoryProxy = new ERC1967Proxy(
+        TransparentUpgradeableProxy bagFactoryProxy = new TransparentUpgradeableProxy(
             address(bagFactoryImplementation),
+            ADMIN,
             abi.encodeCall(BeaconProxyFactory.initialize, (address(bagImplementation), ADMIN, ADMIN, ADMIN))
         );
         bagFactory = BeaconProxyFactory(address(bagFactoryProxy));
@@ -56,8 +59,9 @@ contract WithdrawalRequestMainnetTest is Test, Actors {
         address predictedManager = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 2);
         withdrawer = new BaseWithdrawer(address(vault), predictedManager);
         requestPolicy = new MinAmountRequestPolicy(MIN_WITHDRAWAL_AMOUNT);
-        ERC1967Proxy proxy = new ERC1967Proxy(
+        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
             address(implementation),
+            ADMIN,
             abi.encodeCall(
                 WithdrawalRequest.initialize,
                 (
