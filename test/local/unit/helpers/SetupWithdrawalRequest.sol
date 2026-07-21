@@ -11,7 +11,7 @@ import {Bag} from "src/Bag.sol";
 import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
 import {MinAmountRequestPolicy} from "src/policies/MinAmountRequestPolicy.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
-import {LiveRateWithdrawer} from "src/withdrawers/LiveRateWithdrawer.sol";
+import {BaseWithdrawer} from "src/withdrawers/BaseWithdrawer.sol";
 import {WithdrawalRequestViewer} from "views/WithdrawalRequestViewer.sol";
 
 contract MockWithdrawAssetVault is ERC20 {
@@ -108,7 +108,7 @@ contract SetupWithdrawalRequest is Test {
     WithdrawalAssetMock asset;
     WithdrawalAssetMock secondAsset;
     WithdrawalRequestViewer viewer;
-    LiveRateWithdrawer withdrawer;
+    BaseWithdrawer withdrawer;
     MinAmountRequestPolicy requestPolicy;
     Bag bagImplementation;
     BeaconProxyFactory bagFactoryImplementation;
@@ -138,7 +138,7 @@ contract SetupWithdrawalRequest is Test {
 
         WithdrawalRequest implementation = new WithdrawalRequest();
         address predictedManager = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 2);
-        withdrawer = new LiveRateWithdrawer(address(ynToken), predictedManager);
+        withdrawer = new BaseWithdrawer(address(ynToken), predictedManager);
         requestPolicy = new MinAmountRequestPolicy(minWithdrawalAmount);
         ERC1967Proxy proxy = new ERC1967Proxy(
             address(implementation),

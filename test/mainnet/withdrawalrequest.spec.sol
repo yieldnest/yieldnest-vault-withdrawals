@@ -14,14 +14,14 @@ import {Bag} from "src/Bag.sol";
 import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
 import {MinAmountRequestPolicy} from "src/policies/MinAmountRequestPolicy.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
-import {LiveRateWithdrawer} from "src/withdrawers/LiveRateWithdrawer.sol";
+import {BaseWithdrawer} from "src/withdrawers/BaseWithdrawer.sol";
 import {WithdrawalRequestViewer} from "views/WithdrawalRequestViewer.sol";
 
 contract WithdrawalRequestMainnetTest is Test, Actors {
     BaseVault public vault;
     WithdrawalRequest public manager;
     WithdrawalRequestViewer public viewer;
-    LiveRateWithdrawer public withdrawer;
+    BaseWithdrawer public withdrawer;
     MinAmountRequestPolicy public requestPolicy;
     Bag public bagImplementation;
     BeaconProxyFactory public bagFactoryImplementation;
@@ -53,7 +53,7 @@ contract WithdrawalRequestMainnetTest is Test, Actors {
 
         WithdrawalRequest implementation = new WithdrawalRequest();
         address predictedManager = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 2);
-        withdrawer = new LiveRateWithdrawer(address(vault), predictedManager);
+        withdrawer = new BaseWithdrawer(address(vault), predictedManager);
         requestPolicy = new MinAmountRequestPolicy(MIN_WITHDRAWAL_AMOUNT);
         ERC1967Proxy proxy = new ERC1967Proxy(
             address(implementation),

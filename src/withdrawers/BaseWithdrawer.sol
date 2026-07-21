@@ -4,17 +4,30 @@ pragma solidity ^0.8.24;
 import {IWithdrawer} from "src/interface/IWithdrawer.sol";
 import {IWithdrawerVault} from "src/interface/IWithdrawerVault.sol";
 
-/// @title LiveRateWithdrawer
+/// @title BaseWithdrawer
 /// @notice Authorized adapter that forwards withdrawals to the configured vault at its live redemption rate.
-contract LiveRateWithdrawer is IWithdrawer {
-    IWithdrawerVault public immutable token;
-    address public immutable withdrawalRequest;
+contract BaseWithdrawer is IWithdrawer {
+    /// @custom:storage-location erc7201:yieldnest.storage.base_withdrawer
+    struct BaseWithdrawerStorage {
+        IWithdrawerVault token;
+        address withdrawalRequest;
+    }
 
     error Unauthorized(address caller);
     error ZeroAddress();
 
+    // keccak256(abi.encode(uint256(keccak256("yieldnest.storage.base_withdrawer")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant BaseWithdrawerStorageLocation =
+        0x90cd26f58f230d7edce7681ec7052f8fcb3a4b7bd42b3fcbf2f239cce9d04d00;
+
+    function _getBaseWithdrawerStorage() private pure returns (BaseWithdrawerStorage storage $) {
+        assembly {
+            $.slot := BaseWithdrawerStorageLocation
+        }
+    }
+
     modifier onlyWithdrawalRequest() {
-        if (msg.sender != withdrawalRequest) revert Unauthorized(msg.sender);
+        if (msg.sender != _getBaseWithdrawerStorage().withdrawalRequest) revert Unauthorized(msg.sender);
         _;
     }
 
@@ -24,8 +37,9 @@ contract LiveRateWithdrawer is IWithdrawer {
     constructor(address token_, address withdrawalRequest_) {
         if (token_ == address(0) || withdrawalRequest_ == address(0)) revert ZeroAddress();
 
-        token = IWithdrawerVault(token_);
-        withdrawalRequest = withdrawalRequest_;
+        BaseWithdrawerStorage storage $ = _getBaseWithdrawerStorage();
+        $.token = IWithdrawerVault(token_);
+        $.withdrawalRequest = withdrawalRequest_;
     }
 
     /// @notice Forwards a withdrawal request to the configured vault.
@@ -40,13 +54,25 @@ contract LiveRateWithdrawer is IWithdrawer {
         onlyWithdrawalRequest
         returns (uint256 shares)
     {
-        shares = token.withdrawAsset(asset, assets, receiver, owner);
+        shares = token().withdrawAsset(asset, assets, receiver, owner);
     }
 
     /// @notice Converts shares to assets using the configured vault rate.
     /// @param shares Amount of shares to convert.
     /// @return assets Amount of assets represented by `shares`.
     function convertToAssets(uint256 shares) public view virtual returns (uint256 assets) {
-        return token.convertToAssets(shares);
+        return token().convertToAssets(shares);
+    }
+
+    /// @notice Returns the vault token this withdrawer pulls assets from.
+    /// @return The configured vault token.
+    function token() public view returns (IWithdrawerVault) {
+        return _getBaseWithdrawerStorage().token;
+    }
+
+    /// @notice Returns the withdrawal request contract authorized to call this withdrawer.
+    /// @return The authorized withdrawal request contract.
+    function withdrawalRequest() public view returns (address) {
+        return _getBaseWithdrawerStorage().withdrawalRequest;
     }
 }
