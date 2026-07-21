@@ -46,6 +46,7 @@ contract DeployWithdrawalRequestTest is Test {
         assertTrue(manager.hasRole(manager.RESOLVER_ROLE(), deployScript.resolver()));
         assertEq(address(manager.withdrawer()), address(withdrawer));
         assertEq(address(manager.requestPolicy()), address(requestPolicy));
+        assertEq(manager.maxDataLength(), deployScript.MAX_DATA_LENGTH());
         assertTrue(bagFactory.hasRole(bagFactory.DEFAULT_ADMIN_ROLE(), address(timelock)));
         assertTrue(bagFactory.hasRole(bagFactory.IMPLEMENTATION_MANAGER_ROLE(), address(timelock)));
 
@@ -68,6 +69,7 @@ contract DeployWithdrawalRequestTest is Test {
         assertEq(vm.parseJsonAddress(deploymentJson, ".resolver"), deployScript.resolver());
         assertEq(vm.parseJsonAddress(deploymentJson, ".configurationManager"), address(timelock));
         assertEq(vm.parseJsonUint(deploymentJson, ".minWithdrawalAmount"), deployScript.MIN_WITHDRAWAL_AMOUNT());
+        assertEq(vm.parseJsonUint(deploymentJson, ".maxDataLength"), deployScript.MAX_DATA_LENGTH());
         assertEq(vm.parseJsonUint(deploymentJson, ".timelockMinDelay"), deployScript.minDelay());
 
         vm.removeFile(deploymentFilePath);

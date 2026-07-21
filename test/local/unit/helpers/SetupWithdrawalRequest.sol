@@ -122,6 +122,7 @@ contract SetupWithdrawalRequest is Test {
     address receiver = address(0xCA11);
     address collector = address(0xC011EC7);
     uint256 minWithdrawalAmount = 1 ether;
+    uint256 maxDataLength = 1024;
 
     function setUpWithdrawalRequest() public virtual {
         ynToken = new MockWithdrawAssetVault();
@@ -152,7 +153,8 @@ contract SetupWithdrawalRequest is Test {
                     pauser,
                     address(bagFactory),
                     address(withdrawer),
-                    address(requestPolicy)
+                    address(requestPolicy),
+                    maxDataLength
                 )
             )
         );

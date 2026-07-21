@@ -15,6 +15,7 @@ import {WithdrawalRequestViewer} from "views/WithdrawalRequestViewer.sol";
 
 contract DeployWithdrawalRequest is BaseScript {
     uint256 public constant MIN_WITHDRAWAL_AMOUNT = 0.0001 ether;
+    uint256 public constant MAX_DATA_LENGTH = 1024;
 
     Bag public bagImplementation;
     BeaconProxyFactory public bagFactoryImplementation;
@@ -82,7 +83,8 @@ contract DeployWithdrawalRequest is BaseScript {
                     pauser,
                     address(bagFactory),
                     address(requestWithdrawer),
-                    address(requestPolicy)
+                    address(requestPolicy),
+                    MAX_DATA_LENGTH
                 )
             )
         );
@@ -141,6 +143,7 @@ contract DeployWithdrawalRequest is BaseScript {
         }
         if (address(withdrawalRequest.withdrawer()) != address(requestWithdrawer)) revert InvalidSetup();
         if (address(withdrawalRequest.requestPolicy()) != address(requestPolicy)) revert InvalidSetup();
+        if (withdrawalRequest.maxDataLength() != MAX_DATA_LENGTH) revert InvalidSetup();
         if (!bagFactory.hasRole(bagFactory.DEFAULT_ADMIN_ROLE(), address(timelock))) revert InvalidSetup();
         if (!bagFactory.hasRole(bagFactory.IMPLEMENTATION_MANAGER_ROLE(), address(timelock))) {
             revert InvalidSetup();
@@ -175,6 +178,7 @@ contract DeployWithdrawalRequest is BaseScript {
         vm.serializeAddress(symbol(), "viewer", address(withdrawalRequestViewer));
         vm.serializeAddress(symbol(), "token", token);
         vm.serializeUint(symbol(), "minWithdrawalAmount", MIN_WITHDRAWAL_AMOUNT);
+        vm.serializeUint(symbol(), "maxDataLength", MAX_DATA_LENGTH);
         vm.serializeUint(symbol(), "timelockMinDelay", minDelay);
         vm.serializeAddress(symbol(), "defaultAdmin", defaultAdmin);
         vm.serializeAddress(symbol(), "resolver", resolver);

@@ -55,6 +55,7 @@ contract WithdrawalRequest is
         IRequestPolicy requestPolicy;
         uint256 nextRequestId;
         mapping(uint256 id => Request request) requests;
+        uint256 maxDataLength;
     }
 
     error ZeroAddress();
@@ -83,11 +84,11 @@ contract WithdrawalRequest is
     );
     event RequestPolicyUpdated(address oldRequestPolicy, address newRequestPolicy);
     event WithdrawerUpdated(address oldWithdrawer, address newWithdrawer);
+    event MaxDataLengthUpdated(uint256 oldMaxDataLength, uint256 newMaxDataLength);
 
     bytes32 public constant RESOLVER_ROLE = keccak256("RESOLVER_ROLE");
     bytes32 public constant CONFIGURATION_MANAGER_ROLE = keccak256("CONFIGURATION_MANAGER_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
-    uint256 public constant MAX_DATA_LENGTH = 1024;
 
     // keccak256(abi.encode(uint256(keccak256("yieldnest.storage.withdrawal_request_manager")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant RequestStorageLocation =
@@ -113,6 +114,7 @@ contract WithdrawalRequest is
     /// @param bagFactory_ Factory used to deploy request bags.
     /// @param withdrawer_ Adapter used to withdraw assets from the yn-token.
     /// @param requestPolicy_ Policy used to validate request creation.
+    /// @param maxDataLength_ Maximum bytes allowed in request metadata.
     function initialize(
         address token_,
         address defaultAdmin,
@@ -121,7 +123,8 @@ contract WithdrawalRequest is
         address pauser,
         address bagFactory_,
         address withdrawer_,
-        address requestPolicy_
+        address requestPolicy_,
+        uint256 maxDataLength_
     ) external initializer {
         if (
             token_ == address(0) || defaultAdmin == address(0) || resolver == address(0)
@@ -137,7 +140,7 @@ contract WithdrawalRequest is
         __Pausable_init();
         __ReentrancyGuard_init();
 
-        _initializeStorage(token_, bagFactory_, withdrawer_, requestPolicy_);
+        _initializeStorage(token_, bagFactory_, withdrawer_, requestPolicy_, maxDataLength_);
 
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
         _grantRole(RESOLVER_ROLE, resolver);
@@ -145,14 +148,19 @@ contract WithdrawalRequest is
         _grantRole(PAUSER_ROLE, pauser);
     }
 
-    function _initializeStorage(address token_, address bagFactory_, address withdrawer_, address requestPolicy_)
-        internal
-    {
+    function _initializeStorage(
+        address token_,
+        address bagFactory_,
+        address withdrawer_,
+        address requestPolicy_,
+        uint256 maxDataLength_
+    ) internal {
         RequestStorage storage $ = _getRequestStorage();
         $.token = IWithdrawerVault(token_);
         $.bagFactory = IFactory(bagFactory_);
         $.withdrawer = IWithdrawer(withdrawer_);
         $.requestPolicy = IRequestPolicy(requestPolicy_);
+        $.maxDataLength = maxDataLength_;
     }
 
     // --- Requests ---
@@ -168,7 +176,7 @@ contract WithdrawalRequest is
     /// @notice Locks yn-tokens in this contract and creates a withdrawal request with bounded data.
     /// @param amount Amount of configured yn-token shares to lock.
     /// @param receiver Receiver of the request NFT that controls claims.
-    /// @param data Arbitrary request metadata, capped at `MAX_DATA_LENGTH` bytes.
+    /// @param data Arbitrary request metadata, capped at `maxDataLength()` bytes.
     /// @return id Generated request id.
     function requestWithdrawal(uint256 amount, address receiver, bytes calldata data)
         external
@@ -181,9 +189,9 @@ contract WithdrawalRequest is
     function _requestWithdrawal(uint256 amount, address receiver, bytes memory data) internal returns (uint256 id) {
         if (amount == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
-        if (data.length > MAX_DATA_LENGTH) revert DataTooLong(data.length, MAX_DATA_LENGTH);
-
         RequestStorage storage $ = _getRequestStorage();
+        uint256 maxDataLength_ = $.maxDataLength;
+        if (data.length > maxDataLength_) revert DataTooLong(data.length, maxDataLength_);
         $.requestPolicy.validateRequest(msg.sender, receiver, amount, data);
 
         IERC20(address($.token)).safeTransferFrom(msg.sender, address(this), amount);
@@ -345,6 +353,16 @@ contract WithdrawalRequest is
         emit RequestPolicyUpdated(oldRequestPolicy, requestPolicy_);
     }
 
+    /// @notice Updates the maximum request metadata size.
+    /// @param maxDataLength_ New maximum bytes allowed in request metadata.
+    function setMaxDataLength(uint256 maxDataLength_) external onlyRole(CONFIGURATION_MANAGER_ROLE) {
+        RequestStorage storage $ = _getRequestStorage();
+        uint256 oldMaxDataLength = $.maxDataLength;
+        $.maxDataLength = maxDataLength_;
+
+        emit MaxDataLengthUpdated(oldMaxDataLength, maxDataLength_);
+    }
+
     // --- Pause ---
 
     /// @notice Pauses new withdrawal request creation.
@@ -387,6 +405,12 @@ contract WithdrawalRequest is
     /// @return The configured request policy.
     function requestPolicy() public view returns (IRequestPolicy) {
         return _getRequestStorage().requestPolicy;
+    }
+
+    /// @notice Returns the maximum request metadata size.
+    /// @return Maximum bytes allowed in request metadata.
+    function maxDataLength() public view returns (uint256) {
+        return _getRequestStorage().maxDataLength;
     }
 
     /// @notice Returns a withdrawal request by id.

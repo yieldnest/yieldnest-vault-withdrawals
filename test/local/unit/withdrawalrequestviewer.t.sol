@@ -106,6 +106,7 @@ contract WithdrawalRequestViewerTest is Test {
     address user = address(0xB0B);
     address receiver = address(0xCA11);
     address other = address(0xCAFE);
+    uint256 maxDataLength = 1024;
 
     function setUp() public {
         ynToken = new ViewerVaultMock();
@@ -142,7 +143,8 @@ contract WithdrawalRequestViewerTest is Test {
                             pauser,
                             address(bagFactory),
                             address(withdrawer),
-                            address(requestPolicy)
+                            address(requestPolicy),
+                            maxDataLength
                         )
                     )
                 )

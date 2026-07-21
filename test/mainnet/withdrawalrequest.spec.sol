@@ -33,6 +33,7 @@ contract WithdrawalRequestMainnetTest is Test, Actors {
     address public pauser;
 
     uint256 public constant MIN_WITHDRAWAL_AMOUNT = 1e15;
+    uint256 public constant MAX_DATA_LENGTH = 1024;
 
     function setUp() public {
         vault = BaseVault(payable(MC.YNETHX));
@@ -67,7 +68,8 @@ contract WithdrawalRequestMainnetTest is Test, Actors {
                     pauser,
                     address(bagFactory),
                     address(withdrawer),
-                    address(requestPolicy)
+                    address(requestPolicy),
+                    MAX_DATA_LENGTH
                 )
             )
         );
