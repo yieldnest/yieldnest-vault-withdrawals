@@ -10,7 +10,6 @@ import {
     ERC721EnumerableUpgradeable
 } from "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
 import {ERC721Upgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/token/ERC721/ERC721Upgradeable.sol";
-import {IERC20Metadata} from "lib/openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Initializable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import {PausableUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
 import {
@@ -23,23 +22,7 @@ import {IResolver} from "src/interface/IResolver.sol";
 import {IFactory} from "src/interface/IFactory.sol";
 import {IRequestPolicy} from "src/interface/IRequestPolicy.sol";
 import {IWithdrawer} from "src/interface/IWithdrawer.sol";
-
-interface IWithdrawAssetVault is IERC20Metadata {
-    /// @notice Withdraws a vault asset to a receiver and consumes shares from owner.
-    /// @param asset_ Asset to withdraw.
-    /// @param assets Amount of `asset_` to withdraw.
-    /// @param receiver Receiver of the withdrawn asset.
-    /// @param owner Owner whose shares are consumed.
-    /// @return shares Amount of shares consumed.
-    function withdrawAsset(address asset_, uint256 assets, address receiver, address owner)
-        external
-        returns (uint256 shares);
-
-    /// @notice Converts shares to the vault default asset amount.
-    /// @param shares Amount of shares to convert.
-    /// @return assets Amount of default asset represented by `shares`.
-    function convertToAssets(uint256 shares) external view returns (uint256 assets);
-}
+import {IWithdrawerVault} from "src/interface/IWithdrawerVault.sol";
 
 /// @title WithdrawalRequest
 /// @notice Custodies one yn-token type and tracks permissioned resolution of withdrawal requests.
@@ -66,7 +49,7 @@ contract WithdrawalRequest is
 
     /// @custom:storage-location erc7201:yieldnest.storage.withdrawal_request_manager
     struct RequestStorage {
-        IWithdrawAssetVault token;
+        IWithdrawerVault token;
         IFactory bagFactory;
         IWithdrawer withdrawer;
         IRequestPolicy requestPolicy;
@@ -79,7 +62,6 @@ contract WithdrawalRequest is
     error RequestNotFound(uint256 id);
     error InsufficientLockedAmount(uint256 id, uint256 amountLocked, uint256 amountBurned);
     error InvalidTokenBalanceChange(uint256 balanceBefore, uint256 balanceAfter);
-    error InvalidAssetBalanceChange(uint256 balanceBefore, uint256 balanceAfter);
     error UnexpectedAssetsWithdrawn(uint256 expectedAssets, uint256 actualAssets);
     error ArrayLengthMismatch(uint256 assetsLength, uint256 assetAmountsLength);
     error DataTooLong(uint256 length, uint256 maxLength);
@@ -167,7 +149,7 @@ contract WithdrawalRequest is
         internal
     {
         RequestStorage storage $ = _getRequestStorage();
-        $.token = IWithdrawAssetVault(token_);
+        $.token = IWithdrawerVault(token_);
         $.bagFactory = IFactory(bagFactory_);
         $.withdrawer = IWithdrawer(withdrawer_);
         $.requestPolicy = IRequestPolicy(requestPolicy_);
@@ -379,7 +361,7 @@ contract WithdrawalRequest is
 
     /// @notice Returns the configured yn-token handled by this withdrawal request contract.
     /// @return The configured yn-token.
-    function token() public view returns (IWithdrawAssetVault) {
+    function token() public view returns (IWithdrawerVault) {
         return _getRequestStorage().token;
     }
 

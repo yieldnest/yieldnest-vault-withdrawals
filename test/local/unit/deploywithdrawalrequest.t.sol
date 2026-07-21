@@ -6,7 +6,7 @@ import {TimelockController} from "lib/openzeppelin-contracts/contracts/governanc
 import {ERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 import {MainnetContracts as MC} from "lib/yieldnest-vault/script/Contracts.sol";
 import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
-import {MinAmountRequestPolicy} from "src/request-policies/MinAmountRequestPolicy.sol";
+import {MinAmountRequestPolicy} from "src/policies/MinAmountRequestPolicy.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 import {LiveRateWithdrawer} from "src/withdrawers/LiveRateWithdrawer.sol";
 import {DeployWithdrawalRequest} from "script/deploy/DeployWithdrawalRequest.s.sol";

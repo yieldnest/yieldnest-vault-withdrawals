@@ -16,7 +16,7 @@ import {
 import {IBag} from "src/interface/IBag.sol";
 import {IWithdrawer} from "src/interface/IWithdrawer.sol";
 import {Bag} from "src/Bag.sol";
-import {MinAmountRequestPolicy} from "src/request-policies/MinAmountRequestPolicy.sol";
+import {MinAmountRequestPolicy} from "src/policies/MinAmountRequestPolicy.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 import {LiveRateWithdrawer} from "src/withdrawers/LiveRateWithdrawer.sol";
 import {FixedRateWithdrawer} from "src/withdrawers/FixedRateWithdrawer.sol";

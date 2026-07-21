@@ -10,7 +10,7 @@ import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
 import {Bag} from "src/Bag.sol";
 import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
 import {IBag} from "src/interface/IBag.sol";
-import {MinAmountRequestPolicy} from "src/request-policies/MinAmountRequestPolicy.sol";
+import {MinAmountRequestPolicy} from "src/policies/MinAmountRequestPolicy.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 import {LiveRateWithdrawer} from "src/withdrawers/LiveRateWithdrawer.sol";
 import {WithdrawalRequestViewer} from "views/WithdrawalRequestViewer.sol";

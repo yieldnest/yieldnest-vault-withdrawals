@@ -48,10 +48,9 @@ contract FixedRateWithdrawer is LiveRateWithdrawer {
     function withdrawAsset(uint256, address asset, uint256 assets, address receiver, address owner)
         external
         override
+        onlyWithdrawalRequest
         returns (uint256 shares)
     {
-        _checkWithdrawalRequest();
-
         address defaultAsset = IDefaultAssetVault(address(token)).asset();
         if (asset != defaultAsset) revert InvalidAsset(asset);
 
