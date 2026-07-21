@@ -18,7 +18,7 @@ contract MinAmountRequestPolicy is IRequestPolicy {
 
     /// @notice Reverts if the requested amount is below the configured minimum.
     /// @param amount Amount of yn-token shares the request would lock.
-    function validateRequest(address, address, uint256 amount) external view {
+    function validateRequest(address, address, uint256 amount, bytes calldata) external view {
         if (amount < minWithdrawalAmount) revert AmountBelowMinimum(amount, minWithdrawalAmount);
     }
 }

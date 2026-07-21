@@ -184,7 +184,7 @@ contract WithdrawalRequest is
         if (data.length > MAX_DATA_LENGTH) revert DataTooLong(data.length, MAX_DATA_LENGTH);
 
         RequestStorage storage $ = _getRequestStorage();
-        $.requestPolicy.validateRequest(msg.sender, receiver, amount);
+        $.requestPolicy.validateRequest(msg.sender, receiver, amount, data);
 
         IERC20(address($.token)).safeTransferFrom(msg.sender, address(this), amount);
         uint256 rateAtRequest = $.token.convertToAssets(10 ** $.token.decimals());
