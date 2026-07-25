@@ -30,7 +30,7 @@ library VaultMath {
     /// @param asset Asset to estimate.
     /// @param shares Amount of yn-token shares to convert.
     /// @return assets Estimated amount of `asset` withdrawable for `shares`.
-    function convertSharesToAsset(IVaultMathVault token, address asset, uint256 shares)
+    function convertToAssets(IVaultMathVault token, address asset, uint256 shares)
         internal
         view
         returns (uint256 assets)

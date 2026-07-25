@@ -59,7 +59,7 @@ contract FillRatioResolver {
 
         uint256 sharesToResolve = targetResolvedShares - resolvedShares;
         uint256 assetsToResolve =
-            VaultMath.convertSharesToAsset(IVaultMathVault(address(manager.token())), redemptionAsset, sharesToResolve);
+            VaultMath.convertToAssets(IVaultMathVault(address(manager.token())), redemptionAsset, sharesToResolve);
         if (assetsToResolve == 0) revert NothingToResolve(id);
 
         amountBurned = manager.resolveWithdrawalRequest(id, redemptionAsset, assetsToResolve);

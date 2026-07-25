@@ -169,7 +169,7 @@ contract WithdrawalRequestViewer {
         returns (uint256 assets)
     {
         IWithdrawalRequestViewerVault token = IWithdrawalRequestViewerVault(address(withdrawalRequest.token()));
-        assets = VaultMath.convertSharesToAsset(IVaultMathVault(address(token)), asset, shares);
+        assets = VaultMath.convertToAssets(IVaultMathVault(address(token)), asset, shares);
     }
 
     /// @notice Converts yn-token shares to default-asset units using the configured redemption withdrawer.
