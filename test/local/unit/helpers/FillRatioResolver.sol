@@ -2,10 +2,11 @@
 pragma solidity ^0.8.24;
 
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
+import {IVaultMathVault, VaultMath} from "src/library/VaultMath.sol";
 
 /// @notice Test-only resolver that lets request NFT owners resolve up to a permissioned global fill ratio.
-/// @dev The local test vault burns one share per redeemed asset unit, so the ratio can be applied directly
-/// to the cached initial locked amount.
+/// @dev The fill ratio is share-based; the resolver converts the newly available share budget to assets
+/// before calling the asset-denominated WithdrawalRequest resolution API.
 contract FillRatioResolver {
     uint256 public constant MAX_FILL_RATIO_BPS = 10_000;
 
@@ -52,10 +53,15 @@ contract FillRatioResolver {
             initialAmountLocked[id] = initialAmount;
         }
 
-        uint256 resolvedAmount = initialAmount - request.amountLocked;
-        uint256 targetResolvedAmount = initialAmount * fillRatioBps / MAX_FILL_RATIO_BPS;
-        if (targetResolvedAmount <= resolvedAmount) revert NothingToResolve(id);
+        uint256 resolvedShares = initialAmount - request.amountLocked;
+        uint256 targetResolvedShares = initialAmount * fillRatioBps / MAX_FILL_RATIO_BPS;
+        if (targetResolvedShares <= resolvedShares) revert NothingToResolve(id);
 
-        amountBurned = manager.resolveWithdrawalRequest(id, redemptionAsset, targetResolvedAmount - resolvedAmount);
+        uint256 sharesToResolve = targetResolvedShares - resolvedShares;
+        uint256 assetsToResolve =
+            VaultMath.convertSharesToAsset(IVaultMathVault(address(manager.token())), redemptionAsset, sharesToResolve);
+        if (assetsToResolve == 0) revert NothingToResolve(id);
+
+        amountBurned = manager.resolveWithdrawalRequest(id, redemptionAsset, assetsToResolve);
     }
 }

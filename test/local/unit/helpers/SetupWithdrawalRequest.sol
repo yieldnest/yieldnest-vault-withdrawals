@@ -23,6 +23,7 @@ contract MockWithdrawAssetVault is ERC20 {
     uint256 public returnAmountOffset;
     uint256 public transferShortfall;
     uint256 public convertToAssetsRate = 1 ether;
+    uint256 public assetRate = 1 ether;
     address[] internal assetList;
 
     constructor() ERC20("ynToken", "ynT") {}
@@ -45,6 +46,10 @@ contract MockWithdrawAssetVault is ERC20 {
 
     function setConvertToAssetsRate(uint256 convertToAssetsRate_) external {
         convertToAssetsRate = convertToAssetsRate_;
+    }
+
+    function setAssetRate(uint256 assetRate_) external {
+        assetRate = assetRate_;
     }
 
     function setAssets(address[] memory assets_) external {
@@ -85,8 +90,8 @@ contract MockWithdrawAssetVault is ERC20 {
         return assetList[0];
     }
 
-    function getRate(address) external pure returns (uint256) {
-        return 1 ether;
+    function getRate(address) external view returns (uint256) {
+        return assetRate;
     }
 
     function convertToAssets(uint256 shares) external view returns (uint256 assets) {

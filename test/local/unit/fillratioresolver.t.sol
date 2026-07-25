@@ -66,6 +66,25 @@ contract FillRatioResolverTest is SetupWithdrawalRequest {
         assertEq(secondAsset.balanceOf(request.bag), 0);
     }
 
+    function testResolveAvailableConvertsShareBudgetToAssetAmount() public {
+        ynToken.setAssetRate(2 ether);
+        ynToken.setBurnMultiplier(2);
+
+        vm.prank(configurationManager);
+        fillResolver.setFillRatioBps(5_000);
+
+        vm.prank(user);
+        uint256 id = manager.requestWithdrawal(10 ether, user);
+
+        vm.prank(user);
+        assertEq(fillResolver.resolveAvailable(id), 5 ether);
+
+        WithdrawalRequest.Request memory request = manager.requests(id);
+        assertEq(fillResolver.initialAmountLocked(id), 10 ether);
+        assertEq(request.amountLocked, 5 ether);
+        assertEq(asset.balanceOf(request.bag), 2.5 ether);
+    }
+
     function testRepeatedResolveRequiresFillRatioIncrease() public {
         vm.prank(configurationManager);
         fillResolver.setFillRatioBps(2_500);
