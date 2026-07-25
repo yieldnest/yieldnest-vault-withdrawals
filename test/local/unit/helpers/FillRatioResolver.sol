@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
+import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
-import {IVaultMathVault, VaultMath} from "src/library/VaultMath.sol";
+import {VaultMath} from "src/library/VaultMath.sol";
 
 /// @notice Test-only resolver that lets request NFT owners resolve up to a permissioned global fill ratio.
 /// @dev The fill ratio is share-based; the resolver converts the newly available share budget to assets
@@ -59,7 +60,7 @@ contract FillRatioResolver {
 
         uint256 sharesToResolve = targetResolvedShares - resolvedShares;
         uint256 assetsToResolve =
-            VaultMath.convertToAssets(IVaultMathVault(address(manager.token())), redemptionAsset, sharesToResolve);
+            VaultMath.convertToAssets(IVault(address(manager.token())), redemptionAsset, sharesToResolve);
         if (assetsToResolve == 0) revert NothingToResolve(id);
 
         amountBurned = manager.resolveWithdrawalRequest(id, redemptionAsset, assetsToResolve);

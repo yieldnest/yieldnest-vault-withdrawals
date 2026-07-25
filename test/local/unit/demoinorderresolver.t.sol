@@ -3,9 +3,9 @@ pragma solidity ^0.8.24;
 
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
 import {IBag} from "src/interface/IBag.sol";
 import {IWithdrawer} from "src/interface/IWithdrawer.sol";
-import {IWithdrawerVault} from "src/interface/IWithdrawerVault.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 import {SetupWithdrawalRequest} from "test/local/unit/helpers/SetupWithdrawalRequest.sol";
 
@@ -14,13 +14,13 @@ import {SetupWithdrawalRequest} from "test/local/unit/helpers/SetupWithdrawalReq
 contract DemoResolverWithdrawer is IWithdrawer {
     using SafeERC20 for IERC20;
 
-    IWithdrawerVault internal immutable token;
+    IVault internal immutable token;
     address internal immutable withdrawalRequest;
 
     error Unauthorized(address caller);
 
     constructor(address token_, address withdrawalRequest_) {
-        token = IWithdrawerVault(token_);
+        token = IVault(token_);
         withdrawalRequest = withdrawalRequest_;
     }
 

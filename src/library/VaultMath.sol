@@ -1,25 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 pragma solidity ^0.8.24;
 
-import {IERC20Metadata} from "lib/openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {IProvider} from "lib/yieldnest-vault/src/interface/IProvider.sol";
 import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
-
-interface IVaultMathVault is IERC20Metadata {
-    /// @notice Returns vault configuration for an asset.
-    /// @param asset_ Asset to query.
-    /// @return Asset parameters recorded by the vault.
-    function getAsset(address asset_) external view returns (IVault.AssetParams memory);
-
-    /// @notice Returns the vault rate provider.
-    /// @return Provider address.
-    function provider() external view returns (address);
-
-    /// @notice Returns total vault assets in base units.
-    /// @return Total base assets.
-    function totalBaseAssets() external view returns (uint256);
-}
 
 library VaultMath {
     using Math for uint256;
@@ -30,11 +14,7 @@ library VaultMath {
     /// @param asset Asset to estimate.
     /// @param shares Amount of yn-token shares to convert.
     /// @return assets Estimated amount of `asset` withdrawable for `shares`.
-    function convertToAssets(IVaultMathVault token, address asset, uint256 shares)
-        internal
-        view
-        returns (uint256 assets)
-    {
+    function convertToAssets(IVault token, address asset, uint256 shares) internal view returns (uint256 assets) {
         uint256 totalSupply = token.totalSupply();
         uint256 totalBaseAssets = token.totalBaseAssets();
         uint256 baseAssets = shares.mulDiv(totalBaseAssets + 1, totalSupply + 1, Math.Rounding.Floor);

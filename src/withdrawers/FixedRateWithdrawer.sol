@@ -6,12 +6,6 @@ import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/
 import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {BaseWithdrawer} from "src/withdrawers/BaseWithdrawer.sol";
 
-interface IDefaultAssetVault {
-    /// @notice Returns the vault default asset.
-    /// @return Default asset address.
-    function asset() external view returns (address);
-}
-
 /// @title FixedRateWithdrawer
 /// @notice Withdrawer adapter that enforces a minimum redemption rate for the vault default asset.
 contract FixedRateWithdrawer is BaseWithdrawer {
@@ -51,7 +45,7 @@ contract FixedRateWithdrawer is BaseWithdrawer {
         onlyWithdrawalRequest
         returns (uint256 shares)
     {
-        address defaultAsset = IDefaultAssetVault(address(token())).asset();
+        address defaultAsset = token().asset();
         if (asset != defaultAsset) revert InvalidAsset(asset);
 
         uint256 fixedRateShares = _convertToShares(assets);

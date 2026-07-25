@@ -2,14 +2,14 @@
 pragma solidity ^0.8.24;
 
 import {IWithdrawer} from "src/interface/IWithdrawer.sol";
-import {IWithdrawerVault} from "src/interface/IWithdrawerVault.sol";
+import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
 
 /// @title BaseWithdrawer
 /// @notice Authorized adapter that forwards withdrawals to the configured vault at its live redemption rate.
 contract BaseWithdrawer is IWithdrawer {
     /// @custom:storage-location erc7201:yieldnest.storage.base_withdrawer
     struct BaseWithdrawerStorage {
-        IWithdrawerVault token;
+        IVault token;
         address withdrawalRequest;
     }
 
@@ -38,7 +38,7 @@ contract BaseWithdrawer is IWithdrawer {
         if (token_ == address(0) || withdrawalRequest_ == address(0)) revert ZeroAddress();
 
         BaseWithdrawerStorage storage $ = _getBaseWithdrawerStorage();
-        $.token = IWithdrawerVault(token_);
+        $.token = IVault(token_);
         $.withdrawalRequest = withdrawalRequest_;
     }
 
@@ -66,7 +66,7 @@ contract BaseWithdrawer is IWithdrawer {
 
     /// @notice Returns the vault token this withdrawer pulls assets from.
     /// @return The configured vault token.
-    function token() public view returns (IWithdrawerVault) {
+    function token() public view returns (IVault) {
         return _getBaseWithdrawerStorage().token;
     }
 
