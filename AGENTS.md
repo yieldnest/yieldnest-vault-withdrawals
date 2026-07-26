@@ -24,7 +24,7 @@ storage layout, initializer behavior, and upgrade safety.
 
 - `src/`
   - `WithdrawalRequest.sol`: upgradeable request manager, ERC721 request ownership, locked yn-token custody, resolution
-  - `Bag.sol`: upgradeable asset container whose current registry owner can claim assets
+  - `Bag.sol`: upgradeable asset container whose current authorized owner can claim assets
   - `BeaconProxyFactory.sol`: upgradeable factory that creates beacon proxies and upgrades their shared implementation
   - `withdrawers/BaseWithdrawer.sol`: production withdrawer adapter used by `WithdrawalRequest`
   - `policies/MinAmountRequestPolicy.sol`: production request validation policy
@@ -64,9 +64,9 @@ Distinguish these surfaces:
 3. Bag factory proxy and bag beacon proxies
    - `BeaconProxyFactory` itself should be deployed behind `TransparentUpgradeableProxy`.
    - `BeaconProxyFactory` creates `BeaconProxy` instances for bags.
-   - Bag instances are initialized with `(ownerRegistry, id)` where `ownerRegistry.ownerOf(id)` controls claim
+   - Bag instances are initialized with `(auth, id)` where `auth.ownerOf(id)` controls claim
      permissions.
-   - In the withdrawal request system, `ownerRegistry` is the `WithdrawalRequest` proxy and `id` is the request NFT id.
+   - In the withdrawal request system, `auth` is the `WithdrawalRequest` proxy and `id` is the request NFT id.
 
 4. BaseWithdrawer
    - `BaseWithdrawer` is currently a constructor-configured production adapter, not an upgradeable proxy.
@@ -103,8 +103,8 @@ Use [`src/Bag.sol`](src/Bag.sol) for claimable asset containers. It is concrete 
 Bag -> Initializable, ReentrancyGuardUpgradeable, IBag
 ```
 
-A bag must be initialized through `Bag.initialize(ownerRegistry, id)` by the factory-created beacon proxy. Do not
-assume the bag has local ownership state; it delegates authorization to `ownerRegistry.ownerOf(id)`.
+A bag must be initialized through `Bag.initialize(auth, id)` by the factory-created beacon proxy. Do not
+assume the bag has local ownership state; it delegates authorization to `auth.ownerOf(id)`.
 
 ### Withdrawer Instance
 
@@ -219,14 +219,13 @@ The resolver module, not `WithdrawalRequest`, must decide when cancellation is a
 
 ## Bag Configuration
 
-A `Bag` is a generic container. It does not know about `WithdrawalRequest` except through the `IAuth` owner registry
-interface.
+A `Bag` is a generic container. It does not know about `WithdrawalRequest` except through the `IAuth` interface.
 
 Production assumptions:
 
-- `ownerRegistry.ownerOf(id)` is the only claim authority.
+- `auth.ownerOf(id)` is the only claim authority.
 - If the request NFT transfers, claim authority follows the new NFT owner automatically.
-- A standalone bag registry is valid only if it controls owner changes correctly.
+- A standalone bag auth is valid only if it controls owner changes correctly.
 - Bag claim functions are intentionally owner-pull based. Do not add third-party sweeping paths without a clear
   authorization model.
 - `ETH` is represented by `0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE`.
@@ -395,10 +394,10 @@ forge test --match-path 'test/local/unit/withdrawalrequestviewer.t.sol'
 
 ### Bag work
 
-- Preserve owner-registry based authorization.
-- Do not introduce local ownership state that can diverge from `ownerRegistry.ownerOf(id)`.
+- Preserve auth-based authorization.
+- Do not introduce local ownership state that can diverge from `auth.ownerOf(id)`.
 - Preserve reentrancy protection around ERC20, native ETH, and ERC721 claims.
-- If adding new claim paths, test old owner vs new owner behavior after registry ownership changes.
+- If adding new claim paths, test old owner vs new owner behavior after auth ownership changes.
 
 ### Upgradeable patterns
 
@@ -452,7 +451,7 @@ Before finalizing, check:
 - Does it preserve storage layout and initializer safety where applicable?
 - Does it preserve request custody and locked-share accounting?
 - Are share amounts and asset amounts handled correctly?
-- Does bag authorization still follow the current owner registry?
+- Does bag authorization still follow the current auth?
 - Are the relevant tests run?
 - Are generated artifacts left untouched unless explicitly requested?
 

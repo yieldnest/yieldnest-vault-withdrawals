@@ -23,7 +23,7 @@ contract Bag is Initializable, ReentrancyGuardUpgradeable, IBag {
 
     /// @custom:storage-location erc7201:yieldnest.storage.bag
     struct BagStorage {
-        IAuth ownerRegistry;
+        IAuth auth;
         uint256 id;
     }
 
@@ -43,22 +43,22 @@ contract Bag is Initializable, ReentrancyGuardUpgradeable, IBag {
 
     modifier onlyOwner() {
         BagStorage storage $ = _getBagStorage();
-        if ($.ownerRegistry.ownerOf($.id) != msg.sender) revert NotRequestOwner(msg.sender);
+        if ($.auth.ownerOf($.id) != msg.sender) revert NotRequestOwner(msg.sender);
         _;
     }
 
     receive() external payable {}
 
     /// @notice Initializes the bag with the request NFT contract and request id.
-    /// @param ownerRegistry_ Contract that reports request NFT ownership.
+    /// @param auth_ Contract that reports request NFT ownership.
     /// @param id_ Withdrawal request id represented by this bag.
-    function initialize(address ownerRegistry_, uint256 id_) external initializer {
-        if (ownerRegistry_ == address(0)) revert ZeroAddress();
+    function initialize(address auth_, uint256 id_) external initializer {
+        if (auth_ == address(0)) revert ZeroAddress();
 
         __ReentrancyGuard_init();
 
         BagStorage storage $ = _getBagStorage();
-        $.ownerRegistry = IAuth(ownerRegistry_);
+        $.auth = IAuth(auth_);
         $.id = id_;
     }
 
@@ -69,9 +69,9 @@ contract Bag is Initializable, ReentrancyGuardUpgradeable, IBag {
     }
 
     /// @notice Returns the contract that reports request NFT ownership.
-    /// @return The request owner registry.
-    function ownerRegistry() external view returns (address) {
-        return address(_getBagStorage().ownerRegistry);
+    /// @return The request auth.
+    function auth() external view returns (address) {
+        return address(_getBagStorage().auth);
     }
 
     /// @notice Claims ERC20 assets and native ETH from this bag.

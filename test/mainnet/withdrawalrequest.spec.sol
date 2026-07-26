@@ -325,7 +325,7 @@ contract WithdrawalRequestMainnetTest is Test, Actors {
         assertEq(address(manager.bagFactory()), address(bagFactory));
         assertTrue(request.bag != address(0));
         assertEq(manager.ownerOf(requestId), owner);
-        assertEq(IBag(request.bag).ownerRegistry(), address(manager));
+        assertEq(IBag(request.bag).auth(), address(manager));
         assertEq(request.amountLocked, amount);
         assertEq(IERC20(address(vault)).balanceOf(address(manager)), amount);
     }

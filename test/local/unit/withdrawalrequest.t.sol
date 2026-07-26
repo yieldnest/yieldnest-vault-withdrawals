@@ -350,7 +350,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         assertEq(manager.maxDataLength(), maxDataLength);
         assertEq(ynToken.allowance(address(manager), address(withdrawer)), 0);
         assertTrue(manager.supportsInterface(type(IERC721Enumerable).interfaceId));
-        assertEq(IBag(request.bag).ownerRegistry(), address(manager));
+        assertEq(IBag(request.bag).auth(), address(manager));
         assertEq(IBag(request.bag).id(), id);
         assertEq(request.amountLocked, 10 ether);
         assertEq(request.rateAtRequest, 1 ether);
@@ -451,8 +451,8 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         assertEq(manager.tokenByIndex(1), secondId);
         assertEq(manager.tokenOfOwnerByIndex(user, 0), firstId);
         assertEq(manager.tokenOfOwnerByIndex(user, 1), secondId);
-        assertEq(IBag(firstRequest.bag).ownerRegistry(), address(manager));
-        assertEq(IBag(secondRequest.bag).ownerRegistry(), address(manager));
+        assertEq(IBag(firstRequest.bag).auth(), address(manager));
+        assertEq(IBag(secondRequest.bag).auth(), address(manager));
     }
 
     function testRequestWithdrawalMintsRequestNFTToReceiver() public {
@@ -466,7 +466,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         assertEq(manager.ownerOf(id), receiver);
         assertEq(manager.balanceOf(receiver), 1);
         assertEq(manager.tokenOfOwnerByIndex(receiver, 0), id);
-        assertEq(IBag(request.bag).ownerRegistry(), address(manager));
+        assertEq(IBag(request.bag).auth(), address(manager));
         assertEq(IBag(request.bag).id(), id);
     }
 
@@ -539,7 +539,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         assertEq(ynToken.balanceOf(address(manager)), managerBalanceBefore + amount);
         assertEq(request.amountLocked, amount);
         assertEq(manager.ownerOf(id), receiver_);
-        assertEq(IBag(request.bag).ownerRegistry(), address(manager));
+        assertEq(IBag(request.bag).auth(), address(manager));
         assertEq(IBag(request.bag).id(), id);
     }
 

@@ -20,12 +20,12 @@ interface IBag {
     function id() external view returns (uint256);
 
     /// @notice Returns the contract that reports request NFT ownership.
-    function ownerRegistry() external view returns (address);
+    function auth() external view returns (address);
 
-    /// @notice Initializes the bag with its owner registry and request id.
-    /// @param ownerRegistry_ Contract that reports request NFT ownership.
+    /// @notice Initializes the bag with its auth and request id.
+    /// @param auth_ Contract that reports request NFT ownership.
     /// @param id_ Withdrawal request id represented by this bag.
-    function initialize(address ownerRegistry_, uint256 id_) external;
+    function initialize(address auth_, uint256 id_) external;
 
     /// @notice Claims ERC20 assets and native ETH from this bag.
     /// @param assets Assets to claim, using `ETH` for native ETH.

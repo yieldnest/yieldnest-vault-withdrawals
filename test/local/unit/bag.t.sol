@@ -88,7 +88,7 @@ contract ReentrantERC721Claimer is IERC721Receiver {
     }
 }
 
-contract OwnerRegistryMock {
+contract AuthMock {
     mapping(uint256 id => address owner) internal owners;
 
     function setOwner(uint256 id, address owner) external {
@@ -100,14 +100,14 @@ contract OwnerRegistryMock {
     }
 }
 
-contract StandaloneBagOwnerRegistry {
+contract StandaloneBagAuth {
     mapping(uint256 bagId => address owner) internal owners;
 
     address public immutable admin;
 
     error AlreadyRegistered(uint256 bagId);
     error NotBagOwner(address caller, uint256 bagId);
-    error NotRegistryAdmin(address caller);
+    error NotAuthAdmin(address caller);
     error ZeroAddress();
 
     constructor(address admin_) {
@@ -116,7 +116,7 @@ contract StandaloneBagOwnerRegistry {
     }
 
     function registerBagOwner(uint256 bagId, address owner) external {
-        if (msg.sender != admin) revert NotRegistryAdmin(msg.sender);
+        if (msg.sender != admin) revert NotAuthAdmin(msg.sender);
         if (owner == address(0)) revert ZeroAddress();
         if (owners[bagId] != address(0)) revert AlreadyRegistered(bagId);
 
@@ -143,7 +143,7 @@ contract BagTest is Test {
     BagERC20Mock token;
     BagERC20SecondMock secondToken;
     BagERC721Mock nft;
-    OwnerRegistryMock ownerRegistry;
+    AuthMock auth;
 
     address admin = address(0xA11CE);
     address owner = address(0xB0B);
@@ -153,7 +153,7 @@ contract BagTest is Test {
 
     function setUp() public {
         implementation = new Bag();
-        ownerRegistry = new OwnerRegistryMock();
+        auth = new AuthMock();
         bag = _deployBag(owner, requestId);
         token = new BagERC20Mock();
         secondToken = new BagERC20SecondMock();
@@ -161,11 +161,11 @@ contract BagTest is Test {
     }
 
     function _deployBag(address owner_, uint256 id_) internal returns (Bag) {
-        ownerRegistry.setOwner(id_, owner_);
+        auth.setOwner(id_, owner_);
         return Bag(
             payable(address(
                     new TransparentUpgradeableProxy(
-                        address(implementation), owner_, abi.encodeCall(Bag.initialize, (address(ownerRegistry), id_))
+                        address(implementation), owner_, abi.encodeCall(Bag.initialize, (address(auth), id_))
                     )
                 ))
         );
@@ -195,37 +195,35 @@ contract BagTest is Test {
         return bag_.claim(assets, recipient_, amounts);
     }
 
-    function testInitializeSetsExpectedOwnerRegistryAndConstants() public view {
+    function testInitializeSetsExpectedAuthAndConstants() public view {
         assertEq(bag.VERSION(), "0.1.0");
         assertEq(bag.ETH(), 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE);
         assertEq(bag.id(), requestId);
-        assertEq(bag.ownerRegistry(), address(ownerRegistry));
+        assertEq(bag.auth(), address(auth));
     }
 
     function testInitializeSupportsZeroRequestId() public {
         Bag zeroIdBag = _deployBag(owner, 0);
 
         assertEq(zeroIdBag.id(), 0);
-        assertEq(zeroIdBag.ownerRegistry(), address(ownerRegistry));
+        assertEq(zeroIdBag.auth(), address(auth));
     }
 
-    function testBagCanUseStandaloneMutableOwnerRegistry() public {
-        StandaloneBagOwnerRegistry standaloneRegistry = new StandaloneBagOwnerRegistry(admin);
+    function testBagCanUseStandaloneMutableAuth() public {
+        StandaloneBagAuth standaloneAuth = new StandaloneBagAuth(admin);
         uint256 bagId = 7;
 
-        vm.expectRevert(abi.encodeWithSelector(StandaloneBagOwnerRegistry.NotRegistryAdmin.selector, owner));
+        vm.expectRevert(abi.encodeWithSelector(StandaloneBagAuth.NotAuthAdmin.selector, owner));
         vm.prank(owner);
-        standaloneRegistry.registerBagOwner(bagId, owner);
+        standaloneAuth.registerBagOwner(bagId, owner);
 
         vm.prank(admin);
-        standaloneRegistry.registerBagOwner(bagId, owner);
+        standaloneAuth.registerBagOwner(bagId, owner);
 
         Bag standaloneBag = Bag(
             payable(address(
                     new TransparentUpgradeableProxy(
-                        address(implementation),
-                        owner,
-                        abi.encodeCall(Bag.initialize, (address(standaloneRegistry), bagId))
+                        address(implementation), owner, abi.encodeCall(Bag.initialize, (address(standaloneAuth), bagId))
                     )
                 ))
         );
@@ -239,12 +237,12 @@ contract BagTest is Test {
         assertEq(token.balanceOf(recipient), 5 ether);
         assertEq(token.balanceOf(address(standaloneBag)), 7 ether);
 
-        vm.expectRevert(abi.encodeWithSelector(StandaloneBagOwnerRegistry.NotBagOwner.selector, other, bagId));
+        vm.expectRevert(abi.encodeWithSelector(StandaloneBagAuth.NotBagOwner.selector, other, bagId));
         vm.prank(other);
-        standaloneRegistry.transferBagOwnership(bagId, recipient);
+        standaloneAuth.transferBagOwnership(bagId, recipient);
 
         vm.prank(owner);
-        standaloneRegistry.transferBagOwnership(bagId, other);
+        standaloneAuth.transferBagOwnership(bagId, other);
 
         vm.expectRevert(abi.encodeWithSelector(IBag.NotRequestOwner.selector, owner));
         vm.prank(owner);
@@ -258,17 +256,17 @@ contract BagTest is Test {
         assertEq(token.balanceOf(address(standaloneBag)), 0);
     }
 
-    function testFuzzInitializeSetsExpectedOwnerRegistryAndId(address owner_, uint256 id_) public {
+    function testFuzzInitializeSetsExpectedAuthAndId(address owner_, uint256 id_) public {
         vm.assume(owner_ != address(0));
 
         Bag fuzzBag = _deployBag(owner_, id_);
 
         assertEq(fuzzBag.id(), id_);
-        assertEq(fuzzBag.ownerRegistry(), address(ownerRegistry));
-        assertEq(ownerRegistry.ownerOf(id_), owner_);
+        assertEq(fuzzBag.auth(), address(auth));
+        assertEq(auth.ownerOf(id_), owner_);
     }
 
-    function testInitializeRevertsForZeroOwnerRegistry() public {
+    function testInitializeRevertsForZeroAuth() public {
         vm.expectRevert(IBag.ZeroAddress.selector);
         new TransparentUpgradeableProxy(
             address(implementation), owner, abi.encodeCall(Bag.initialize, (address(0), requestId))
@@ -277,12 +275,12 @@ contract BagTest is Test {
 
     function testImplementationCannotBeInitialized() public {
         vm.expectRevert(Initializable.InvalidInitialization.selector);
-        implementation.initialize(address(ownerRegistry), requestId);
+        implementation.initialize(address(auth), requestId);
     }
 
     function testProxyCannotBeInitializedTwice() public {
         vm.expectRevert(Initializable.InvalidInitialization.selector);
-        bag.initialize(address(ownerRegistry), requestId + 1);
+        bag.initialize(address(auth), requestId + 1);
     }
 
     function testClaimTransfersERC20sAndNativeETH() public {
@@ -334,7 +332,7 @@ contract BagTest is Test {
 
     function testClaimRevertsOnNativeReentrancy() public {
         ReentrantNativeClaimer reentrantClaimer = new ReentrantNativeClaimer();
-        ownerRegistry.setOwner(requestId, address(reentrantClaimer));
+        auth.setOwner(requestId, address(reentrantClaimer));
         vm.deal(address(bag), 2 ether);
         reentrantClaimer.arm(bag, bag.ETH(), 1 ether);
 
@@ -486,7 +484,7 @@ contract BagTest is Test {
     function testClaimSingleERC20FollowsCurrentRequestOwnerAfterTransfer() public {
         token.mint(address(bag), 12 ether);
 
-        ownerRegistry.setOwner(requestId, other);
+        auth.setOwner(requestId, other);
 
         vm.expectRevert(abi.encodeWithSelector(IBag.NotRequestOwner.selector, owner));
         vm.prank(owner);
@@ -503,7 +501,7 @@ contract BagTest is Test {
         amount = uint128(bound(amount, 0, balance));
         token.mint(address(bag), balance);
 
-        ownerRegistry.setOwner(requestId, other);
+        auth.setOwner(requestId, other);
 
         vm.expectRevert(abi.encodeWithSelector(IBag.NotRequestOwner.selector, owner));
         vm.prank(owner);
@@ -542,7 +540,7 @@ contract BagTest is Test {
 
     function testClaimERC721RevertsOnReceiverReentrancy() public {
         ReentrantERC721Claimer reentrantClaimer = new ReentrantERC721Claimer();
-        ownerRegistry.setOwner(requestId, address(reentrantClaimer));
+        auth.setOwner(requestId, address(reentrantClaimer));
         nft.mint(address(bag), 7);
         nft.mint(address(bag), 8);
         reentrantClaimer.arm(bag, address(nft), 8);
