@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: BSD-3-Clause
 pragma solidity ^0.8.24;
 
-import {IWithdrawer} from "src/interface/IWithdrawer.sol";
+import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
+import {IWithdrawer} from "src/interface/IWithdrawer.sol";
 
 /// @title BaseWithdrawer
 /// @notice Authorized adapter that forwards withdrawals to the configured vault at its live redemption rate.
 contract BaseWithdrawer is IWithdrawer {
+    using SafeERC20 for IERC20;
+
     /// @custom:storage-location erc7201:yieldnest.storage.base_withdrawer
     struct BaseWithdrawerStorage {
         IVault token;
@@ -48,12 +52,16 @@ contract BaseWithdrawer is IWithdrawer {
     /// @param receiver Receiver of the withdrawn asset.
     /// @param owner Owner whose shares are consumed.
     /// @return shares Amount of shares consumed by the vault.
+    /// @dev When this withdrawer is used with BaseStrategy-backed vaults, grant it fee exemption
+    /// and, depending on the vault configuration, potentially ALLOCATOR_ROLE.
     function withdrawAsset(uint256, address asset, uint256 assets, address receiver, address owner)
         external
         virtual
         onlyWithdrawalRequest
         returns (uint256 shares)
     {
+        if (asset == address(token())) return _withdrawVaultToken(assets, receiver, owner);
+
         shares = token().withdrawAsset(asset, assets, receiver, owner);
     }
 
@@ -68,6 +76,18 @@ contract BaseWithdrawer is IWithdrawer {
     /// @return The configured vault token.
     function token() public view returns (IVault) {
         return _getBaseWithdrawerStorage().token;
+    }
+
+    /// @notice Moves locked vault-token shares directly to the receiver without calling the vault.
+    /// @dev Inheritors can use this to clear residual share dust or to support cancellation flows
+    /// that return unredeemed vault-token shares to the request owner through the request bag.
+    /// @param assets Amount of vault-token shares to transfer.
+    /// @param receiver Receiver of the vault-token shares.
+    /// @param owner Owner whose vault-token shares are transferred.
+    /// @return shares Amount of vault-token shares consumed.
+    function _withdrawVaultToken(uint256 assets, address receiver, address owner) internal returns (uint256 shares) {
+        IERC20(address(token())).safeTransferFrom(owner, receiver, assets);
+        return assets;
     }
 
     /// @notice Returns the withdrawal request contract authorized to call this withdrawer.

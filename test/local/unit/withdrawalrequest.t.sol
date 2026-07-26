@@ -44,40 +44,6 @@ contract ReentrantResolveWithdrawer is IWithdrawer {
     }
 }
 
-/// @notice Hypothetical withdrawer that redeems the yn-token in kind. Instead of burning shares to
-/// produce an underlying asset, it transfers the yn-token itself from the manager into the request bag.
-/// The manager's balance delta still equals the returned "burned" amount, so the resolution invariants hold.
-contract InKindWithdrawer is IWithdrawer {
-    using SafeERC20 for IERC20;
-
-    IERC20 internal immutable token;
-    address internal immutable withdrawalRequest;
-
-    error Unauthorized(address caller);
-    error InvalidAsset(address asset);
-
-    constructor(address token_, address withdrawalRequest_) {
-        token = IERC20(token_);
-        withdrawalRequest = withdrawalRequest_;
-    }
-
-    function withdrawAsset(uint256, address asset, uint256 assets, address receiver, address owner)
-        external
-        returns (uint256 shares)
-    {
-        if (msg.sender != withdrawalRequest) revert Unauthorized(msg.sender);
-        if (asset != address(token)) revert InvalidAsset(asset);
-
-        // No burn: move the yn-token in kind from the manager (owner) into the request bag (receiver).
-        token.safeTransferFrom(owner, receiver, assets);
-        return assets;
-    }
-
-    function convertToAssets(uint256 shares) external pure returns (uint256) {
-        return shares;
-    }
-}
-
 contract DrainingWithdrawer is IWithdrawer {
     using SafeERC20 for IERC20;
 
@@ -1067,12 +1033,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         assertEq(asset.balanceOf(request.bag), 0);
     }
 
-    function testInKindWithdrawerResolvesYnTokenIntoBagWithoutBurning() public {
-        InKindWithdrawer inKindWithdrawer = new InKindWithdrawer(address(ynToken), address(manager));
-
-        vm.prank(configurationManager);
-        manager.setWithdrawer(address(inKindWithdrawer));
-
+    function testBaseWithdrawerResolvesYnTokenIntoBagWithoutBurning() public {
         uint256 totalSupplyBefore = ynToken.totalSupply();
 
         vm.prank(user);
