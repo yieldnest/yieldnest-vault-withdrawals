@@ -7,7 +7,7 @@ import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {BaseWithdrawer} from "src/withdrawers/BaseWithdrawer.sol";
 
 /// @title FixedRateWithdrawer
-/// @notice Withdrawer adapter that enforces a minimum redemption rate for the vault default asset.
+/// @notice Test-only withdrawer adapter that enforces a minimum redemption rate for the vault default asset.
 contract FixedRateWithdrawer is BaseWithdrawer {
     using SafeERC20 for IERC20;
     using Math for uint256;

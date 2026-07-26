@@ -21,7 +21,7 @@ import {Bag} from "src/Bag.sol";
 import {MinAmountRequestPolicy} from "src/policies/MinAmountRequestPolicy.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 import {BaseWithdrawer} from "src/withdrawers/BaseWithdrawer.sol";
-import {FixedRateWithdrawer} from "src/withdrawers/FixedRateWithdrawer.sol";
+import {FixedRateWithdrawer} from "test/local/unit/helpers/FixedRateWithdrawer.sol";
 import {SetupWithdrawalRequest} from "test/local/unit/helpers/SetupWithdrawalRequest.sol";
 import {WithdrawalRequestViewer} from "views/WithdrawalRequestViewer.sol";
 
