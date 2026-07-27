@@ -169,7 +169,12 @@ contract WithdrawalRequest is
     /// @param amount Amount of configured yn-token shares to lock.
     /// @param receiver Receiver of the request NFT that controls claims.
     /// @return id Generated request id.
-    function requestWithdrawal(uint256 amount, address receiver) external whenNotPaused returns (uint256 id) {
+    function requestWithdrawal(uint256 amount, address receiver)
+        external
+        whenNotPaused
+        nonReentrant
+        returns (uint256 id)
+    {
         id = _requestWithdrawal(amount, receiver, "");
     }
 
@@ -181,6 +186,7 @@ contract WithdrawalRequest is
     function requestWithdrawal(uint256 amount, address receiver, bytes calldata data)
         external
         whenNotPaused
+        nonReentrant
         returns (uint256 id)
     {
         id = _requestWithdrawal(amount, receiver, data);
@@ -216,7 +222,7 @@ contract WithdrawalRequest is
     /// and all tracked redeemed asset balances in the request bag have been claimed.
     /// Untracked assets left in the request bag are not checked and become permanently inaccessible after burn.
     /// @param id Request id to burn.
-    function burn(uint256 id) external {
+    function burn(uint256 id) external nonReentrant {
         RequestStorage storage $ = _getRequestStorage();
         Request storage request = $.requests[id];
         if (!_requestExists(request)) revert RequestNotFound(id);
