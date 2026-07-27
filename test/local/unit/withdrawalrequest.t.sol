@@ -120,6 +120,16 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         setUpWithdrawalRequest();
     }
 
+    function _deployFixedRateWithdrawer(uint256 fixedRate, address collector_) internal returns (FixedRateWithdrawer) {
+        FixedRateWithdrawer implementation = new FixedRateWithdrawer(fixedRate, collector_);
+        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
+            address(implementation),
+            admin,
+            abi.encodeCall(BaseWithdrawer.initialize, (address(ynToken), address(manager)))
+        );
+        return FixedRateWithdrawer(address(proxy));
+    }
+
     function _claimSingleERC20(address bag, address asset_, address recipient_, uint256 amount)
         internal
         returns (uint256[] memory)
@@ -839,7 +849,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
     }
 
     function testSetWithdrawerUpdatesWithdrawerAndRevokesOldApproval() public {
-        BaseWithdrawer newWithdrawer = new BaseWithdrawer(address(ynToken), address(manager));
+        BaseWithdrawer newWithdrawer = _deployBaseWithdrawer(address(ynToken), address(manager));
 
         vm.expectEmit(false, false, false, true, address(manager));
         emit WithdrawalRequest.WithdrawerUpdated(address(withdrawer), address(newWithdrawer));
@@ -871,7 +881,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
     }
 
     function testSetWithdrawerRequiresConfigurationManagerRole() public {
-        BaseWithdrawer newWithdrawer = new BaseWithdrawer(address(ynToken), address(manager));
+        BaseWithdrawer newWithdrawer = _deployBaseWithdrawer(address(ynToken), address(manager));
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -888,12 +898,25 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         manager.setWithdrawer(address(0));
     }
 
-    function testBaseWithdrawerConstructorRevertsForZeroAddresses() public {
-        vm.expectRevert(BaseWithdrawer.ZeroAddress.selector);
-        new BaseWithdrawer(address(0), address(manager));
+    function testBaseWithdrawerImplementationCannotBeInitialized() public {
+        BaseWithdrawer implementation = new BaseWithdrawer();
+
+        vm.expectRevert(Initializable.InvalidInitialization.selector);
+        implementation.initialize(address(ynToken), address(manager));
+    }
+
+    function testBaseWithdrawerInitializeRevertsForZeroAddresses() public {
+        BaseWithdrawer implementation = new BaseWithdrawer();
 
         vm.expectRevert(BaseWithdrawer.ZeroAddress.selector);
-        new BaseWithdrawer(address(ynToken), address(0));
+        new TransparentUpgradeableProxy(
+            address(implementation), admin, abi.encodeCall(BaseWithdrawer.initialize, (address(0), address(manager)))
+        );
+
+        vm.expectRevert(BaseWithdrawer.ZeroAddress.selector);
+        new TransparentUpgradeableProxy(
+            address(implementation), admin, abi.encodeCall(BaseWithdrawer.initialize, (address(ynToken), address(0)))
+        );
     }
 
     function testBaseWithdrawerRejectsUnauthorizedCaller() public {
@@ -930,8 +953,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
     function testConvertToAssetsAtRedemptionRateUsesConfiguredWithdrawer() public {
         assertEq(viewer.convertToAssetsAtRedemptionRate(manager, 1 ether), 1 ether);
 
-        FixedRateWithdrawer fixedRateWithdrawer =
-            new FixedRateWithdrawer(address(ynToken), address(manager), 0.5 ether, collector);
+        FixedRateWithdrawer fixedRateWithdrawer = _deployFixedRateWithdrawer(0.5 ether, collector);
 
         vm.prank(configurationManager);
         manager.setWithdrawer(address(fixedRateWithdrawer));
@@ -1186,8 +1208,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
     }
 
     function testFixedRateWithdrawerRejectsNonDefaultAsset() public {
-        FixedRateWithdrawer fixedRateWithdrawer =
-            new FixedRateWithdrawer(address(ynToken), address(manager), 1 ether, collector);
+        FixedRateWithdrawer fixedRateWithdrawer = _deployFixedRateWithdrawer(1 ether, collector);
 
         vm.prank(configurationManager);
         manager.setWithdrawer(address(fixedRateWithdrawer));
@@ -1202,15 +1223,14 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
 
     function testFixedRateWithdrawerConstructorRevertsForInvalidParams() public {
         vm.expectRevert(FixedRateWithdrawer.InvalidRate.selector);
-        new FixedRateWithdrawer(address(ynToken), address(manager), 0, collector);
+        new FixedRateWithdrawer(0, collector);
 
         vm.expectRevert(BaseWithdrawer.ZeroAddress.selector);
-        new FixedRateWithdrawer(address(ynToken), address(manager), 1 ether, address(0));
+        new FixedRateWithdrawer(1 ether, address(0));
     }
 
     function testFixedRateWithdrawerReturnsActualBurnWhenRateIsBelowFixedRate() public {
-        FixedRateWithdrawer fixedRateWithdrawer =
-            new FixedRateWithdrawer(address(ynToken), address(manager), 1 ether, collector);
+        FixedRateWithdrawer fixedRateWithdrawer = _deployFixedRateWithdrawer(1 ether, collector);
 
         vm.prank(configurationManager);
         manager.setWithdrawer(address(fixedRateWithdrawer));
@@ -1229,8 +1249,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
     }
 
     function testFixedRateWithdrawerAllowsDefaultAssetAtFixedRate() public {
-        FixedRateWithdrawer fixedRateWithdrawer =
-            new FixedRateWithdrawer(address(ynToken), address(manager), 1 ether, collector);
+        FixedRateWithdrawer fixedRateWithdrawer = _deployFixedRateWithdrawer(1 ether, collector);
 
         vm.prank(configurationManager);
         manager.setWithdrawer(address(fixedRateWithdrawer));
@@ -1248,8 +1267,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
     }
 
     function testFixedRateWithdrawerTransfersSurplusSharesToCollector() public {
-        FixedRateWithdrawer fixedRateWithdrawer =
-            new FixedRateWithdrawer(address(ynToken), address(manager), 0.5 ether, collector);
+        FixedRateWithdrawer fixedRateWithdrawer = _deployFixedRateWithdrawer(0.5 ether, collector);
 
         vm.prank(configurationManager);
         manager.setWithdrawer(address(fixedRateWithdrawer));

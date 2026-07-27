@@ -146,8 +146,8 @@ contract SetupWithdrawalRequest is Test {
         bagFactory = BeaconProxyFactory(address(bagFactoryProxy));
 
         WithdrawalRequest implementation = new WithdrawalRequest();
-        address predictedManager = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 2);
-        withdrawer = new BaseWithdrawer(address(ynToken), predictedManager);
+        address predictedManager = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 3);
+        withdrawer = _deployBaseWithdrawer(address(ynToken), predictedManager);
         requestPolicy = new MinAmountRequestPolicy(minWithdrawalAmount);
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
             address(implementation),
@@ -184,5 +184,13 @@ contract SetupWithdrawalRequest is Test {
 
         vm.prank(user);
         ynToken.approve(address(manager), type(uint256).max);
+    }
+
+    function _deployBaseWithdrawer(address token_, address withdrawalRequest_) internal returns (BaseWithdrawer) {
+        BaseWithdrawer implementation = new BaseWithdrawer();
+        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
+            address(implementation), admin, abi.encodeCall(BaseWithdrawer.initialize, (token_, withdrawalRequest_))
+        );
+        return BaseWithdrawer(address(proxy));
     }
 }

@@ -22,12 +22,14 @@ contract DeployWithdrawalRequest is BaseScript {
     Bag public bagImplementation;
     BeaconProxyFactory public bagFactoryImplementation;
     BeaconProxyFactory public bagFactory;
+    BaseWithdrawer public requestWithdrawerImplementation;
     BaseWithdrawer public requestWithdrawer;
     MinAmountRequestPolicy public requestPolicy;
     WithdrawalRequest public requestImplementation;
     WithdrawalRequest public withdrawalRequest;
     WithdrawalRequestViewer public withdrawalRequestViewer;
     TransparentUpgradeableProxy public bagFactoryProxy;
+    TransparentUpgradeableProxy public requestWithdrawerProxy;
     TransparentUpgradeableProxy public proxy;
 
     address public token;
@@ -55,7 +57,7 @@ contract DeployWithdrawalRequest is BaseScript {
 
         deployer = tx.origin;
         uint256 nonce = vm.getNonce(deployer);
-        predictedProxy = vm.computeCreateAddress(deployer, nonce + 7);
+        predictedProxy = vm.computeCreateAddress(deployer, nonce + 8);
 
         _deployTimelockController();
         defaultAdmin = address(timelock);
@@ -71,7 +73,13 @@ contract DeployWithdrawalRequest is BaseScript {
             )
         );
         bagFactory = BeaconProxyFactory(address(bagFactoryProxy));
-        requestWithdrawer = new BaseWithdrawer(token, predictedProxy);
+        requestWithdrawerImplementation = new BaseWithdrawer();
+        requestWithdrawerProxy = new TransparentUpgradeableProxy(
+            address(requestWithdrawerImplementation),
+            defaultAdmin,
+            abi.encodeCall(BaseWithdrawer.initialize, (token, predictedProxy))
+        );
+        requestWithdrawer = BaseWithdrawer(address(requestWithdrawerProxy));
         requestPolicy = new MinAmountRequestPolicy(MIN_WITHDRAWAL_AMOUNT);
         requestImplementation = new WithdrawalRequest();
         proxy = new TransparentUpgradeableProxy(
@@ -174,7 +182,9 @@ contract DeployWithdrawalRequest is BaseScript {
         vm.serializeAddress(symbol(), "bagFactory", address(bagFactory));
         vm.serializeAddress(symbol(), "bagFactoryProxy", address(bagFactoryProxy));
         vm.serializeAddress(symbol(), "beacon", bagFactory.beacon());
+        vm.serializeAddress(symbol(), "withdrawerImplementation", address(requestWithdrawerImplementation));
         vm.serializeAddress(symbol(), "withdrawer", address(requestWithdrawer));
+        vm.serializeAddress(symbol(), "withdrawerProxy", address(requestWithdrawerProxy));
         vm.serializeAddress(symbol(), "requestPolicy", address(requestPolicy));
         vm.serializeAddress(symbol(), "proxy", address(proxy));
         vm.serializeAddress(symbol(), "predictedProxy", predictedProxy);

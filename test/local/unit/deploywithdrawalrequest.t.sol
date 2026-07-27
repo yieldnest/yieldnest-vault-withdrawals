@@ -3,6 +3,9 @@ pragma solidity ^0.8.24;
 
 import "forge-std/Test.sol";
 import {TimelockController} from "lib/openzeppelin-contracts/contracts/governance/TimelockController.sol";
+import {
+    TransparentUpgradeableProxy
+} from "lib/openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {ERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 import {MainnetContracts as MC} from "lib/yieldnest-vault/script/Contracts.sol";
 import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
@@ -92,9 +95,11 @@ contract DeployWithdrawalRequestTest is Test {
         WithdrawalRequest manager = deployScript.withdrawalRequest();
         BeaconProxyFactory bagFactory = deployScript.bagFactory();
         BaseWithdrawer withdrawer = deployScript.requestWithdrawer();
+        BaseWithdrawer withdrawerImplementation = deployScript.requestWithdrawerImplementation();
         MinAmountRequestPolicy requestPolicy = deployScript.requestPolicy();
         assertGt(address(viewer).code.length, 0);
         assertGt(address(withdrawer).code.length, 0);
+        assertGt(address(withdrawerImplementation).code.length, 0);
         assertGt(address(requestPolicy).code.length, 0);
         assertGt(address(timelock).code.length, 0);
         assertEq(address(withdrawer.token()), MC.YNETHX);
@@ -125,7 +130,11 @@ contract DeployWithdrawalRequestTest is Test {
             vm.parseJsonAddress(deploymentJson, ".bagFactoryImplementation"),
             address(deployScript.bagFactoryImplementation())
         );
+        assertEq(vm.parseJsonAddress(deploymentJson, ".withdrawerImplementation"), address(withdrawerImplementation));
         assertEq(vm.parseJsonAddress(deploymentJson, ".withdrawer"), address(withdrawer));
+        assertEq(
+            vm.parseJsonAddress(deploymentJson, ".withdrawerProxy"), address(deployScript.requestWithdrawerProxy())
+        );
         assertEq(vm.parseJsonAddress(deploymentJson, ".requestPolicy"), address(requestPolicy));
         assertEq(vm.parseJsonAddress(deploymentJson, ".withdrawalRequest"), address(manager));
         assertEq(vm.parseJsonAddress(deploymentJson, ".defaultAdmin"), address(timelock));
@@ -309,8 +318,18 @@ contract DeployWithdrawalRequestTest is Test {
 
     function testVerifySetupRejectsUnexpectedWithdrawer() public {
         DeployWithdrawalRequestHarness deployScript = _deployScript();
-        BaseWithdrawer otherWithdrawer =
-            new BaseWithdrawer(deployScript.token(), address(deployScript.withdrawalRequest()));
+        BaseWithdrawer otherWithdrawerImplementation = new BaseWithdrawer();
+        BaseWithdrawer otherWithdrawer = BaseWithdrawer(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(otherWithdrawerImplementation),
+                    address(deployScript.timelock()),
+                    abi.encodeCall(
+                        BaseWithdrawer.initialize, (deployScript.token(), address(deployScript.withdrawalRequest()))
+                    )
+                )
+            )
+        );
         deployScript.setRequestWithdrawer(otherWithdrawer);
 
         vm.expectRevert(InvalidSetup.selector);

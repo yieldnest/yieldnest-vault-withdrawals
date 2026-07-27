@@ -3,12 +3,13 @@ pragma solidity ^0.8.24;
 
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Initializable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
 import {IWithdrawer} from "src/interface/IWithdrawer.sol";
 
 /// @title BaseWithdrawer
 /// @notice Authorized adapter that forwards withdrawals to the configured vault at its live redemption rate.
-contract BaseWithdrawer is IWithdrawer {
+contract BaseWithdrawer is Initializable, IWithdrawer {
     using SafeERC20 for IERC20;
 
     /// @custom:storage-location erc7201:yieldnest.storage.base_withdrawer
@@ -35,10 +36,19 @@ contract BaseWithdrawer is IWithdrawer {
         _;
     }
 
-    /// @notice Deploys a withdrawer bound to one vault and one withdrawal request contract.
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    /// @notice Initializes a withdrawer bound to one vault and one withdrawal request contract.
     /// @param token_ Vault token to withdraw assets from.
     /// @param withdrawalRequest_ Withdrawal request contract authorized to call this withdrawer.
-    constructor(address token_, address withdrawalRequest_) {
+    function initialize(address token_, address withdrawalRequest_) external initializer {
+        __BaseWithdrawer_init(token_, withdrawalRequest_);
+    }
+
+    function __BaseWithdrawer_init(address token_, address withdrawalRequest_) internal onlyInitializing {
         if (token_ == address(0) || withdrawalRequest_ == address(0)) revert ZeroAddress();
 
         BaseWithdrawerStorage storage $ = _getBaseWithdrawerStorage();

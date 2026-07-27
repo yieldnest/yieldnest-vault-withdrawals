@@ -129,8 +129,17 @@ contract WithdrawalRequestViewerTest is Test {
         );
 
         WithdrawalRequest implementation = new WithdrawalRequest();
-        address predictedManager = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 2);
-        BaseWithdrawer withdrawer = new BaseWithdrawer(address(ynToken), predictedManager);
+        address predictedManager = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 3);
+        BaseWithdrawer withdrawerImplementation = new BaseWithdrawer();
+        BaseWithdrawer withdrawer = BaseWithdrawer(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(withdrawerImplementation),
+                    admin,
+                    abi.encodeCall(BaseWithdrawer.initialize, (address(ynToken), predictedManager))
+                )
+            )
+        );
         MinAmountRequestPolicy requestPolicy = new MinAmountRequestPolicy(1 ether);
         manager = WithdrawalRequest(
             address(
