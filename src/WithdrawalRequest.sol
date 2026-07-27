@@ -214,6 +214,7 @@ contract WithdrawalRequest is
     /// @notice Burns a fully resolved and claimed request NFT.
     /// @dev The caller must own the request NFT. Burning is allowed only after the locked yn-token balance is zero
     /// and all tracked redeemed asset balances in the request bag have been claimed.
+    /// Untracked assets left in the request bag are not checked and become permanently inaccessible after burn.
     /// @param id Request id to burn.
     function burn(uint256 id) external {
         RequestStorage storage $ = _getRequestStorage();
