@@ -715,6 +715,12 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         manager.requestWithdrawal(minWithdrawalAmount - 1, user);
     }
 
+    function testRequestWithdrawalRevertsForZeroAmount() public {
+        vm.expectRevert(WithdrawalRequest.ZeroAmount.selector);
+        vm.prank(user);
+        manager.requestWithdrawal(0, user);
+    }
+
     function testFuzzRequestWithdrawalRevertsBelowMinimumAmount(uint96 amount) public {
         amount = uint96(bound(amount, 1, minWithdrawalAmount - 1));
 
@@ -734,6 +740,11 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
     function testRequestsRevertsWhenRequestDoesNotExist() public {
         vm.expectRevert(abi.encodeWithSelector(WithdrawalRequest.RequestNotFound.selector, 123));
         manager.requests(123);
+    }
+
+    function testBurnRevertsWhenRequestDoesNotExist() public {
+        vm.expectRevert(abi.encodeWithSelector(WithdrawalRequest.RequestNotFound.selector, 123));
+        manager.burn(123);
     }
 
     function testSetRequestPolicyRequiresConfigurationManagerRole() public {
@@ -904,6 +915,11 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
 
     function testBaseWithdrawerConvertToAssetsUsesVaultRate() public view {
         assertEq(withdrawer.convertToAssets(1 ether), 1 ether);
+    }
+
+    function testBaseWithdrawerReturnsConfiguredTokenAndManager() public view {
+        assertEq(address(withdrawer.token()), address(ynToken));
+        assertEq(withdrawer.withdrawalRequest(), address(manager));
     }
 
     function testConvertToAssets() public view {
@@ -1152,6 +1168,12 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         vm.expectRevert(WithdrawalRequest.ZeroAddress.selector);
         vm.prank(resolver);
         manager.resolveWithdrawalRequest(id, address(0), 1 ether);
+    }
+
+    function testResolveWithdrawalRequestRevertsWhenRequestDoesNotExist() public {
+        vm.expectRevert(abi.encodeWithSelector(WithdrawalRequest.RequestNotFound.selector, 123));
+        vm.prank(resolver);
+        manager.resolveWithdrawalRequest(123, address(asset), 1 ether);
     }
 
     function testResolveWithdrawalRequestRevertsForZeroAssets() public {
