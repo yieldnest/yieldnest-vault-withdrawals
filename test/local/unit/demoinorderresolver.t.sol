@@ -295,6 +295,7 @@ contract DemoInOrderResolverTest is SetupWithdrawalRequest {
     function _installDemoResolver() internal returns (DemoInOrderResolver demoResolver) {
         demoResolver = new DemoInOrderResolver(manager);
         DemoResolverWithdrawer demoWithdrawer = new DemoResolverWithdrawer(address(ynToken), address(manager));
+        _authorizeAssetWithdrawer(address(demoWithdrawer));
 
         vm.prank(configurationManager);
         manager.setWithdrawer(address(demoWithdrawer));

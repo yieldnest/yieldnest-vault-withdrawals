@@ -67,8 +67,7 @@ contract FillRatioResolverTest is SetupWithdrawalRequest {
     }
 
     function testResolveAvailableConvertsShareBudgetToAssetAmount() public {
-        ynToken.setAssetRate(2 ether);
-        ynToken.setBurnMultiplier(2);
+        _setAssetRate(address(asset), 2 ether);
 
         vm.prank(configurationManager);
         fillResolver.setFillRatioBps(5_000);

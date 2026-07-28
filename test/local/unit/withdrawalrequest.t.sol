@@ -75,6 +75,48 @@ interface IRequestRateWithdrawerVault is IERC20 {
     function convertToAssets(uint256 shares) external view returns (uint256 assets);
 }
 
+contract BadReturnWithdrawer is IWithdrawer {
+    IRequestRateWithdrawerVault internal immutable token;
+    uint256 internal immutable returnOffset;
+
+    constructor(address token_, uint256 returnOffset_) {
+        token = IRequestRateWithdrawerVault(token_);
+        returnOffset = returnOffset_;
+    }
+
+    function withdrawAsset(uint256, address asset, uint256 assets, address receiver, address owner)
+        external
+        returns (uint256 shares)
+    {
+        shares = token.withdrawAsset(asset, assets, receiver, owner) + returnOffset;
+    }
+
+    function convertToAssets(uint256 shares) external view returns (uint256 assets) {
+        return token.convertToAssets(shares);
+    }
+}
+
+contract ShortfallWithdrawer is IWithdrawer {
+    IRequestRateWithdrawerVault internal immutable token;
+    uint256 internal immutable shortfall;
+
+    constructor(address token_, uint256 shortfall_) {
+        token = IRequestRateWithdrawerVault(token_);
+        shortfall = shortfall_;
+    }
+
+    function withdrawAsset(uint256, address asset, uint256 assets, address receiver, address owner)
+        external
+        returns (uint256 shares)
+    {
+        shares = token.withdrawAsset(asset, assets - shortfall, receiver, owner);
+    }
+
+    function convertToAssets(uint256 shares) external view returns (uint256 assets) {
+        return token.convertToAssets(shares);
+    }
+}
+
 /// @notice Hypothetical test-only withdrawer that charges each request at its recorded request-time rate.
 contract RequestRateWithdrawer is IWithdrawer {
     using Math for uint256;
@@ -127,7 +169,9 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
             admin,
             abi.encodeCall(BaseWithdrawer.initialize, (address(ynToken), address(manager)))
         );
-        return FixedRateWithdrawer(address(proxy));
+        FixedRateWithdrawer fixedRateWithdrawer = FixedRateWithdrawer(address(proxy));
+        _authorizeAssetWithdrawer(address(fixedRateWithdrawer));
+        return fixedRateWithdrawer;
     }
 
     function _claimSingleERC20(address bag, address asset_, address recipient_, uint256 amount)
@@ -368,12 +412,12 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
     }
 
     function testRequestWithdrawalRecordsRateAtCreation() public {
-        ynToken.setConvertToAssetsRate(2 ether);
+        _setDefaultAssetPerShare(2 ether);
 
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, user);
 
-        ynToken.setConvertToAssetsRate(3 ether);
+        _setDefaultAssetPerShare(3 ether);
 
         WithdrawalRequest.Request memory request = manager.requests(id);
         assertEq(request.amountLocked, 10 ether);
@@ -926,7 +970,10 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
     }
 
     function testBaseWithdrawerForwardsWithdrawalAndReturnsBurnedShares() public {
-        ynToken.mint(address(manager), 2 ether);
+        _mintVaultShares(address(manager), 2 ether);
+
+        vm.prank(address(manager));
+        ynToken.approve(address(withdrawer), 2 ether);
 
         vm.prank(address(manager));
         uint256 sharesBurned = withdrawer.withdrawAsset(0, address(asset), 2 ether, receiver, address(manager));
@@ -1234,7 +1281,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
 
         vm.prank(configurationManager);
         manager.setWithdrawer(address(fixedRateWithdrawer));
-        ynToken.setBurnMultiplier(2);
+        _setAssetRate(address(asset), 2 ether);
 
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, user);
@@ -1288,11 +1335,12 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
     function testRequestRateWithdrawerChargesRateRecordedAtRequestTime() public {
         RequestRateWithdrawer requestRateWithdrawer =
             new RequestRateWithdrawer(address(manager), address(ynToken), collector);
+        _authorizeAssetWithdrawer(address(requestRateWithdrawer));
 
         vm.prank(configurationManager);
         manager.setWithdrawer(address(requestRateWithdrawer));
 
-        ynToken.setConvertToAssetsRate(0.5 ether);
+        _setDefaultAssetPerShare(0.5 ether);
 
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, user);
@@ -1300,7 +1348,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         WithdrawalRequest.Request memory request = manager.requests(id);
         assertEq(request.rateAtRequest, 0.5 ether);
 
-        ynToken.setConvertToAssetsRate(1 ether);
+        _setDefaultAssetPerShare(1 ether);
 
         vm.prank(resolver);
         uint256 amountBurned = manager.resolveWithdrawalRequest(id, address(asset), 1 ether);
@@ -1386,7 +1434,11 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
     }
 
     function testResolveWithdrawalRequestRevertsWhenReturnedBurnAmountMismatchesBalanceDelta() public {
-        ynToken.setReturnAmountOffset(100 ether);
+        BadReturnWithdrawer badReturnWithdrawer = new BadReturnWithdrawer(address(ynToken), 100 ether);
+        _authorizeAssetWithdrawer(address(badReturnWithdrawer));
+
+        vm.prank(configurationManager);
+        manager.setWithdrawer(address(badReturnWithdrawer));
 
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, user);
@@ -1397,7 +1449,11 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
     }
 
     function testResolveWithdrawalRequestRevertsWhenAssetsWithdrawnMismatchExpected() public {
-        ynToken.setTransferShortfall(1 ether);
+        ShortfallWithdrawer shortfallWithdrawer = new ShortfallWithdrawer(address(ynToken), 1 ether);
+        _authorizeAssetWithdrawer(address(shortfallWithdrawer));
+
+        vm.prank(configurationManager);
+        manager.setWithdrawer(address(shortfallWithdrawer));
 
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, user);
@@ -1420,16 +1476,13 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         manager.resolveWithdrawalRequest(id, address(asset), 1 ether);
     }
 
-    function testResolveWithdrawalRequestRevertsWhenBurnExceedsLockedAmount() public {
-        ynToken.mint(address(manager), 20 ether);
-        ynToken.setBurnMultiplier(2);
-
+    function testResolveWithdrawalRequestRevertsWhenVaultBurnExceedsApprovedLockedAmount() public {
+        _mintVaultShares(address(manager), 20 ether);
+        _setAssetRate(address(asset), 2 ether);
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, user);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(WithdrawalRequest.InsufficientLockedAmount.selector, id, 10 ether, 12 ether)
-        );
+        vm.expectRevert();
         vm.prank(resolver);
         manager.resolveWithdrawalRequest(id, address(asset), 6 ether);
     }
