@@ -13,6 +13,12 @@ contract WithdrawalRequestAccountingHandler is Test {
     address internal immutable asset;
     uint256 internal immutable minWithdrawalAmount;
 
+    uint256 public depositedEver;
+    uint256 public burnedEver;
+    mapping(uint256 id => uint256 amount) public initialLocked;
+    mapping(uint256 id => uint256 amount) public burnedById;
+    mapping(uint256 id => uint256 amount) public lastObservedAmountLocked;
+
     constructor(WithdrawalRequest manager_, IERC20 token_, address asset_, uint256 minWithdrawalAmount_) {
         manager = manager_;
         token = token_;
@@ -26,7 +32,11 @@ contract WithdrawalRequestAccountingHandler is Test {
         if (balance < minWithdrawalAmount) return;
 
         amount = bound(amount, minWithdrawalAmount, balance);
-        manager.requestWithdrawal(amount, address(this));
+        uint256 id = manager.requestWithdrawal(amount, address(this));
+
+        depositedEver += amount;
+        initialLocked[id] = amount;
+        lastObservedAmountLocked[id] = amount;
     }
 
     function resolveWithdrawalRequest(uint256 seed, uint256 assets) external {
@@ -40,7 +50,12 @@ contract WithdrawalRequestAccountingHandler is Test {
         if (request.amountLocked == 0) return;
 
         assets = bound(assets, 1, request.amountLocked);
-        manager.resolveWithdrawalRequest(id, asset, assets);
+        uint256 amountBurned = manager.resolveWithdrawalRequest(id, asset, assets);
+        WithdrawalRequest.Request memory updatedRequest = manager.requests(id);
+
+        burnedEver += amountBurned;
+        burnedById[id] += amountBurned;
+        lastObservedAmountLocked[id] = updatedRequest.amountLocked;
     }
 }
 
@@ -64,14 +79,48 @@ contract WithdrawalRequestInvariantTest is StdInvariant, SetupWithdrawalRequest 
     }
 
     function invariant_sumOfAmountLockedEqualsManagerTokenBalance() public view {
-        uint256 amountLockedSum;
+        assertEq(_sumLiveAmountLocked(), ynToken.balanceOf(address(manager)));
+    }
+
+    function invariant_timeIntegratedShareConservation() public view {
+        assertEq(handler.burnedEver() + _sumLiveAmountLocked(), handler.depositedEver());
+    }
+
+    function invariant_managerIsPureConduit() public view {
+        assertEq(asset.balanceOf(address(manager)), 0);
+        assertEq(secondAsset.balanceOf(address(manager)), 0);
+        assertEq(address(manager).balance, 0);
+    }
+
+    function invariant_amountLockedMonotonicAndBelowInitial() public view {
+        uint256 nextRequestId = manager.nextRequestId();
+
+        for (uint256 id = 0; id < nextRequestId; ++id) {
+            if (!manager.requestExists(id)) continue;
+
+            uint256 amountLocked = manager.requests(id).amountLocked;
+            assertLe(amountLocked, handler.initialLocked(id));
+            assertLe(amountLocked, handler.lastObservedAmountLocked(id));
+        }
+    }
+
+    function invariant_perRequestBurnConservation() public view {
+        uint256 nextRequestId = manager.nextRequestId();
+
+        for (uint256 id = 0; id < nextRequestId; ++id) {
+            if (!manager.requestExists(id)) continue;
+
+            uint256 amountLocked = manager.requests(id).amountLocked;
+            assertEq(handler.burnedById(id), handler.initialLocked(id) - amountLocked);
+        }
+    }
+
+    function _sumLiveAmountLocked() internal view returns (uint256 amountLockedSum) {
         uint256 nextRequestId = manager.nextRequestId();
 
         for (uint256 id = 0; id < nextRequestId; ++id) {
             if (!manager.requestExists(id)) continue;
             amountLockedSum += manager.requests(id).amountLocked;
         }
-
-        assertEq(amountLockedSum, ynToken.balanceOf(address(manager)));
     }
 }
