@@ -11,22 +11,35 @@ import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 import {SetupWithdrawalRequest} from "test/local/unit/helpers/SetupWithdrawalRequest.sol";
 
 contract WithdrawalRequestAccountingHandler is Test {
+    using Math for uint256;
+
     WithdrawalRequest internal immutable manager;
     IERC20 internal immutable token;
+    IVault internal immutable vault;
     address internal immutable asset;
     uint256 internal immutable minWithdrawalAmount;
 
     uint256 public depositedEver;
     uint256 public burnedEver;
     uint256 public liveAmountLocked;
-    uint256 public resolvedAssetsEver;
     mapping(uint256 id => uint256 amount) public initialLocked;
     mapping(uint256 id => uint256 amount) public burnedById;
+    mapping(uint256 id => uint256 value) public initialValueById;
+    mapping(uint256 id => uint256 value) public lockedValueById;
+    mapping(uint256 id => uint256 amount) public resolvedAssetsById;
+    mapping(uint256 id => uint256 value) public resolvedValueById;
     mapping(uint256 id => uint256 amount) public lastObservedAmountLocked;
 
-    constructor(WithdrawalRequest manager_, IERC20 token_, address asset_, uint256 minWithdrawalAmount_) {
+    constructor(
+        WithdrawalRequest manager_,
+        IERC20 token_,
+        IVault vault_,
+        address asset_,
+        uint256 minWithdrawalAmount_
+    ) {
         manager = manager_;
         token = token_;
+        vault = vault_;
         asset = asset_;
         minWithdrawalAmount = minWithdrawalAmount_;
         token.approve(address(manager_), type(uint256).max);
@@ -43,6 +56,8 @@ contract WithdrawalRequestAccountingHandler is Test {
         liveAmountLocked += amount;
         initialLocked[id] = amount;
         lastObservedAmountLocked[id] = amount;
+        initialValueById[id] = _sharesValue(amount);
+        lockedValueById[id] = initialValueById[id];
     }
 
     function resolveWithdrawalRequest(uint256 seed, uint256 assets) external {
@@ -61,15 +76,26 @@ contract WithdrawalRequestAccountingHandler is Test {
 
         burnedEver += amountBurned;
         liveAmountLocked -= amountBurned;
-        resolvedAssetsEver += assets;
         burnedById[id] += amountBurned;
+        resolvedAssetsById[id] += assets;
+        resolvedValueById[id] += _assetValue(asset, assets);
+        lockedValueById[id] = _sharesValue(updatedRequest.amountLocked);
         lastObservedAmountLocked[id] = updatedRequest.amountLocked;
+    }
+
+    function _sharesValue(uint256 shares) internal view returns (uint256) {
+        uint256 defaultAssetAmount = manager.withdrawer().convertToAssets(shares);
+        return _assetValue(vault.asset(), defaultAssetAmount);
+    }
+
+    function _assetValue(address asset_, uint256 amount) internal view returns (uint256) {
+        IVault.AssetParams memory assetParams = vault.getAsset(asset_);
+        uint256 rate = IProvider(vault.provider()).getRate(asset_);
+        return amount.mulDiv(rate, 10 ** assetParams.decimals, Math.Rounding.Floor);
     }
 }
 
 contract WithdrawalRequestInvariantTest is StdInvariant, SetupWithdrawalRequest {
-    using Math for uint256;
-
     uint256 internal constant VALUE_TOLERANCE_PER_REQUEST = 2;
 
     WithdrawalRequestAccountingHandler internal handler;
@@ -78,7 +104,7 @@ contract WithdrawalRequestInvariantTest is StdInvariant, SetupWithdrawalRequest 
         setUpWithdrawalRequest();
 
         handler = new WithdrawalRequestAccountingHandler(
-            manager, IERC20(address(ynToken)), address(asset), minWithdrawalAmount
+            manager, IERC20(address(ynToken)), IVault(address(ynToken)), address(asset), minWithdrawalAmount
         );
         _mintVaultShares(address(handler), 1_000 ether);
 
@@ -127,24 +153,16 @@ contract WithdrawalRequestInvariantTest is StdInvariant, SetupWithdrawalRequest 
         }
     }
 
-    function invariant_totalRequestValueIsApproximatelyConserved() public view {
-        uint256 depositedValue = _sharesValue(handler.depositedEver());
-        uint256 currentValue =
-            _sharesValue(handler.liveAmountLocked()) + _assetValue(address(asset), handler.resolvedAssetsEver());
-        uint256 tolerance = manager.nextRequestId() * VALUE_TOLERANCE_PER_REQUEST;
+    function invariant_requestValueIsApproximatelyConserved() public view {
+        uint256 nextRequestId = manager.nextRequestId();
 
-        assertApproxEqAbs(currentValue, depositedValue, tolerance);
-    }
+        for (uint256 id = 0; id < nextRequestId; ++id) {
+            if (!manager.requestExists(id)) continue;
 
-    function _sharesValue(uint256 shares) internal view returns (uint256) {
-        address defaultAsset = ynToken.asset();
-        uint256 defaultAssetAmount = manager.withdrawer().convertToAssets(shares);
-        return _assetValue(defaultAsset, defaultAssetAmount);
-    }
+            uint256 initialValue = handler.initialValueById(id);
+            uint256 currentValue = handler.lockedValueById(id) + handler.resolvedValueById(id);
 
-    function _assetValue(address asset_, uint256 amount) internal view returns (uint256) {
-        IVault.AssetParams memory assetParams = ynToken.getAsset(asset_);
-        uint256 rate = IProvider(ynToken.provider()).getRate(asset_);
-        return amount.mulDiv(rate, 10 ** assetParams.decimals, Math.Rounding.Floor);
+            assertApproxEqAbs(currentValue, initialValue, VALUE_TOLERANCE_PER_REQUEST);
+        }
     }
 }
