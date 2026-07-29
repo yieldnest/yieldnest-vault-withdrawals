@@ -4,6 +4,9 @@ pragma solidity ^0.8.24;
 import {StdInvariant} from "forge-std/StdInvariant.sol";
 import {Test} from "forge-std/Test.sol";
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
+import {IProvider} from "lib/yieldnest-vault/src/interface/IProvider.sol";
+import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 import {SetupWithdrawalRequest} from "test/local/unit/helpers/SetupWithdrawalRequest.sol";
 
@@ -15,6 +18,8 @@ contract WithdrawalRequestAccountingHandler is Test {
 
     uint256 public depositedEver;
     uint256 public burnedEver;
+    uint256 public liveAmountLocked;
+    uint256 public resolvedAssetsEver;
     mapping(uint256 id => uint256 amount) public initialLocked;
     mapping(uint256 id => uint256 amount) public burnedById;
     mapping(uint256 id => uint256 amount) public lastObservedAmountLocked;
@@ -35,6 +40,7 @@ contract WithdrawalRequestAccountingHandler is Test {
         uint256 id = manager.requestWithdrawal(amount, address(this));
 
         depositedEver += amount;
+        liveAmountLocked += amount;
         initialLocked[id] = amount;
         lastObservedAmountLocked[id] = amount;
     }
@@ -54,12 +60,18 @@ contract WithdrawalRequestAccountingHandler is Test {
         WithdrawalRequest.Request memory updatedRequest = manager.requests(id);
 
         burnedEver += amountBurned;
+        liveAmountLocked -= amountBurned;
+        resolvedAssetsEver += assets;
         burnedById[id] += amountBurned;
         lastObservedAmountLocked[id] = updatedRequest.amountLocked;
     }
 }
 
 contract WithdrawalRequestInvariantTest is StdInvariant, SetupWithdrawalRequest {
+    using Math for uint256;
+
+    uint256 internal constant VALUE_TOLERANCE_PER_REQUEST = 2;
+
     WithdrawalRequestAccountingHandler internal handler;
 
     function setUp() public {
@@ -79,11 +91,11 @@ contract WithdrawalRequestInvariantTest is StdInvariant, SetupWithdrawalRequest 
     }
 
     function invariant_sumOfAmountLockedEqualsManagerTokenBalance() public view {
-        assertEq(_sumLiveAmountLocked(), ynToken.balanceOf(address(manager)));
+        assertEq(handler.liveAmountLocked(), ynToken.balanceOf(address(manager)));
     }
 
     function invariant_timeIntegratedShareConservation() public view {
-        assertEq(handler.burnedEver() + _sumLiveAmountLocked(), handler.depositedEver());
+        assertEq(handler.burnedEver() + handler.liveAmountLocked(), handler.depositedEver());
     }
 
     function invariant_managerIsPureConduit() public view {
@@ -115,12 +127,24 @@ contract WithdrawalRequestInvariantTest is StdInvariant, SetupWithdrawalRequest 
         }
     }
 
-    function _sumLiveAmountLocked() internal view returns (uint256 amountLockedSum) {
-        uint256 nextRequestId = manager.nextRequestId();
+    function invariant_totalRequestValueIsApproximatelyConserved() public view {
+        uint256 depositedValue = _sharesValue(handler.depositedEver());
+        uint256 currentValue =
+            _sharesValue(handler.liveAmountLocked()) + _assetValue(address(asset), handler.resolvedAssetsEver());
+        uint256 tolerance = manager.nextRequestId() * VALUE_TOLERANCE_PER_REQUEST;
 
-        for (uint256 id = 0; id < nextRequestId; ++id) {
-            if (!manager.requestExists(id)) continue;
-            amountLockedSum += manager.requests(id).amountLocked;
-        }
+        assertApproxEqAbs(currentValue, depositedValue, tolerance);
+    }
+
+    function _sharesValue(uint256 shares) internal view returns (uint256) {
+        address defaultAsset = ynToken.asset();
+        uint256 defaultAssetAmount = manager.withdrawer().convertToAssets(shares);
+        return _assetValue(defaultAsset, defaultAssetAmount);
+    }
+
+    function _assetValue(address asset_, uint256 amount) internal view returns (uint256) {
+        IVault.AssetParams memory assetParams = ynToken.getAsset(asset_);
+        uint256 rate = IProvider(ynToken.provider()).getRate(asset_);
+        return amount.mulDiv(rate, 10 ** assetParams.decimals, Math.Rounding.Floor);
     }
 }
