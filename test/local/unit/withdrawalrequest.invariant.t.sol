@@ -117,7 +117,7 @@ contract WithdrawalRequestInvariantTest is StdInvariant, SetupWithdrawalRequest 
     }
 
     function invariant_sumOfAmountLockedEqualsManagerTokenBalance() public view {
-        assertEq(handler.liveAmountLocked(), ynToken.balanceOf(address(manager)));
+        assertEq(_sumLiveAmountLocked(), ynToken.balanceOf(address(manager)));
     }
 
     function invariant_timeIntegratedShareConservation() public view {
