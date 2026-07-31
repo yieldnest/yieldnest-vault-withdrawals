@@ -121,7 +121,7 @@ contract WithdrawalRequestInvariantTest is StdInvariant, SetupWithdrawalRequest 
     }
 
     function invariant_timeIntegratedShareConservation() public view {
-        assertEq(handler.burnedEver() + handler.liveAmountLocked(), handler.depositedEver());
+        assertEq(handler.burnedEver() + _sumLiveAmountLocked(), handler.depositedEver());
     }
 
     function invariant_managerIsPureConduit() public view {
@@ -163,6 +163,15 @@ contract WithdrawalRequestInvariantTest is StdInvariant, SetupWithdrawalRequest 
             uint256 currentValue = handler.lockedValueById(id) + handler.resolvedValueById(id);
 
             assertApproxEqAbs(currentValue, initialValue, VALUE_TOLERANCE_PER_REQUEST);
+        }
+    }
+
+    function _sumLiveAmountLocked() internal view returns (uint256 amountLockedSum) {
+        uint256 nextRequestId = manager.nextRequestId();
+
+        for (uint256 id = 0; id < nextRequestId; ++id) {
+            if (!manager.requestExists(id)) continue;
+            amountLockedSum += manager.requests(id).amountLocked;
         }
     }
 }
