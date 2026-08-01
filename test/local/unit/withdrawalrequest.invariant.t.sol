@@ -23,7 +23,6 @@ contract WithdrawalRequestAccountingHandler is Test {
     IERC20 internal immutable token;
     IVault internal immutable vault;
     WithdrawalAssetMock internal immutable assetToken;
-    WithdrawalAssetMock internal immutable secondAssetToken;
     TestRateProvider internal immutable rateProvider;
     address internal immutable asset;
     address internal immutable secondAsset;
@@ -36,7 +35,6 @@ contract WithdrawalRequestAccountingHandler is Test {
     mapping(uint256 id => uint256 amount) public initialLocked;
     mapping(uint256 id => uint256 amount) public burnedById;
     mapping(uint256 id => uint256 amount) public resolvedAssetsById;
-    mapping(uint256 id => uint256 value) public resolvedValueById;
     mapping(uint256 id => uint256 amount) public lastObservedAmountLocked;
 
     constructor(
@@ -52,7 +50,6 @@ contract WithdrawalRequestAccountingHandler is Test {
         token = token_;
         vault = vault_;
         assetToken = asset_;
-        secondAssetToken = secondAsset_;
         rateProvider = rateProvider_;
         asset = address(asset_);
         secondAsset = address(secondAsset_);
@@ -136,20 +133,18 @@ contract WithdrawalRequestAccountingHandler is Test {
         lastObservedAmountLocked[id] = 0;
     }
 
-    function accrueRewards(uint256 rewardAmount, uint256 defaultAssetRate, uint256 secondAssetRate) external {
-        rewardAmount = bound(rewardAmount, 0, 10 ether);
-        defaultAssetRate = bound(defaultAssetRate, 0.5 ether, 2 ether);
-        secondAssetRate = bound(secondAssetRate, 0.5 ether, 2 ether);
+    function accrueYield(uint256 amount) external {
+        amount = bound(amount, 0, 10 ether);
+        if (amount != 0) assetToken.mint(address(vault), amount);
+        vault.processAccounting();
+    }
 
-        if (rewardAmount != 0) {
-            if (rewardAmount % 2 == 0) {
-                assetToken.mint(address(vault), rewardAmount);
-            } else {
-                secondAssetToken.mint(address(vault), rewardAmount);
-            }
-        }
-        rateProvider.setRate(asset, defaultAssetRate);
-        rateProvider.setRate(secondAsset, secondAssetRate);
+    function perturbOracle(uint8 assetIdx, uint256 rate) external {
+        if (assetIdx > 15) return;
+
+        address asset_ = assetIdx % 2 == 0 ? asset : secondAsset;
+        rate = bound(rate, 0.97 ether, 1.05 ether);
+        rateProvider.setRate(asset_, rate);
         vault.processAccounting();
     }
 
@@ -167,7 +162,7 @@ contract WithdrawalRequestAccountingHandler is Test {
         if (maxAssets == 0) return;
 
         assets = bound(assets, 1, maxAssets);
-        uint256 valueBefore = _requestValue(id, request.amountLocked);
+        uint256 valueBefore = _requestValue(request.bag, request.amountLocked);
 
         uint256 amountBurned = manager.resolveWithdrawalRequest(id, asset_, assets);
         WithdrawalRequest.Request memory updatedRequest = manager.requests(id);
@@ -175,10 +170,9 @@ contract WithdrawalRequestAccountingHandler is Test {
         burnedEver += amountBurned;
         burnedById[id] += amountBurned;
         resolvedAssetsById[id] += assets;
-        resolvedValueById[id] += _assetValue(asset_, assets);
         lastObservedAmountLocked[id] = updatedRequest.amountLocked;
 
-        uint256 valueAfter = _requestValue(id, updatedRequest.amountLocked);
+        uint256 valueAfter = _requestValue(updatedRequest.bag, updatedRequest.amountLocked);
         uint256 drift = valueBefore > valueAfter ? valueBefore - valueAfter : valueAfter - valueBefore;
         if (drift > maxResolveValueDrift) maxResolveValueDrift = drift;
 
@@ -200,8 +194,9 @@ contract WithdrawalRequestAccountingHandler is Test {
         return amount.mulDiv(rate, 10 ** assetParams.decimals, Math.Rounding.Floor);
     }
 
-    function _requestValue(uint256 id, uint256 amountLocked) internal view returns (uint256) {
-        return _sharesValue(amountLocked) + resolvedValueById[id];
+    function _requestValue(address bag, uint256 amountLocked) internal view returns (uint256) {
+        return _sharesValue(amountLocked) + _assetValue(asset, IERC20(asset).balanceOf(bag))
+            + _assetValue(secondAsset, IERC20(secondAsset).balanceOf(bag));
     }
 
     function _maxResolutionAssets(address asset_, uint256 amountLocked) internal view returns (uint256) {
