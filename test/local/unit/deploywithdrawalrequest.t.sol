@@ -13,6 +13,7 @@ import {MinAmountRequestPolicy} from "src/policies/MinAmountRequestPolicy.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 import {BaseWithdrawer} from "src/withdrawers/BaseWithdrawer.sol";
 import {DeployWithdrawalRequest} from "script/deploy/DeployWithdrawalRequest.s.sol";
+import {DeployYnRWAxWithdrawalRequest} from "script/deploy/DeployYnRWAxWithdrawalRequest.s.sol";
 import {WithdrawalRequestViewer} from "views/WithdrawalRequestViewer.sol";
 
 error InvalidSetup();
@@ -70,10 +71,29 @@ contract DeployWithdrawalRequestHarness is DeployWithdrawalRequest {
     }
 }
 
+contract DeployYnRWAxWithdrawalRequestHarness is DeployYnRWAxWithdrawalRequest {
+    function _deploymentFilePath() internal view override returns (string memory) {
+        return string.concat(
+            vm.projectRoot(),
+            "/deployments/",
+            symbol(),
+            "-",
+            vm.toString(block.chainid),
+            "-",
+            vm.toString(address(this)),
+            ".json"
+        );
+    }
+}
+
 contract DeployWithdrawalRequestTest is Test {
-    function _deployScript() internal returns (DeployWithdrawalRequestHarness deployScript) {
+    function _etchDeploymentToken(address tokenAddress) internal {
         DeploymentTokenMock token = new DeploymentTokenMock();
-        vm.etch(MC.YNETHX, address(token).code);
+        vm.etch(tokenAddress, address(token).code);
+    }
+
+    function _deployScript() internal returns (DeployWithdrawalRequestHarness deployScript) {
+        _etchDeploymentToken(MC.YNETHX);
 
         deployScript = new DeployWithdrawalRequestHarness();
         deployScript.run();
@@ -81,9 +101,10 @@ contract DeployWithdrawalRequestTest is Test {
 
     function testRunDeploysAndRecordsViewer() public {
         DeployWithdrawalRequestHarness deployScript = new DeployWithdrawalRequestHarness();
-        DeploymentTokenMock token = new DeploymentTokenMock();
-        vm.etch(MC.YNETHX, address(token).code);
+        _etchDeploymentToken(MC.YNETHX);
         assertEq(deployScript.symbol(), "withdrawalRequest-ynETHx");
+        assertEq(deployScript.deploymentToken(), MC.YNETHX);
+        assertEq(deployScript.minWithdrawalAmount(), deployScript.MIN_WITHDRAWAL_AMOUNT());
         assertEq(deployScript.label(), string.concat(deployScript.symbol(), "-", vm.toString(block.chainid)));
         assertTrue(bytes(deployScript.deploymentFilePath()).length != 0);
 
@@ -115,6 +136,7 @@ contract DeployWithdrawalRequestTest is Test {
         assertTrue(manager.hasRole(manager.RESOLVER_ROLE(), deployScript.resolver()));
         assertEq(address(manager.withdrawer()), address(withdrawer));
         assertEq(address(manager.requestPolicy()), address(requestPolicy));
+        assertEq(requestPolicy.minWithdrawalAmount(), deployScript.minWithdrawalAmount());
         assertEq(manager.maxDataLength(), deployScript.MAX_DATA_LENGTH());
         assertTrue(bagFactory.hasRole(bagFactory.DEFAULT_ADMIN_ROLE(), address(timelock)));
         assertTrue(bagFactory.hasRole(bagFactory.IMPLEMENTATION_MANAGER_ROLE(), address(timelock)));
@@ -140,9 +162,38 @@ contract DeployWithdrawalRequestTest is Test {
         assertEq(vm.parseJsonAddress(deploymentJson, ".defaultAdmin"), address(timelock));
         assertEq(vm.parseJsonAddress(deploymentJson, ".resolver"), deployScript.resolver());
         assertEq(vm.parseJsonAddress(deploymentJson, ".configurationManager"), address(timelock));
-        assertEq(vm.parseJsonUint(deploymentJson, ".minWithdrawalAmount"), deployScript.MIN_WITHDRAWAL_AMOUNT());
+        assertEq(vm.parseJsonUint(deploymentJson, ".minWithdrawalAmount"), deployScript.minWithdrawalAmount());
         assertEq(vm.parseJsonUint(deploymentJson, ".maxDataLength"), deployScript.MAX_DATA_LENGTH());
         assertEq(vm.parseJsonUint(deploymentJson, ".timelockMinDelay"), deployScript.minDelay());
+    }
+
+    function testYnRWAxScriptParams() public {
+        DeployYnRWAxWithdrawalRequest deployScript = new DeployYnRWAxWithdrawalRequest();
+
+        assertEq(deployScript.symbol(), "withdrawalRequest-ynRWAx");
+        assertEq(deployScript.deploymentToken(), deployScript.YNRWAX());
+        assertEq(deployScript.minWithdrawalAmount(), 10_000);
+        assertEq(deployScript.MIN_WITHDRAWAL_AMOUNT(), 10_000);
+    }
+
+    function testYnRWAxRunDeploysWithOneCentMinimum() public {
+        DeployYnRWAxWithdrawalRequestHarness deployScript = new DeployYnRWAxWithdrawalRequestHarness();
+        _etchDeploymentToken(deployScript.YNRWAX());
+
+        deployScript.run();
+        deployScript._verifySetup();
+
+        WithdrawalRequest manager = deployScript.withdrawalRequest();
+        MinAmountRequestPolicy requestPolicy = deployScript.requestPolicy();
+        BaseWithdrawer withdrawer = deployScript.requestWithdrawer();
+
+        assertEq(address(withdrawer.token()), deployScript.YNRWAX());
+        assertEq(address(manager.requestPolicy()), address(requestPolicy));
+        assertEq(requestPolicy.minWithdrawalAmount(), 10_000);
+
+        string memory deploymentJson = vm.readFile(deployScript.deploymentFilePath());
+        assertEq(vm.parseJsonAddress(deploymentJson, ".token"), deployScript.YNRWAX());
+        assertEq(vm.parseJsonUint(deploymentJson, ".minWithdrawalAmount"), 10_000);
     }
 
     function testVerifyDeploymentParamsRejectsZeroToken() public {
