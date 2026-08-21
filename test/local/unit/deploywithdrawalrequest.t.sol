@@ -13,6 +13,7 @@ import {MinAmountRequestPolicy} from "src/policies/MinAmountRequestPolicy.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 import {BaseWithdrawer} from "src/withdrawers/BaseWithdrawer.sol";
 import {DeployWithdrawalRequest} from "script/deploy/DeployWithdrawalRequest.s.sol";
+import {DeployWithdrawalRequestViewer} from "script/deploy/DeployWithdrawalRequestViewer.s.sol";
 import {DeployYnRWAxWithdrawalRequest} from "script/deploy/DeployYnRWAxWithdrawalRequest.s.sol";
 import {WithdrawalRequestViewer} from "views/WithdrawalRequestViewer.sol";
 
@@ -72,6 +73,21 @@ contract DeployWithdrawalRequestHarness is DeployWithdrawalRequest {
 }
 
 contract DeployYnRWAxWithdrawalRequestHarness is DeployYnRWAxWithdrawalRequest {
+    function _deploymentFilePath() internal view override returns (string memory) {
+        return string.concat(
+            vm.projectRoot(),
+            "/deployments/",
+            symbol(),
+            "-",
+            vm.toString(block.chainid),
+            "-",
+            vm.toString(address(this)),
+            ".json"
+        );
+    }
+}
+
+contract DeployWithdrawalRequestViewerHarness is DeployWithdrawalRequestViewer {
     function _deploymentFilePath() internal view override returns (string memory) {
         return string.concat(
             vm.projectRoot(),
@@ -165,6 +181,23 @@ contract DeployWithdrawalRequestTest is Test {
         assertEq(vm.parseJsonUint(deploymentJson, ".minWithdrawalAmount"), deployScript.minWithdrawalAmount());
         assertEq(vm.parseJsonUint(deploymentJson, ".maxDataLength"), deployScript.MAX_DATA_LENGTH());
         assertEq(vm.parseJsonUint(deploymentJson, ".timelockMinDelay"), deployScript.minDelay());
+    }
+
+    function testViewerOnlyRunDeploysAndRecordsViewer() public {
+        DeployWithdrawalRequestViewerHarness deployScript = new DeployWithdrawalRequestViewerHarness();
+
+        assertEq(deployScript.symbol(), "withdrawalRequestViewer");
+        assertTrue(bytes(deployScript.deploymentFilePath()).length != 0);
+
+        deployScript.run();
+        deployScript._verifySetup();
+
+        WithdrawalRequestViewer viewer = deployScript.withdrawalRequestViewer();
+        assertGt(address(viewer).code.length, 0);
+
+        string memory deploymentJson = vm.readFile(deployScript.deploymentFilePath());
+        assertEq(vm.parseJsonAddress(deploymentJson, ".viewer"), address(viewer));
+        assertEq(vm.parseJsonAddress(deploymentJson, ".deployer"), tx.origin);
     }
 
     function testYnRWAxScriptParams() public {
