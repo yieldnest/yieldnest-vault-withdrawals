@@ -20,7 +20,7 @@
   "timelock": "0x3792c890f7DeFc1Fff47044efeF18a593632866a",
   "timelockMinDelay": 86400,
   "token": "0x01Ba69727E2860b37bc1a2bd56999c1aFb4C15D8",
-  "viewer": "0xdb7be95896603a5e1a6d4a91653592deae31a9bf",
+  "viewer": "0xb4b0f22d8854ff7ff3fe516829305aa445b7e8d6",
   "withdrawalRequest": "0xCE3c9d0F9D29A17BCEc3eFEa6DD516eB77c73d84",
   "withdrawer": "0x62bCD9d6c5B876a95b19b11c82CB0c42671481EB",
   "withdrawerImplementation": "0x28706555357Dd9112dea16D7dc3a983152520DAf",
