@@ -23,7 +23,8 @@ contract WithdrawalRequestViewer {
         uint256 rateAtRequest;
         bytes data;
         uint256 tokenBalance;
-        bool isClaimable;
+        bool isFullyRedeemed;
+        bool hasClaimableAssets;
         bool isClaimed;
         AssetBalance[] assetBalances;
     }
@@ -74,7 +75,8 @@ contract WithdrawalRequestViewer {
             assetBalances[i] = AssetBalance({asset: asset, balance: IERC20(asset).balanceOf(request.bag)});
         }
 
-        bool isClaimable = _requestIsClaimable(request, token);
+        bool isFullyRedeemed = _requestIsFullyRedeemed(request, token);
+        bool hasClaimableAssets = _requestHasClaimableAssets(request);
         view_ = RequestView({
             id: id,
             owner: withdrawalRequest.ownerOf(id),
@@ -84,7 +86,8 @@ contract WithdrawalRequestViewer {
             rateAtRequest: request.rateAtRequest,
             data: request.data,
             tokenBalance: token.balanceOf(address(withdrawalRequest)),
-            isClaimable: isClaimable,
+            isFullyRedeemed: isFullyRedeemed,
+            hasClaimableAssets: hasClaimableAssets,
             isClaimed: _requestIsClaimed(request, token),
             assetBalances: assetBalances
         });
@@ -97,19 +100,30 @@ contract WithdrawalRequestViewer {
     /// @param withdrawalRequest Withdrawal request contract to inspect.
     /// @param id Request id to inspect.
     /// @return True if the request exists and its remaining locked shares are below the dust threshold.
-    function requestIsClaimable(WithdrawalRequest withdrawalRequest, uint256 id) external view returns (bool) {
+    function requestIsFullyRedeemed(WithdrawalRequest withdrawalRequest, uint256 id) external view returns (bool) {
         if (!withdrawalRequest.requestExists(id)) return false;
 
         WithdrawalRequest.Request memory request = withdrawalRequest.requests(id);
         IVault token = IVault(address(withdrawalRequest.token()));
 
-        return _requestIsClaimable(request, token);
+        return _requestIsFullyRedeemed(request, token);
     }
 
-    /// @notice Returns true when the request is claimable and its bag has no balances for redeemed assets.
+    /// @notice Returns true when the request has at least one tracked redeemed asset available to claim.
     /// @param withdrawalRequest Withdrawal request contract to inspect.
     /// @param id Request id to inspect.
-    /// @return True if the request is claimable and all tracked bag asset balances are zero.
+    /// @return True if the request exists and any tracked redeemed asset has a nonzero bag balance.
+    function requestHasClaimableAssets(WithdrawalRequest withdrawalRequest, uint256 id) external view returns (bool) {
+        if (!withdrawalRequest.requestExists(id)) return false;
+
+        WithdrawalRequest.Request memory request = withdrawalRequest.requests(id);
+        return _requestHasClaimableAssets(request);
+    }
+
+    /// @notice Returns true when the request is fully redeemed and its bag has no balances for redeemed assets.
+    /// @param withdrawalRequest Withdrawal request contract to inspect.
+    /// @param id Request id to inspect.
+    /// @return True if the request is fully redeemed and all tracked bag asset balances are zero.
     function requestIsClaimed(WithdrawalRequest withdrawalRequest, uint256 id) external view returns (bool) {
         if (!withdrawalRequest.requestExists(id)) return false;
 
@@ -119,18 +133,30 @@ contract WithdrawalRequestViewer {
         return _requestIsClaimed(request, token);
     }
 
-    function _requestIsClaimable(WithdrawalRequest.Request memory request, IVault token) internal view returns (bool) {
+    function _requestIsFullyRedeemed(WithdrawalRequest.Request memory request, IVault token)
+        internal
+        view
+        returns (bool)
+    {
         return request.amountLocked < 10 ** token.decimals() / 1e4;
     }
 
     function _requestIsClaimed(WithdrawalRequest.Request memory request, IVault token) internal view returns (bool) {
-        if (!_requestIsClaimable(request, token)) return false;
+        if (!_requestIsFullyRedeemed(request, token)) return false;
 
         for (uint256 i = 0; i < request.assetsRedeemed.length; ++i) {
             if (IERC20(request.assetsRedeemed[i]).balanceOf(request.bag) != 0) return false;
         }
 
         return true;
+    }
+
+    function _requestHasClaimableAssets(WithdrawalRequest.Request memory request) internal view returns (bool) {
+        for (uint256 i = 0; i < request.assetsRedeemed.length; ++i) {
+            if (IERC20(request.assetsRedeemed[i]).balanceOf(request.bag) != 0) return true;
+        }
+
+        return false;
     }
 
     /// @notice Converts yn-token shares into the maximum amount of a vault asset withdrawable from the configured token.
