@@ -189,12 +189,13 @@ Parameter meanings and validation:
 6. A resolver with `RESOLVER_ROLE` calls `resolveWithdrawalRequest(...)`.
 7. The withdrawer receives a temporary allowance up to the request's locked amount.
 8. The withdrawer moves redeemed assets into the bag and returns the amount of yn-token shares consumed.
-9. `WithdrawalRequest` verifies both yn-token balance delta and bag asset balance delta.
+9. `WithdrawalRequest` verifies the yn-token balance delta against the shares reported as consumed.
 10. The request NFT owner claims bag assets.
 11. The request NFT owner can burn the request only after locked amount is dust/zero and tracked bag assets are empty.
 
-Do not weaken the balance-delta checks. They are the main guardrail between a resolver/withdrawer call and request
-accounting.
+Do not weaken the yn-token balance-delta check. It is the main guardrail between a resolver/withdrawer call and request
+accounting. Bag asset balances are measured for event/reporting purposes, but resolution no longer reverts when the
+actual amount received differs from the requested `assets` input.
 
 ## Cancellation And Dust
 

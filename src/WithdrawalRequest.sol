@@ -63,7 +63,6 @@ contract WithdrawalRequest is
     error RequestNotFound(uint256 id);
     error InsufficientLockedAmount(uint256 id, uint256 amountLocked, uint256 amountBurned);
     error InvalidTokenBalanceChange(uint256 balanceBefore, uint256 balanceAfter);
-    error UnexpectedAssetsWithdrawn(uint256 expectedAssets, uint256 actualAssets);
     error ArrayLengthMismatch(uint256 assetsLength, uint256 assetAmountsLength);
     error DataTooLong(uint256 length, uint256 maxLength);
     error NotRequestOwner(address caller);
@@ -313,7 +312,6 @@ contract WithdrawalRequest is
             }
 
             assetsWithdrawn = IERC20(asset).balanceOf(bag) - bagAssetBalanceBefore;
-            if (assetsWithdrawn != assets) revert UnexpectedAssetsWithdrawn(assets, assetsWithdrawn);
         }
 
         _recordAssetRedeemed(request, asset);
