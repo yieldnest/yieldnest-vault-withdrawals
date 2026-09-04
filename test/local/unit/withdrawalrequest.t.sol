@@ -1448,7 +1448,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         manager.resolveWithdrawalRequest(id, address(asset), 4 ether);
     }
 
-    function testResolveWithdrawalRequestRevertsWhenAssetsWithdrawnMismatchExpected() public {
+    function testResolveWithdrawalRequestAllowsActualAssetsWithdrawnToDifferFromRequestedAssets() public {
         ShortfallWithdrawer shortfallWithdrawer = new ShortfallWithdrawer(address(ynToken), 1 ether);
         _authorizeAssetWithdrawer(address(shortfallWithdrawer));
 
@@ -1458,9 +1458,22 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, user);
 
-        vm.expectRevert(abi.encodeWithSelector(WithdrawalRequest.UnexpectedAssetsWithdrawn.selector, 4 ether, 3 ether));
+        vm.expectEmit(true, true, true, true, address(manager));
+        emit WithdrawalRequest.WithdrawalRequestResolved(
+            id, user, address(ynToken), address(asset), 3 ether, 3 ether, 7 ether
+        );
+
         vm.prank(resolver);
-        manager.resolveWithdrawalRequest(id, address(asset), 4 ether);
+        uint256 amountBurned = manager.resolveWithdrawalRequest(id, address(asset), 4 ether);
+
+        WithdrawalRequest.Request memory request = manager.requests(id);
+
+        assertEq(amountBurned, 3 ether);
+        assertEq(request.amountLocked, 7 ether);
+        assertEq(request.assetsRedeemed.length, 1);
+        assertEq(request.assetsRedeemed[0], address(asset));
+        assertEq(ynToken.balanceOf(address(manager)), 7 ether);
+        assertEq(asset.balanceOf(request.bag), 3 ether);
     }
 
     function testResolveWithdrawalRequestRequiresResolverRole() public {
