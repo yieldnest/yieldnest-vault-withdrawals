@@ -8,11 +8,13 @@ import {
 } from "lib/openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {ERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 import {MainnetContracts as MC} from "lib/yieldnest-vault/script/Contracts.sol";
+import {Bag} from "src/Bag.sol";
 import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
 import {MinAmountRequestPolicy} from "src/policies/MinAmountRequestPolicy.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 import {BaseWithdrawer} from "src/withdrawers/BaseWithdrawer.sol";
 import {DeployWithdrawalRequest} from "script/deploy/DeployWithdrawalRequest.s.sol";
+import {DeployWithdrawalRequestImplementations} from "script/deploy/DeployWithdrawalRequestImplementations.s.sol";
 import {DeployWithdrawalRequestViewer} from "script/deploy/DeployWithdrawalRequestViewer.s.sol";
 import {DeployYnRWAxWithdrawalRequest} from "script/deploy/DeployYnRWAxWithdrawalRequest.s.sol";
 import {WithdrawalRequestViewer} from "views/WithdrawalRequestViewer.sol";
@@ -88,6 +90,21 @@ contract DeployYnRWAxWithdrawalRequestHarness is DeployYnRWAxWithdrawalRequest {
 }
 
 contract DeployWithdrawalRequestViewerHarness is DeployWithdrawalRequestViewer {
+    function _deploymentFilePath() internal view override returns (string memory) {
+        return string.concat(
+            vm.projectRoot(),
+            "/deployments/",
+            symbol(),
+            "-",
+            vm.toString(block.chainid),
+            "-",
+            vm.toString(address(this)),
+            ".json"
+        );
+    }
+}
+
+contract DeployWithdrawalRequestImplementationsHarness is DeployWithdrawalRequestImplementations {
     function _deploymentFilePath() internal view override returns (string memory) {
         return string.concat(
             vm.projectRoot(),
@@ -197,6 +214,63 @@ contract DeployWithdrawalRequestTest is Test {
 
         string memory deploymentJson = vm.readFile(deployScript.deploymentFilePath());
         assertEq(vm.parseJsonAddress(deploymentJson, ".viewer"), address(viewer));
+        assertEq(vm.parseJsonAddress(deploymentJson, ".deployer"), tx.origin);
+    }
+
+    function testImplementationsOnlyRunDeploysAndRecordsImplementations() public {
+        DeployWithdrawalRequestImplementationsHarness deployScript = new DeployWithdrawalRequestImplementationsHarness();
+
+        assertEq(deployScript.symbol(), "withdrawalRequestImplementations");
+        assertTrue(bytes(deployScript.deploymentFilePath()).length != 0);
+
+        deployScript.run();
+        deployScript._verifySetup();
+
+        WithdrawalRequest withdrawalRequestImplementation = deployScript.withdrawalRequestImplementation();
+        BaseWithdrawer withdrawerImplementation = deployScript.requestWithdrawerImplementation();
+        BeaconProxyFactory bagFactoryImplementation = deployScript.bagFactoryImplementation();
+        Bag bagImplementation = deployScript.bagImplementation();
+
+        assertGt(address(withdrawalRequestImplementation).code.length, 0);
+        assertGt(address(withdrawerImplementation).code.length, 0);
+        assertGt(address(bagFactoryImplementation).code.length, 0);
+        assertGt(address(bagImplementation).code.length, 0);
+
+        bytes32 withdrawalRequestId = keccak256("yieldnest.yieldnest-vault-withdrawals.contracts.src.WithdrawalRequest");
+        bytes32 withdrawerId =
+            keccak256("yieldnest.yieldnest-vault-withdrawals.contracts.src.withdrawers.BaseWithdrawer");
+        bytes32 bagFactoryId = keccak256("yieldnest.yieldnest-vault-withdrawals.contracts.src.BeaconProxyFactory");
+        bytes32 bagId = keccak256("yieldnest.yieldnest-vault-withdrawals.contracts.src.Bag");
+
+        string memory deploymentJson = vm.readFile(deployScript.deploymentFilePath());
+        assertEq(vm.parseJsonBytes32(deploymentJson, ".WITHDRAWAL_REQUEST"), withdrawalRequestId);
+        assertEq(vm.parseJsonBytes32(deploymentJson, ".WITHDRAWER"), withdrawerId);
+        assertEq(vm.parseJsonBytes32(deploymentJson, ".BAG_FACTORY"), bagFactoryId);
+        assertEq(vm.parseJsonBytes32(deploymentJson, ".BAG"), bagId);
+
+        assertEq(
+            vm.parseJsonAddress(deploymentJson, string.concat(".", vm.toString(withdrawalRequestId))),
+            address(withdrawalRequestImplementation)
+        );
+        assertEq(
+            vm.parseJsonAddress(deploymentJson, string.concat(".", vm.toString(withdrawerId))),
+            address(withdrawerImplementation)
+        );
+        assertEq(
+            vm.parseJsonAddress(deploymentJson, string.concat(".", vm.toString(bagFactoryId))),
+            address(bagFactoryImplementation)
+        );
+        assertEq(
+            vm.parseJsonAddress(deploymentJson, string.concat(".", vm.toString(bagId))), address(bagImplementation)
+        );
+
+        assertEq(
+            vm.parseJsonAddress(deploymentJson, ".withdrawalRequestImplementation"),
+            address(withdrawalRequestImplementation)
+        );
+        assertEq(vm.parseJsonAddress(deploymentJson, ".withdrawerImplementation"), address(withdrawerImplementation));
+        assertEq(vm.parseJsonAddress(deploymentJson, ".bagFactoryImplementation"), address(bagFactoryImplementation));
+        assertEq(vm.parseJsonAddress(deploymentJson, ".bagImplementation"), address(bagImplementation));
         assertEq(vm.parseJsonAddress(deploymentJson, ".deployer"), tx.origin);
     }
 
