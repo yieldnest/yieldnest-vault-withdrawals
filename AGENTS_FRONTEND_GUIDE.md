@@ -100,6 +100,9 @@ For a user's request dashboard, use:
 WithdrawalRequestViewer.getInProgressRequestsForOwner(withdrawalRequest, user)
 ```
 
+Despite the name, this returns all request NFTs currently owned by `user`. The frontend should use `amountLocked`,
+`isClaimable`, `isClaimed`, and `assetBalances` to decide how each request should be displayed.
+
 Each returned `RequestView` contains:
 
 ```solidity
@@ -179,12 +182,6 @@ For the best user experience, the frontend should claim all currently available 
 4. Pass the corresponding `balance` values as `amounts`.
 5. Use the user's selected destination as `recipient`.
 
-Native ETH is represented by the Bag's `ETH()` constant:
-
-```solidity
-Bag.ETH()
-```
-
 ### 8. Determine Whether Claiming Is Finished
 
 Use:
@@ -212,4 +209,3 @@ WithdrawalRequest.burn(requestId)
 
 Burning deletes the stored request and burns the ERC721 token. The frontend should only offer this after
 `RequestView.isClaimed == true`.
-
