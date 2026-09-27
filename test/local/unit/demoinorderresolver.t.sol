@@ -6,6 +6,7 @@ import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/
 import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
 import {IBag} from "src/interface/IBag.sol";
 import {IWithdrawer} from "src/interface/IWithdrawer.sol";
+import {IWithdrawalRequest} from "src/interface/IWithdrawalRequest.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 import {SetupWithdrawalRequest} from "test/local/unit/helpers/SetupWithdrawalRequest.sol";
 
@@ -76,13 +77,13 @@ contract DemoInOrderResolver {
         uint256 deadline = deadlineOf(id);
         if (block.timestamp <= deadline) revert DeadlineNotExpired(deadline);
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
         amountBurned = manager.resolveWithdrawalRequest(id, cancellationAsset, request.amountLocked);
         _advanceIfComplete(id);
     }
 
     function deadlineOf(uint256 id) public view returns (uint256 deadline) {
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
         (uint8 version, uint256 decodedDeadline) = abi.decode(request.data, (uint8, uint256));
         if (version != 0) revert UnsupportedDataVersion(version);
         return decodedDeadline;
@@ -93,7 +94,7 @@ contract DemoInOrderResolver {
     }
 
     function _advanceIfComplete(uint256 id) internal {
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
         if (request.amountLocked == 0) nextRequestId = id + 1;
     }
 }
@@ -138,7 +139,7 @@ contract DemoInOrderResolverTest is SetupWithdrawalRequest {
         vm.warp(deadline);
         assertEq(demoResolver.resolve(id, address(asset), 10 ether), 10 ether);
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
         assertEq(request.amountLocked, 0);
         assertEq(asset.balanceOf(request.bag), 10 ether);
         assertEq(demoResolver.nextRequestId(), id + 1);
@@ -155,7 +156,7 @@ contract DemoInOrderResolverTest is SetupWithdrawalRequest {
         vm.expectRevert(abi.encodeWithSelector(DemoInOrderResolver.DeadlineExpired.selector, deadline));
         demoResolver.resolve(id, address(asset), 1 ether);
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
         assertEq(request.amountLocked, 10 ether);
         assertEq(asset.balanceOf(request.bag), 0);
         assertEq(demoResolver.nextRequestId(), id);
@@ -174,7 +175,7 @@ contract DemoInOrderResolverTest is SetupWithdrawalRequest {
         vm.warp(deadline + 1);
         assertEq(demoResolver.cancelExpired(id), 10 ether);
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
         assertEq(request.amountLocked, 0);
         assertEq(ynToken.balanceOf(address(manager)), 0);
         assertEq(ynToken.balanceOf(request.bag), 10 ether);
@@ -198,7 +199,7 @@ contract DemoInOrderResolverTest is SetupWithdrawalRequest {
         vm.warp(deadline + 1);
         assertEq(demoResolver.cancelExpired(id), 6 ether);
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
         assertEq(request.amountLocked, 0);
         assertEq(asset.balanceOf(request.bag), 4 ether);
         assertEq(ynToken.balanceOf(request.bag), 6 ether);
@@ -234,11 +235,11 @@ contract DemoInOrderResolverTest is SetupWithdrawalRequest {
         vm.warp(deadline + 1);
         demoResolver.cancelExpired(id);
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
         assertEq(request.assetsRedeemed.length, 1);
         assertEq(request.assetsRedeemed[0], address(ynToken));
 
-        vm.expectRevert(abi.encodeWithSelector(WithdrawalRequest.RequestNotBurnable.selector, id));
+        vm.expectRevert(abi.encodeWithSelector(IWithdrawalRequest.RequestNotBurnable.selector, id));
         vm.prank(user);
         manager.burn(id);
 

@@ -12,6 +12,7 @@ import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
 import {Bag} from "src/Bag.sol";
 import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
 import {IBag} from "src/interface/IBag.sol";
+import {IWithdrawalRequest} from "src/interface/IWithdrawalRequest.sol";
 import {MinAmountRequestPolicy} from "src/policies/MinAmountRequestPolicy.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 import {BaseWithdrawer} from "src/withdrawers/BaseWithdrawer.sol";
@@ -148,7 +149,7 @@ contract WithdrawalRequestViewerTest is Test {
                     admin,
                     abi.encodeCall(
                         WithdrawalRequest.initialize,
-                        (WithdrawalRequest.InitializeParams({
+                        (IWithdrawalRequest.InitializeParams({
                                 token: address(ynToken),
                                 name: "MAX Vault Withdrawal Request",
                                 symbol: "ynWREQ",
@@ -210,7 +211,7 @@ contract WithdrawalRequestViewerTest is Test {
         vm.prank(resolver);
         manager.resolveWithdrawalRequest(id, address(asset), 4 ether);
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
         WithdrawalRequestViewer.RequestView memory view_ = viewer.getRequest(manager, id);
 
         assertEq(view_.id, id);
@@ -311,7 +312,7 @@ contract WithdrawalRequestViewerTest is Test {
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, receiver);
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
         assertFalse(viewer.requestIsClaimed(manager, id));
 
         vm.prank(resolver);
@@ -357,10 +358,10 @@ contract WithdrawalRequestViewerTest is Test {
         assertFalse(viewer.requestIsClaimable(manager, 123));
         assertFalse(viewer.requestIsClaimed(manager, 123));
 
-        vm.expectRevert(abi.encodeWithSelector(WithdrawalRequest.RequestNotFound.selector, 123));
+        vm.expectRevert(abi.encodeWithSelector(IWithdrawalRequest.RequestNotFound.selector, 123));
         viewer.getRequest(manager, 123);
 
-        vm.expectRevert(abi.encodeWithSelector(WithdrawalRequest.RequestNotFound.selector, 123));
+        vm.expectRevert(abi.encodeWithSelector(IWithdrawalRequest.RequestNotFound.selector, 123));
         viewer.maxResolutionAssets(manager, 123, address(asset));
     }
 }

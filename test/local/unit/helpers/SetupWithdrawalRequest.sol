@@ -9,6 +9,7 @@ import {ERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol"
 import {Vault} from "lib/yieldnest-vault/src/Vault.sol";
 import {Bag} from "src/Bag.sol";
 import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
+import {IWithdrawalRequest} from "src/interface/IWithdrawalRequest.sol";
 import {MinAmountRequestPolicy} from "src/policies/MinAmountRequestPolicy.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 import {BaseWithdrawer} from "src/withdrawers/BaseWithdrawer.sol";
@@ -84,7 +85,7 @@ contract SetupWithdrawalRequest is Test {
             admin,
             abi.encodeCall(
                 WithdrawalRequest.initialize,
-                (WithdrawalRequest.InitializeParams({
+                (IWithdrawalRequest.InitializeParams({
                         token: address(ynToken),
                         name: "MAX Vault Withdrawal Request",
                         symbol: "ynWREQ",

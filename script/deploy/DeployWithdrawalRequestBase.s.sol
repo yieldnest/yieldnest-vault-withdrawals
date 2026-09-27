@@ -9,6 +9,7 @@ import {Strings} from "lib/openzeppelin-contracts/contracts/utils/Strings.sol";
 import {BaseScript} from "lib/yieldnest-vault/script/BaseScript.sol";
 import {Bag} from "src/Bag.sol";
 import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
+import {IWithdrawalRequest} from "src/interface/IWithdrawalRequest.sol";
 import {MinAmountRequestPolicy} from "src/policies/MinAmountRequestPolicy.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 import {BaseWithdrawer} from "src/withdrawers/BaseWithdrawer.sol";
@@ -109,7 +110,7 @@ abstract contract DeployWithdrawalRequestBase is BaseScript {
             defaultAdmin,
             abi.encodeCall(
                 WithdrawalRequest.initialize,
-                (WithdrawalRequest.InitializeParams({
+                (IWithdrawalRequest.InitializeParams({
                         token: token,
                         name: REQUEST_NFT_NAME,
                         symbol: REQUEST_NFT_SYMBOL,

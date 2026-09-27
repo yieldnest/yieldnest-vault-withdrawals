@@ -16,6 +16,7 @@ import {
     ReentrancyGuardUpgradeable
 } from "lib/openzeppelin-contracts-upgradeable/contracts/utils/ReentrancyGuardUpgradeable.sol";
 import {IBag} from "src/interface/IBag.sol";
+import {IWithdrawalRequest} from "src/interface/IWithdrawalRequest.sol";
 import {IWithdrawer} from "src/interface/IWithdrawer.sol";
 import {Bag} from "src/Bag.sol";
 import {MinAmountRequestPolicy} from "src/policies/MinAmountRequestPolicy.sol";
@@ -142,7 +143,7 @@ contract RequestRateWithdrawer is IWithdrawer {
         if (msg.sender != address(manager)) revert Unauthorized(msg.sender);
         if (asset != token.asset()) revert InvalidAsset(asset);
 
-        WithdrawalRequest.Request memory request = manager.requests(requestId);
+        IWithdrawalRequest.Request memory request = manager.requests(requestId);
         uint256 sharesAtRequestRate = assets.mulDiv(10 ** token.decimals(), request.rateAtRequest, Math.Rounding.Ceil);
 
         uint256 sharesBurned = token.withdrawAsset(asset, assets, receiver, owner);
@@ -211,7 +212,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
     ) internal pure returns (bytes memory) {
         return abi.encodeCall(
             WithdrawalRequest.initialize,
-            (WithdrawalRequest.InitializeParams({
+            (IWithdrawalRequest.InitializeParams({
                     token: token_,
                     name: "MAX Vault Withdrawal Request",
                     symbol: "ynWREQ",
@@ -240,7 +241,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
     ) internal {
         WithdrawalRequest implementation = new WithdrawalRequest();
 
-        vm.expectRevert(WithdrawalRequest.ZeroAddress.selector);
+        vm.expectRevert(IWithdrawalRequest.ZeroAddress.selector);
         new TransparentUpgradeableProxy(
             address(implementation),
             admin_,
@@ -263,7 +264,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
 
         vm.expectRevert(Initializable.InvalidInitialization.selector);
         implementation.initialize(
-            WithdrawalRequest.InitializeParams({
+            IWithdrawalRequest.InitializeParams({
                 token: address(ynToken),
                 name: "MAX Vault Withdrawal Request",
                 symbol: "ynWREQ",
@@ -282,7 +283,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
     function testProxyCannotBeInitializedTwice() public {
         vm.expectRevert(Initializable.InvalidInitialization.selector);
         manager.initialize(
-            WithdrawalRequest.InitializeParams({
+            IWithdrawalRequest.InitializeParams({
                 token: address(ynToken),
                 name: "MAX Vault Withdrawal Request",
                 symbol: "ynWREQ",
@@ -307,7 +308,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
                     admin,
                     abi.encodeCall(
                         WithdrawalRequest.initialize,
-                        (WithdrawalRequest.InitializeParams({
+                        (IWithdrawalRequest.InitializeParams({
                                 token: address(ynToken),
                                 name: "Custom Withdrawal Request",
                                 symbol: "cWREQ",
@@ -422,7 +423,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
 
     function testRequestWithdrawalTransfersTokenAndRecordsRequest() public {
         vm.expectEmit(true, false, true, false, address(manager));
-        emit WithdrawalRequest.WithdrawalRequested(0, user, address(ynToken), address(0), 10 ether, "");
+        emit IWithdrawalRequest.WithdrawalRequested(0, user, address(ynToken), address(0), 10 ether, "");
 
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, user);
@@ -435,7 +436,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         assertEq(ynToken.balanceOf(user), 90 ether);
         assertEq(ynToken.balanceOf(address(manager)), 10 ether);
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
         assertTrue(request.bag != address(0));
         assertEq(manager.ownerOf(id), user);
         assertEq(manager.name(), "MAX Vault Withdrawal Request");
@@ -460,7 +461,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
 
         _setDefaultAssetPerShare(3 ether);
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
         assertEq(request.amountLocked, 10 ether);
         assertEq(request.rateAtRequest, 2 ether);
     }
@@ -471,7 +472,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, user, data);
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
         assertEq(keccak256(request.data), keccak256(data));
     }
 
@@ -512,7 +513,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, user, data);
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
         assertEq(request.data.length, manager.maxDataLength());
         assertEq(keccak256(request.data), keccak256(data));
     }
@@ -521,7 +522,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         bytes memory data = new bytes(manager.maxDataLength() + 1);
 
         vm.expectRevert(
-            abi.encodeWithSelector(WithdrawalRequest.DataTooLong.selector, data.length, manager.maxDataLength())
+            abi.encodeWithSelector(IWithdrawalRequest.DataTooLong.selector, data.length, manager.maxDataLength())
         );
         vm.prank(user);
         manager.requestWithdrawal(10 ether, user, data);
@@ -533,8 +534,8 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         uint256 secondId = manager.requestWithdrawal(11 ether, user);
         vm.stopPrank();
 
-        WithdrawalRequest.Request memory firstRequest = manager.requests(firstId);
-        WithdrawalRequest.Request memory secondRequest = manager.requests(secondId);
+        IWithdrawalRequest.Request memory firstRequest = manager.requests(firstId);
+        IWithdrawalRequest.Request memory secondRequest = manager.requests(secondId);
 
         assertTrue(firstRequest.bag != address(0));
         assertTrue(secondRequest.bag != address(0));
@@ -554,7 +555,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, receiver);
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
 
         assertEq(ynToken.balanceOf(user), 90 ether);
         assertEq(ynToken.balanceOf(address(manager)), 10 ether);
@@ -583,7 +584,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, receiver, data);
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
         WithdrawalRequestViewer.RequestView memory view_ = viewer.getRequest(manager, id);
 
         assertEq(view_.owner, receiver);
@@ -625,7 +626,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(amount, receiver_);
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
 
         assertEq(id, 0);
         assertTrue(manager.requestExists(id));
@@ -660,7 +661,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, user);
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
         asset.mint(request.bag, 4 ether);
 
         vm.expectRevert(abi.encodeWithSelector(IBag.NotRequestOwner.selector, address(this)));
@@ -678,7 +679,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, user);
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
         asset.mint(request.bag, 4 ether);
 
         vm.prank(user);
@@ -702,7 +703,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, user);
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
         asset.mint(request.bag, 4 ether);
 
         vm.prank(user);
@@ -726,7 +727,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, user);
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
         vm.deal(request.bag, 4 ether);
 
         vm.expectRevert(abi.encodeWithSelector(IBag.NotRequestOwner.selector, address(this)));
@@ -746,7 +747,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, user);
 
-        vm.expectRevert(abi.encodeWithSelector(WithdrawalRequest.NotRequestOwner.selector, receiver));
+        vm.expectRevert(abi.encodeWithSelector(IWithdrawalRequest.NotRequestOwner.selector, receiver));
         vm.prank(receiver);
         manager.burn(id);
     }
@@ -755,7 +756,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, user);
 
-        vm.expectRevert(abi.encodeWithSelector(WithdrawalRequest.RequestNotBurnable.selector, id));
+        vm.expectRevert(abi.encodeWithSelector(IWithdrawalRequest.RequestNotBurnable.selector, id));
         vm.prank(user);
         manager.burn(id);
     }
@@ -767,7 +768,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         vm.prank(resolver);
         manager.resolveWithdrawalRequest(id, address(asset), 10 ether);
 
-        vm.expectRevert(abi.encodeWithSelector(WithdrawalRequest.RequestNotBurnable.selector, id));
+        vm.expectRevert(abi.encodeWithSelector(IWithdrawalRequest.RequestNotBurnable.selector, id));
         vm.prank(user);
         manager.burn(id);
     }
@@ -779,13 +780,13 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         vm.prank(resolver);
         manager.resolveWithdrawalRequest(id, address(asset), 10 ether);
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
 
         vm.prank(user);
         assertEq(_claimSingleERC20(request.bag, address(asset), user, 10 ether)[0], 10 ether);
 
         vm.expectEmit(true, true, true, true, address(manager));
-        emit WithdrawalRequest.WithdrawalRequestBurned(id, user, request.bag);
+        emit IWithdrawalRequest.WithdrawalRequestBurned(id, user, request.bag);
 
         vm.prank(user);
         manager.burn(id);
@@ -793,7 +794,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         assertFalse(manager.requestExists(id));
         assertEq(manager.balanceOf(user), 0);
 
-        vm.expectRevert(abi.encodeWithSelector(WithdrawalRequest.RequestNotFound.selector, id));
+        vm.expectRevert(abi.encodeWithSelector(IWithdrawalRequest.RequestNotFound.selector, id));
         manager.requests(id);
 
         vm.expectRevert();
@@ -811,7 +812,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
     }
 
     function testRequestWithdrawalRevertsForZeroAmount() public {
-        vm.expectRevert(WithdrawalRequest.ZeroAmount.selector);
+        vm.expectRevert(IWithdrawalRequest.ZeroAmount.selector);
         vm.prank(user);
         manager.requestWithdrawal(0, user);
     }
@@ -827,18 +828,18 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
     }
 
     function testRequestWithdrawalRevertsForZeroReceiver() public {
-        vm.expectRevert(WithdrawalRequest.ZeroAddress.selector);
+        vm.expectRevert(IWithdrawalRequest.ZeroAddress.selector);
         vm.prank(user);
         manager.requestWithdrawal(10 ether, address(0));
     }
 
     function testRequestsRevertsWhenRequestDoesNotExist() public {
-        vm.expectRevert(abi.encodeWithSelector(WithdrawalRequest.RequestNotFound.selector, 123));
+        vm.expectRevert(abi.encodeWithSelector(IWithdrawalRequest.RequestNotFound.selector, 123));
         manager.requests(123);
     }
 
     function testBurnRevertsWhenRequestDoesNotExist() public {
-        vm.expectRevert(abi.encodeWithSelector(WithdrawalRequest.RequestNotFound.selector, 123));
+        vm.expectRevert(abi.encodeWithSelector(IWithdrawalRequest.RequestNotFound.selector, 123));
         manager.burn(123);
     }
 
@@ -858,7 +859,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         MinAmountRequestPolicy newRequestPolicy = new MinAmountRequestPolicy(2 ether);
 
         vm.expectEmit(false, false, false, true, address(manager));
-        emit WithdrawalRequest.RequestPolicyUpdated(address(requestPolicy), address(newRequestPolicy));
+        emit IWithdrawalRequest.RequestPolicyUpdated(address(requestPolicy), address(newRequestPolicy));
 
         vm.prank(configurationManager);
         manager.setRequestPolicy(address(newRequestPolicy));
@@ -878,7 +879,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
     }
 
     function testSetRequestPolicyRevertsForZeroAddress() public {
-        vm.expectRevert(WithdrawalRequest.ZeroAddress.selector);
+        vm.expectRevert(IWithdrawalRequest.ZeroAddress.selector);
         vm.prank(configurationManager);
         manager.setRequestPolicy(address(0));
     }
@@ -895,7 +896,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
 
     function testSetMaxDataLengthUpdatesLimitAndEmits() public {
         vm.expectEmit(false, false, false, true, address(manager));
-        emit WithdrawalRequest.MaxDataLengthUpdated(maxDataLength, 64);
+        emit IWithdrawalRequest.MaxDataLengthUpdated(maxDataLength, 64);
 
         vm.prank(configurationManager);
         manager.setMaxDataLength(64);
@@ -908,7 +909,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         manager.setMaxDataLength(4);
 
         bytes memory tooLong = new bytes(5);
-        vm.expectRevert(abi.encodeWithSelector(WithdrawalRequest.DataTooLong.selector, tooLong.length, 4));
+        vm.expectRevert(abi.encodeWithSelector(IWithdrawalRequest.DataTooLong.selector, tooLong.length, 4));
         vm.prank(user);
         manager.requestWithdrawal(10 ether, user, tooLong);
 
@@ -923,7 +924,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         vm.prank(configurationManager);
         manager.setMaxDataLength(0);
 
-        vm.expectRevert(abi.encodeWithSelector(WithdrawalRequest.DataTooLong.selector, 1, 0));
+        vm.expectRevert(abi.encodeWithSelector(IWithdrawalRequest.DataTooLong.selector, 1, 0));
         vm.prank(user);
         manager.requestWithdrawal(10 ether, user, hex"01");
 
@@ -937,7 +938,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         BaseWithdrawer newWithdrawer = _deployBaseWithdrawer(address(ynToken), address(manager));
 
         vm.expectEmit(false, false, false, true, address(manager));
-        emit WithdrawalRequest.WithdrawerUpdated(address(withdrawer), address(newWithdrawer));
+        emit IWithdrawalRequest.WithdrawerUpdated(address(withdrawer), address(newWithdrawer));
 
         vm.prank(configurationManager);
         manager.setWithdrawer(address(newWithdrawer));
@@ -978,7 +979,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
     }
 
     function testSetWithdrawerRevertsForZeroAddress() public {
-        vm.expectRevert(WithdrawalRequest.ZeroAddress.selector);
+        vm.expectRevert(IWithdrawalRequest.ZeroAddress.selector);
         vm.prank(configurationManager);
         manager.setWithdrawer(address(0));
     }
@@ -1122,7 +1123,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         vm.prank(resolver);
         uint256 amountBurned = manager.resolveWithdrawalRequest(id, address(asset), 4 ether);
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
         assertEq(amountBurned, 4 ether);
         assertEq(request.amountLocked, 6 ether);
     }
@@ -1131,11 +1132,11 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, user);
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
         assertEq(request.assetsRedeemed.length, 0);
 
         vm.expectEmit(true, true, true, true, address(manager));
-        emit WithdrawalRequest.WithdrawalRequestResolved(
+        emit IWithdrawalRequest.WithdrawalRequestResolved(
             id, user, address(ynToken), address(asset), 4 ether, 4 ether, 6 ether
         );
 
@@ -1165,11 +1166,11 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, user);
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
 
         // The resolved asset is the yn-token itself, delivered in kind rather than burned.
         vm.expectEmit(true, true, true, true, address(manager));
-        emit WithdrawalRequest.WithdrawalRequestResolved(
+        emit IWithdrawalRequest.WithdrawalRequestResolved(
             id, user, address(ynToken), address(ynToken), 4 ether, 4 ether, 6 ether
         );
 
@@ -1204,7 +1205,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         manager.resolveWithdrawalRequest(id, address(secondAsset), 3 ether);
         vm.stopPrank();
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
         assertEq(request.assetsRedeemed.length, 2);
         assertEq(request.assetsRedeemed[0], address(asset));
         assertEq(request.assetsRedeemed[1], address(secondAsset));
@@ -1225,7 +1226,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         vm.prank(resolver);
         uint256[] memory amountsBurned = manager.resolveWithdrawalRequest(id, assets, assetAmounts);
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
         assertEq(amountsBurned.length, 2);
         assertEq(amountsBurned[0], 4 ether);
         assertEq(amountsBurned[1], 3 ether);
@@ -1247,7 +1248,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         uint256[] memory assetAmounts = new uint256[](1);
         assetAmounts[0] = 4 ether;
 
-        vm.expectRevert(abi.encodeWithSelector(WithdrawalRequest.ArrayLengthMismatch.selector, 2, 1));
+        vm.expectRevert(abi.encodeWithSelector(IWithdrawalRequest.ArrayLengthMismatch.selector, 2, 1));
         vm.prank(resolver);
         manager.resolveWithdrawalRequest(id, assets, assetAmounts);
     }
@@ -1275,13 +1276,13 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, user);
 
-        vm.expectRevert(WithdrawalRequest.ZeroAddress.selector);
+        vm.expectRevert(IWithdrawalRequest.ZeroAddress.selector);
         vm.prank(resolver);
         manager.resolveWithdrawalRequest(id, address(0), 1 ether);
     }
 
     function testResolveWithdrawalRequestRevertsWhenRequestDoesNotExist() public {
-        vm.expectRevert(abi.encodeWithSelector(WithdrawalRequest.RequestNotFound.selector, 123));
+        vm.expectRevert(abi.encodeWithSelector(IWithdrawalRequest.RequestNotFound.selector, 123));
         vm.prank(resolver);
         manager.resolveWithdrawalRequest(123, address(asset), 1 ether);
     }
@@ -1290,7 +1291,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, user);
 
-        vm.expectRevert(WithdrawalRequest.ZeroAmount.selector);
+        vm.expectRevert(IWithdrawalRequest.ZeroAmount.selector);
         vm.prank(resolver);
         manager.resolveWithdrawalRequest(id, address(asset), 0);
     }
@@ -1330,7 +1331,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         vm.prank(resolver);
         uint256 amountBurned = manager.resolveWithdrawalRequest(id, address(asset), 1 ether);
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
         assertEq(amountBurned, 2 ether);
         assertEq(request.amountLocked, 8 ether);
         assertEq(ynToken.balanceOf(collector), 0);
@@ -1348,7 +1349,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         vm.prank(resolver);
         uint256 amountBurned = manager.resolveWithdrawalRequest(id, address(asset), 1 ether);
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
         assertEq(amountBurned, 1 ether);
         assertEq(request.amountLocked, 9 ether);
         assertEq(asset.balanceOf(request.bag), 1 ether);
@@ -1366,7 +1367,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         vm.prank(resolver);
         uint256 amountBurned = manager.resolveWithdrawalRequest(id, address(asset), 1 ether);
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
         assertEq(amountBurned, 2 ether);
         assertEq(request.amountLocked, 8 ether);
         assertEq(asset.balanceOf(request.bag), 1 ether);
@@ -1386,7 +1387,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, user);
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
         assertEq(request.rateAtRequest, 0.5 ether);
 
         _setDefaultAssetPerShare(1 ether);
@@ -1414,7 +1415,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         vm.prank(resolver);
         uint256 amountBurned = manager.resolveWithdrawalRequest(id, address(asset), assets);
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
 
         assertEq(amountBurned, assets);
         assertEq(request.amountLocked, lockedAmount - assets);
@@ -1430,13 +1431,13 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, user);
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
         uint256 maxAssets = viewer.maxResolutionAssets(manager, id, address(asset));
 
         assertEq(maxAssets, 10 ether);
 
         vm.expectEmit(true, true, true, true, address(manager));
-        emit WithdrawalRequest.WithdrawalRequestResolved(
+        emit IWithdrawalRequest.WithdrawalRequestResolved(
             id, user, address(ynToken), address(asset), 10 ether, 10 ether, 0
         );
 
@@ -1465,7 +1466,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         vm.prank(resolver);
         uint256 amountBurned = manager.resolveWithdrawalRequest(id, address(asset), maxAssets);
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
 
         assertEq(amountBurned, lockedAmount);
         assertEq(maxAssets, lockedAmount);
@@ -1484,7 +1485,9 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, user);
 
-        vm.expectRevert(abi.encodeWithSelector(WithdrawalRequest.InvalidTokenBalanceChange.selector, 10 ether, 6 ether));
+        vm.expectRevert(
+            abi.encodeWithSelector(IWithdrawalRequest.InvalidTokenBalanceChange.selector, 10 ether, 6 ether)
+        );
         vm.prank(resolver);
         manager.resolveWithdrawalRequest(id, address(asset), 4 ether);
     }
@@ -1500,14 +1503,14 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         uint256 id = manager.requestWithdrawal(10 ether, user);
 
         vm.expectEmit(true, true, true, true, address(manager));
-        emit WithdrawalRequest.WithdrawalRequestResolved(
+        emit IWithdrawalRequest.WithdrawalRequestResolved(
             id, user, address(ynToken), address(asset), 3 ether, 3 ether, 7 ether
         );
 
         vm.prank(resolver);
         uint256 amountBurned = manager.resolveWithdrawalRequest(id, address(asset), 4 ether);
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
 
         assertEq(amountBurned, 3 ether);
         assertEq(request.amountLocked, 7 ether);

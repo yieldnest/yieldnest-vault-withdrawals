@@ -120,7 +120,7 @@ A normal `WithdrawalRequest` proxy is initialized with:
 
 ```solidity
 WithdrawalRequest.initialize(
-    WithdrawalRequest.InitializeParams({
+    IWithdrawalRequest.InitializeParams({
         token: token,
         name: name,
         symbol: symbol,
