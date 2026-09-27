@@ -120,24 +120,34 @@ A normal `WithdrawalRequest` proxy is initialized with:
 
 ```solidity
 WithdrawalRequest.initialize(
-    address token_,
-    address defaultAdmin,
-    address resolver,
-    address configurationManager,
-    address pauser,
-    address bagFactory_,
-    address withdrawer_,
-    address requestPolicy_,
-    uint256 maxDataLength_
+    WithdrawalRequest.InitializeParams({
+        token: token,
+        name: name,
+        symbol: symbol,
+        defaultAdmin: defaultAdmin,
+        resolver: resolver,
+        configurationManager: configurationManager,
+        pauser: pauser,
+        bagFactory: bagFactory,
+        withdrawer: withdrawer,
+        requestPolicy: requestPolicy,
+        maxDataLength: maxDataLength
+    })
 )
 ```
 
 Parameter meanings and validation:
 
-- `token_`
+- `token`
   - The yn-token whose shares are locked by requests and consumed during resolution.
   - Must implement `IWithdrawerVault`: ERC20 metadata, `withdrawAsset(...)`, and `convertToAssets(...)`.
   - The `WithdrawalRequest` contract receives and holds this token until requests are resolved or cancelled in kind.
+
+- `name`
+  - ERC721 name for the withdrawal request NFT.
+
+- `symbol`
+  - ERC721 symbol for the withdrawal request NFT.
 
 - `defaultAdmin`
   - Receives `DEFAULT_ADMIN_ROLE`.
@@ -159,23 +169,23 @@ Parameter meanings and validation:
   - Receives `PAUSER_ROLE`.
   - Can pause and unpause request creation. Pausing does not stop resolution.
 
-- `bagFactory_`
+- `bagFactory`
   - Factory used to deploy request bags.
   - Must grant `CREATOR_ROLE` to the `WithdrawalRequest` proxy.
   - In the default deployment script, this is achieved by initializing the factory with the predicted proxy as creator.
 
-- `withdrawer_`
+- `withdrawer`
   - Adapter called by `WithdrawalRequest.resolveWithdrawalRequest(...)`.
   - Must only allow calls from the configured `WithdrawalRequest`.
   - When `BaseWithdrawer` is used with BaseStrategy-backed vaults, grant the withdrawer fee exemption and, depending on
     vault configuration, potentially `ALLOCATOR_ROLE`.
 
-- `requestPolicy_`
+- `requestPolicy`
   - Policy called during request creation.
   - Current production policy is `MinAmountRequestPolicy`, but the manager supports replacement by the configuration
     manager.
 
-- `maxDataLength_`
+- `maxDataLength`
   - Maximum bytes accepted in request metadata.
   - Resolver modules may version and interpret `data`, but `WithdrawalRequest` only enforces length.
 

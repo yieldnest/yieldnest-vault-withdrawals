@@ -69,15 +69,19 @@ contract WithdrawalRequestMainnetTest is Test, Actors {
             abi.encodeCall(
                 WithdrawalRequest.initialize,
                 (
-                    address(vault),
-                    ADMIN,
-                    resolver,
-                    configurationManager,
-                    pauser,
-                    address(bagFactory),
-                    address(withdrawer),
-                    address(requestPolicy),
-                    MAX_DATA_LENGTH
+                    WithdrawalRequest.InitializeParams({
+                        token: address(vault),
+                        name: "MAX Vault Withdrawal Request",
+                        symbol: "ynWREQ",
+                        defaultAdmin: ADMIN,
+                        resolver: resolver,
+                        configurationManager: configurationManager,
+                        pauser: pauser,
+                        bagFactory: address(bagFactory),
+                        withdrawer: address(withdrawer),
+                        requestPolicy: address(requestPolicy),
+                        maxDataLength: MAX_DATA_LENGTH
+                    })
                 )
             )
         );

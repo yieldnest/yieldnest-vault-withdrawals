@@ -211,17 +211,19 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
     ) internal pure returns (bytes memory) {
         return abi.encodeCall(
             WithdrawalRequest.initialize,
-            (
-                token_,
-                admin_,
-                resolver_,
-                configurationManager_,
-                pauser_,
-                bagFactory_,
-                withdrawer_,
-                requestPolicy_,
-                maxDataLength_
-            )
+            (WithdrawalRequest.InitializeParams({
+                    token: token_,
+                    name: "MAX Vault Withdrawal Request",
+                    symbol: "ynWREQ",
+                    defaultAdmin: admin_,
+                    resolver: resolver_,
+                    configurationManager: configurationManager_,
+                    pauser: pauser_,
+                    bagFactory: bagFactory_,
+                    withdrawer: withdrawer_,
+                    requestPolicy: requestPolicy_,
+                    maxDataLength: maxDataLength_
+                }))
         );
     }
 
@@ -261,31 +263,70 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
 
         vm.expectRevert(Initializable.InvalidInitialization.selector);
         implementation.initialize(
-            address(ynToken),
-            admin,
-            resolver,
-            configurationManager,
-            pauser,
-            address(bagFactory),
-            address(withdrawer),
-            address(requestPolicy),
-            maxDataLength
+            WithdrawalRequest.InitializeParams({
+                token: address(ynToken),
+                name: "MAX Vault Withdrawal Request",
+                symbol: "ynWREQ",
+                defaultAdmin: admin,
+                resolver: resolver,
+                configurationManager: configurationManager,
+                pauser: pauser,
+                bagFactory: address(bagFactory),
+                withdrawer: address(withdrawer),
+                requestPolicy: address(requestPolicy),
+                maxDataLength: maxDataLength
+            })
         );
     }
 
     function testProxyCannotBeInitializedTwice() public {
         vm.expectRevert(Initializable.InvalidInitialization.selector);
         manager.initialize(
-            address(ynToken),
-            admin,
-            resolver,
-            configurationManager,
-            pauser,
-            address(bagFactory),
-            address(withdrawer),
-            address(requestPolicy),
-            maxDataLength
+            WithdrawalRequest.InitializeParams({
+                token: address(ynToken),
+                name: "MAX Vault Withdrawal Request",
+                symbol: "ynWREQ",
+                defaultAdmin: admin,
+                resolver: resolver,
+                configurationManager: configurationManager,
+                pauser: pauser,
+                bagFactory: address(bagFactory),
+                withdrawer: address(withdrawer),
+                requestPolicy: address(requestPolicy),
+                maxDataLength: maxDataLength
+            })
         );
+    }
+
+    function testInitializeSetsConfiguredRequestNFTMetadata() public {
+        WithdrawalRequest implementation = new WithdrawalRequest();
+        WithdrawalRequest customManager = WithdrawalRequest(
+            address(
+                new TransparentUpgradeableProxy(
+                    address(implementation),
+                    admin,
+                    abi.encodeCall(
+                        WithdrawalRequest.initialize,
+                        (WithdrawalRequest.InitializeParams({
+                                token: address(ynToken),
+                                name: "Custom Withdrawal Request",
+                                symbol: "cWREQ",
+                                defaultAdmin: admin,
+                                resolver: resolver,
+                                configurationManager: configurationManager,
+                                pauser: pauser,
+                                bagFactory: address(bagFactory),
+                                withdrawer: address(withdrawer),
+                                requestPolicy: address(requestPolicy),
+                                maxDataLength: maxDataLength
+                            }))
+                    )
+                )
+            )
+        );
+
+        assertEq(customManager.name(), "Custom Withdrawal Request");
+        assertEq(customManager.symbol(), "cWREQ");
     }
 
     function testInitializeRevertsForZeroDependencies() public {

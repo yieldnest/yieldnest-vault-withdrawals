@@ -37,7 +37,7 @@ contract WithdrawalRequest is
 {
     using SafeERC20 for IERC20;
 
-    string public constant VERSION = "0.1.0";
+    string public constant VERSION = "0.1.1";
 
     struct Request {
         address bag;
@@ -45,6 +45,31 @@ contract WithdrawalRequest is
         address[] assetsRedeemed;
         uint256 rateAtRequest;
         bytes data;
+    }
+
+    struct InitializeParams {
+        /// @notice yn-token shares locked and resolved by this contract.
+        address token;
+        /// @notice Request NFT name.
+        string name;
+        /// @notice Request NFT symbol.
+        string symbol;
+        /// @notice Account granted the default admin role.
+        address defaultAdmin;
+        /// @notice Account granted permission to resolve requests.
+        address resolver;
+        /// @notice Account granted permission to update configurable modules.
+        address configurationManager;
+        /// @notice Account granted permission to pause and unpause request creation.
+        address pauser;
+        /// @notice Factory used to deploy request bags.
+        address bagFactory;
+        /// @notice Adapter used to withdraw assets from the yn-token.
+        address withdrawer;
+        /// @notice Policy used to validate request creation.
+        address requestPolicy;
+        /// @notice Maximum bytes allowed in request metadata.
+        uint256 maxDataLength;
     }
 
     /// @custom:storage-location erc7201:yieldnest.storage.withdrawal_request_manager
@@ -105,46 +130,31 @@ contract WithdrawalRequest is
     }
 
     /// @notice Initializes the withdrawal request contract and its roles.
-    /// @param token_ yn-token shares locked and resolved by this contract.
-    /// @param defaultAdmin Account granted the default admin role.
-    /// @param resolver Account granted permission to resolve requests.
-    /// @param configurationManager Account granted permission to update configurable modules.
-    /// @param pauser Account granted permission to pause and unpause request creation.
-    /// @param bagFactory_ Factory used to deploy request bags.
-    /// @param withdrawer_ Adapter used to withdraw assets from the yn-token.
-    /// @param requestPolicy_ Policy used to validate request creation.
-    /// @param maxDataLength_ Maximum bytes allowed in request metadata.
-    function initialize(
-        address token_,
-        address defaultAdmin,
-        address resolver,
-        address configurationManager,
-        address pauser,
-        address bagFactory_,
-        address withdrawer_,
-        address requestPolicy_,
-        uint256 maxDataLength_
-    ) external initializer {
-        if (
-            token_ == address(0) || defaultAdmin == address(0) || resolver == address(0)
-                || configurationManager == address(0) || pauser == address(0) || bagFactory_ == address(0)
-                || withdrawer_ == address(0) || requestPolicy_ == address(0)
-        ) {
-            revert ZeroAddress();
-        }
+    /// @param params Initial configuration, roles, modules, and request NFT metadata.
+    function initialize(InitializeParams calldata params) external initializer {
+        if (params.token == address(0)) revert ZeroAddress();
+        if (params.defaultAdmin == address(0)) revert ZeroAddress();
+        if (params.resolver == address(0)) revert ZeroAddress();
+        if (params.configurationManager == address(0)) revert ZeroAddress();
+        if (params.pauser == address(0)) revert ZeroAddress();
+        if (params.bagFactory == address(0)) revert ZeroAddress();
+        if (params.withdrawer == address(0)) revert ZeroAddress();
+        if (params.requestPolicy == address(0)) revert ZeroAddress();
 
         __AccessControl_init();
-        __ERC721_init("MAX Vault Withdrawal Request", "ynWREQ");
+        __ERC721_init(params.name, params.symbol);
         __ERC721Enumerable_init();
         __Pausable_init();
         __ReentrancyGuard_init();
 
-        _initializeStorage(token_, bagFactory_, withdrawer_, requestPolicy_, maxDataLength_);
+        _initializeStorage(
+            params.token, params.bagFactory, params.withdrawer, params.requestPolicy, params.maxDataLength
+        );
 
-        _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
-        _grantRole(RESOLVER_ROLE, resolver);
-        _grantRole(CONFIGURATION_MANAGER_ROLE, configurationManager);
-        _grantRole(PAUSER_ROLE, pauser);
+        _grantRole(DEFAULT_ADMIN_ROLE, params.defaultAdmin);
+        _grantRole(RESOLVER_ROLE, params.resolver);
+        _grantRole(CONFIGURATION_MANAGER_ROLE, params.configurationManager);
+        _grantRole(PAUSER_ROLE, params.pauser);
     }
 
     function _initializeStorage(

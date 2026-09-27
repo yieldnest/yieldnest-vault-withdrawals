@@ -84,17 +84,19 @@ contract SetupWithdrawalRequest is Test {
             admin,
             abi.encodeCall(
                 WithdrawalRequest.initialize,
-                (
-                    address(ynToken),
-                    admin,
-                    resolver,
-                    configurationManager,
-                    pauser,
-                    address(bagFactory),
-                    address(withdrawer),
-                    address(requestPolicy),
-                    maxDataLength
-                )
+                (WithdrawalRequest.InitializeParams({
+                        token: address(ynToken),
+                        name: "MAX Vault Withdrawal Request",
+                        symbol: "ynWREQ",
+                        defaultAdmin: admin,
+                        resolver: resolver,
+                        configurationManager: configurationManager,
+                        pauser: pauser,
+                        bagFactory: address(bagFactory),
+                        withdrawer: address(withdrawer),
+                        requestPolicy: address(requestPolicy),
+                        maxDataLength: maxDataLength
+                    }))
             )
         );
         manager = WithdrawalRequest(address(proxy));
