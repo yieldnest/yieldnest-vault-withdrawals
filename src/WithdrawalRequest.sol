@@ -24,10 +24,12 @@ import {IWithdrawer} from "src/interface/IWithdrawer.sol";
 import {IWithdrawerVault} from "src/interface/IWithdrawerVault.sol";
 import {IWithdrawalRequest} from "src/interface/IWithdrawalRequest.sol";
 
-/// @title WithdrawalRequest
-/// @notice Custodies one yn-token type and tracks permissioned resolution of withdrawal requests.
-/// @dev Assumes the configured yn-token is a standard ERC20 share token: no fee-on-transfer behavior,
-/// rebasing-on-transfer behavior, or other mechanics where the received amount differs from the requested amount.
+/**
+ * @title WithdrawalRequest
+ * @notice Custodies one yn-token type and tracks permissioned resolution of withdrawal requests.
+ * @dev Assumes the configured yn-token is a standard ERC20 share token: no fee-on-transfer behavior,
+ * rebasing-on-transfer behavior, or other mechanics where the received amount differs from the requested amount.
+ */
 contract WithdrawalRequest is
     Initializable,
     AccessControlUpgradeable,
@@ -40,7 +42,9 @@ contract WithdrawalRequest is
 
     string public constant VERSION = "0.1.1";
 
-    /// @custom:storage-location erc7201:yieldnest.storage.withdrawal_request_manager
+    /**
+     * @custom:storage-location erc7201:yieldnest.storage.withdrawal_request_manager
+     */
     struct RequestStorage {
         IWithdrawerVault token;
         IFactory bagFactory;
@@ -65,13 +69,17 @@ contract WithdrawalRequest is
         }
     }
 
-    /// @custom:oz-upgrades-unsafe-allow constructor
+    /**
+     * @custom:oz-upgrades-unsafe-allow constructor
+     */
     constructor() {
         _disableInitializers();
     }
 
-    /// @notice Initializes the withdrawal request contract and its roles.
-    /// @param params Initial configuration, roles, modules, and request NFT metadata.
+    /**
+     * @notice Initializes the withdrawal request contract and its roles.
+     * @param params Initial configuration, roles, modules, and request NFT metadata.
+     */
     function initialize(InitializeParams calldata params) external initializer {
         if (params.token == address(0)) revert ZeroAddress();
         if (params.defaultAdmin == address(0)) revert ZeroAddress();
@@ -115,10 +123,12 @@ contract WithdrawalRequest is
 
     // --- Requests ---
 
-    /// @notice Locks yn-tokens in this contract and creates a withdrawal request.
-    /// @param amount Amount of configured yn-token shares to lock.
-    /// @param receiver Receiver of the request NFT that controls claims.
-    /// @return id Generated request id.
+    /**
+     * @notice Locks yn-tokens in this contract and creates a withdrawal request.
+     * @param amount Amount of configured yn-token shares to lock.
+     * @param receiver Receiver of the request NFT that controls claims.
+     * @return id Generated request id.
+     */
     function requestWithdrawal(uint256 amount, address receiver)
         external
         whenNotPaused
@@ -128,11 +138,13 @@ contract WithdrawalRequest is
         id = _requestWithdrawal(amount, receiver, "");
     }
 
-    /// @notice Locks yn-tokens in this contract and creates a withdrawal request with bounded data.
-    /// @param amount Amount of configured yn-token shares to lock.
-    /// @param receiver Receiver of the request NFT that controls claims.
-    /// @param data Arbitrary request metadata, capped at `maxDataLength()` bytes.
-    /// @return id Generated request id.
+    /**
+     * @notice Locks yn-tokens in this contract and creates a withdrawal request with bounded data.
+     * @param amount Amount of configured yn-token shares to lock.
+     * @param receiver Receiver of the request NFT that controls claims.
+     * @param data Arbitrary request metadata, capped at `maxDataLength()` bytes.
+     * @return id Generated request id.
+     */
     function requestWithdrawal(uint256 amount, address receiver, bytes calldata data)
         external
         whenNotPaused
@@ -167,11 +179,13 @@ contract WithdrawalRequest is
         emit WithdrawalRequested(id, receiver, address($.token), bag, amount, data);
     }
 
-    /// @notice Burns a fully resolved and claimed request NFT.
-    /// @dev The caller must own the request NFT. Burning is allowed only after the locked yn-token balance is zero
-    /// and all tracked redeemed asset balances in the request bag have been claimed.
-    /// Untracked assets left in the request bag are not checked and become permanently inaccessible after burn.
-    /// @param id Request id to burn.
+    /**
+     * @notice Burns a fully resolved and claimed request NFT.
+     * @dev The caller must own the request NFT. Burning is allowed only after the locked yn-token balance is zero
+     * and all tracked redeemed asset balances in the request bag have been claimed.
+     * Untracked assets left in the request bag are not checked and become permanently inaccessible after burn.
+     * @param id Request id to burn.
+     */
     function burn(uint256 id) external nonReentrant {
         RequestStorage storage $ = _getRequestStorage();
         Request storage request = $.requests[id];
@@ -194,11 +208,13 @@ contract WithdrawalRequest is
 
     // --- Resolution ---
 
-    /// @notice Resolves part or all of a request by withdrawing an asset from the configured yn-token.
-    /// @param id Request id to resolve.
-    /// @param asset Asset to withdraw from the yn-token.
-    /// @param assets Amount of `asset` to withdraw to the request bag.
-    /// @return amountBurned Amount of locked yn-token shares burned by the withdrawal.
+    /**
+     * @notice Resolves part or all of a request by withdrawing an asset from the configured yn-token.
+     * @param id Request id to resolve.
+     * @param asset Asset to withdraw from the yn-token.
+     * @param assets Amount of `asset` to withdraw to the request bag.
+     * @return amountBurned Amount of locked yn-token shares burned by the withdrawal.
+     */
     function resolveWithdrawalRequest(uint256 id, address asset, uint256 assets)
         external
         override
@@ -209,11 +225,13 @@ contract WithdrawalRequest is
         (amountBurned,) = _resolveWithdrawalRequest(id, asset, assets);
     }
 
-    /// @notice Resolves a request across multiple assets.
-    /// @param id Request id to resolve.
-    /// @param assets Assets to withdraw from the yn-token.
-    /// @param assetAmounts Amounts of each asset to withdraw to the request bag.
-    /// @return amountsBurned Amounts of locked yn-token shares burned by each withdrawal.
+    /**
+     * @notice Resolves a request across multiple assets.
+     * @param id Request id to resolve.
+     * @param assets Assets to withdraw from the yn-token.
+     * @param assetAmounts Amounts of each asset to withdraw to the request bag.
+     * @return amountsBurned Amounts of locked yn-token shares burned by each withdrawal.
+     */
     function resolveWithdrawalRequest(uint256 id, address[] calldata assets, uint256[] calldata assetAmounts)
         external
         override
@@ -284,8 +302,10 @@ contract WithdrawalRequest is
 
     // --- Configuration ---
 
-    /// @notice Updates the withdrawer adapter and revokes allowance from the old adapter.
-    /// @param withdrawer_ New withdrawer adapter address.
+    /**
+     * @notice Updates the withdrawer adapter and revokes allowance from the old adapter.
+     * @param withdrawer_ New withdrawer adapter address.
+     */
     function setWithdrawer(address withdrawer_) external onlyRole(CONFIGURATION_MANAGER_ROLE) {
         if (withdrawer_ == address(0)) revert ZeroAddress();
 
@@ -297,8 +317,10 @@ contract WithdrawalRequest is
         emit WithdrawerUpdated(oldWithdrawer, withdrawer_);
     }
 
-    /// @notice Updates the request policy used to validate new withdrawal requests.
-    /// @param requestPolicy_ New request policy address.
+    /**
+     * @notice Updates the request policy used to validate new withdrawal requests.
+     * @param requestPolicy_ New request policy address.
+     */
     function setRequestPolicy(address requestPolicy_) external onlyRole(CONFIGURATION_MANAGER_ROLE) {
         if (requestPolicy_ == address(0)) revert ZeroAddress();
 
@@ -309,8 +331,10 @@ contract WithdrawalRequest is
         emit RequestPolicyUpdated(oldRequestPolicy, requestPolicy_);
     }
 
-    /// @notice Updates the maximum request metadata size.
-    /// @param maxDataLength_ New maximum bytes allowed in request metadata.
+    /**
+     * @notice Updates the maximum request metadata size.
+     * @param maxDataLength_ New maximum bytes allowed in request metadata.
+     */
     function setMaxDataLength(uint256 maxDataLength_) external onlyRole(CONFIGURATION_MANAGER_ROLE) {
         RequestStorage storage $ = _getRequestStorage();
         uint256 oldMaxDataLength = $.maxDataLength;
@@ -321,57 +345,75 @@ contract WithdrawalRequest is
 
     // --- Pause ---
 
-    /// @notice Pauses new withdrawal request creation.
+    /**
+     * @notice Pauses new withdrawal request creation.
+     */
     function pause() external onlyRole(PAUSER_ROLE) {
         _pause();
     }
 
-    /// @notice Unpauses new withdrawal request creation.
+    /**
+     * @notice Unpauses new withdrawal request creation.
+     */
     function unpause() external onlyRole(PAUSER_ROLE) {
         _unpause();
     }
 
     // --- Views ---
 
-    /// @notice Returns the configured yn-token handled by this withdrawal request contract.
-    /// @return The configured yn-token.
+    /**
+     * @notice Returns the configured yn-token handled by this withdrawal request contract.
+     * @return The configured yn-token.
+     */
     function token() public view returns (IWithdrawerVault) {
         return _getRequestStorage().token;
     }
 
-    /// @notice Returns the factory used to create request bags.
-    /// @return The factory contract.
+    /**
+     * @notice Returns the factory used to create request bags.
+     * @return The factory contract.
+     */
     function bagFactory() public view returns (IFactory) {
         return _getRequestStorage().bagFactory;
     }
 
-    /// @notice Returns the adapter used to withdraw assets from the configured yn-token.
-    /// @return The configured withdrawer.
+    /**
+     * @notice Returns the adapter used to withdraw assets from the configured yn-token.
+     * @return The configured withdrawer.
+     */
     function withdrawer() public view returns (IWithdrawer) {
         return _getRequestStorage().withdrawer;
     }
 
-    /// @notice Returns the next withdrawal request id to be assigned.
-    /// @return The next request id.
+    /**
+     * @notice Returns the next withdrawal request id to be assigned.
+     * @return The next request id.
+     */
     function nextRequestId() public view returns (uint256) {
         return _getRequestStorage().nextRequestId;
     }
 
-    /// @notice Returns the policy that validates request creation.
-    /// @return The configured request policy.
+    /**
+     * @notice Returns the policy that validates request creation.
+     * @return The configured request policy.
+     */
     function requestPolicy() public view returns (IRequestPolicy) {
         return _getRequestStorage().requestPolicy;
     }
 
-    /// @notice Returns the maximum request metadata size.
-    /// @return Maximum bytes allowed in request metadata.
+    /**
+     * @notice Returns the maximum request metadata size.
+     * @return Maximum bytes allowed in request metadata.
+     */
     function maxDataLength() public view returns (uint256) {
         return _getRequestStorage().maxDataLength;
     }
 
-    /// @notice Returns a withdrawal request by id.
-    /// @param id Request id to query.
-    /// @return The stored withdrawal request.
+    /**
+     * @notice Returns a withdrawal request by id.
+     * @param id Request id to query.
+     * @return The stored withdrawal request.
+     */
     function requests(uint256 id) public view returns (Request memory) {
         Request memory request = _getRequestStorage().requests[id];
         if (!_requestExists(request)) revert RequestNotFound(id);
@@ -379,9 +421,11 @@ contract WithdrawalRequest is
         return request;
     }
 
-    /// @notice Returns whether a withdrawal request exists.
-    /// @param id Request id to query.
-    /// @return True if the request exists.
+    /**
+     * @notice Returns whether a withdrawal request exists.
+     * @param id Request id to query.
+     * @return True if the request exists.
+     */
     function requestExists(uint256 id) public view returns (bool) {
         return _requestExists(_getRequestStorage().requests[id]);
     }
@@ -390,16 +434,20 @@ contract WithdrawalRequest is
         return request.bag != address(0);
     }
 
-    /// @notice Returns the owner of a request NFT.
-    /// @param id Request id to query.
-    /// @return Owner of the request NFT.
+    /**
+     * @notice Returns the owner of a request NFT.
+     * @param id Request id to query.
+     * @return Owner of the request NFT.
+     */
     function ownerOf(uint256 id) public view override(ERC721Upgradeable, IERC721, IAuth) returns (address) {
         return super.ownerOf(id);
     }
 
-    /// @notice Returns whether this contract supports an interface id.
-    /// @param interfaceId Interface id to query.
-    /// @return True if the interface is supported.
+    /**
+     * @notice Returns whether this contract supports an interface id.
+     * @param interfaceId Interface id to query.
+     * @return True if the interface is supported.
+     */
     function supportsInterface(bytes4 interfaceId)
         public
         view

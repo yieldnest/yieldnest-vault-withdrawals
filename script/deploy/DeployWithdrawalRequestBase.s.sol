@@ -62,25 +62,33 @@ abstract contract DeployWithdrawalRequestBase is Script {
         _minWithdrawalAmount = minWithdrawalAmount_;
     }
 
-    /// @notice Returns the deployment symbol used for labels and output JSON.
-    /// @return Script deployment symbol.
+    /**
+     * @notice Returns the deployment symbol used for labels and output JSON.
+     * @return Script deployment symbol.
+     */
     function symbol() public view returns (string memory) {
         return _deploymentSymbol;
     }
 
-    /// @notice Returns the vault token deployed against by this script.
-    /// @return Vault token address.
+    /**
+     * @notice Returns the vault token deployed against by this script.
+     * @return Vault token address.
+     */
     function deploymentToken() public view returns (address) {
         return _deploymentToken;
     }
 
-    /// @notice Returns the minimum request amount configured in the request policy.
-    /// @return Minimum withdrawal request amount in vault token units.
+    /**
+     * @notice Returns the minimum request amount configured in the request policy.
+     * @return Minimum withdrawal request amount in vault token units.
+     */
     function minWithdrawalAmount() public view returns (uint256) {
         return _minWithdrawalAmount;
     }
 
-    /// @notice Deploys the withdrawal request system and writes deployment metadata.
+    /**
+     * @notice Deploys the withdrawal request system and writes deployment metadata.
+     */
     function run() public {
         _setup();
         assignDeploymentParameters();
@@ -171,7 +179,9 @@ abstract contract DeployWithdrawalRequestBase is Script {
         if (minWithdrawalAmount() == 0) revert InvalidSetup();
     }
 
-    /// @notice Verifies deployed contracts, roles, and module wiring.
+    /**
+     * @notice Verifies deployed contracts, roles, and module wiring.
+     */
     function _verifySetup() public view virtual {
         if (address(timelock) == address(0)) revert InvalidSetup();
         if (ProxyAdmin(_proxyAdmin(address(proxy))).owner() != address(timelock)) revert InvalidSetup();
@@ -209,14 +219,18 @@ abstract contract DeployWithdrawalRequestBase is Script {
         }
     }
 
-    /// @notice Returns the deployment label including chain id.
-    /// @return Deployment label.
+    /**
+     * @notice Returns the deployment label including chain id.
+     * @return Deployment label.
+     */
     function label() public view returns (string memory) {
         return string.concat(symbol(), "-", Strings.toString(block.chainid));
     }
 
-    /// @notice Returns the output JSON path for this deployment.
-    /// @return Deployment file path.
+    /**
+     * @notice Returns the output JSON path for this deployment.
+     * @return Deployment file path.
+     */
     function deploymentFilePath() public view returns (string memory) {
         return _deploymentFilePath();
     }

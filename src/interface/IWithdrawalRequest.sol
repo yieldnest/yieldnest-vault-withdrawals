@@ -18,27 +18,49 @@ interface IWithdrawalRequest is IAuth, IResolver {
     }
 
     struct InitializeParams {
-        /// @notice yn-token shares locked and resolved by this contract.
+        /**
+         * @notice yn-token shares locked and resolved by this contract.
+         */
         address token;
-        /// @notice Request NFT name.
+        /**
+         * @notice Request NFT name.
+         */
         string name;
-        /// @notice Request NFT symbol.
+        /**
+         * @notice Request NFT symbol.
+         */
         string symbol;
-        /// @notice Account granted the default admin role.
+        /**
+         * @notice Account granted the default admin role.
+         */
         address defaultAdmin;
-        /// @notice Account granted permission to resolve requests.
+        /**
+         * @notice Account granted permission to resolve requests.
+         */
         address resolver;
-        /// @notice Account granted permission to update configurable modules.
+        /**
+         * @notice Account granted permission to update configurable modules.
+         */
         address configurationManager;
-        /// @notice Account granted permission to pause and unpause request creation.
+        /**
+         * @notice Account granted permission to pause and unpause request creation.
+         */
         address pauser;
-        /// @notice Factory used to deploy request bags.
+        /**
+         * @notice Factory used to deploy request bags.
+         */
         address bagFactory;
-        /// @notice Adapter used to withdraw assets from the yn-token.
+        /**
+         * @notice Adapter used to withdraw assets from the yn-token.
+         */
         address withdrawer;
-        /// @notice Policy used to validate request creation.
+        /**
+         * @notice Policy used to validate request creation.
+         */
         address requestPolicy;
-        /// @notice Maximum bytes allowed in request metadata.
+        /**
+         * @notice Maximum bytes allowed in request metadata.
+         */
         uint256 maxDataLength;
     }
 
