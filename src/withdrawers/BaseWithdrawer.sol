@@ -12,7 +12,10 @@ import {IWithdrawer} from "src/interface/IWithdrawer.sol";
 contract BaseWithdrawer is Initializable, IWithdrawer {
     using SafeERC20 for IERC20;
 
-    /// @custom:storage-location erc7201:yieldnest.storage.live_rate_withdrawer
+    // Not storage-compatible with BaseWithdrawer 0.1.0, which used a non-canonical slot.
+    string public constant VERSION = "1.0.0";
+
+    /// @custom:storage-location erc7201:yieldnest.storage.base_withdrawer
     struct BaseWithdrawerStorage {
         IVault token;
         address withdrawalRequest;
@@ -22,9 +25,9 @@ contract BaseWithdrawer is Initializable, IWithdrawer {
     error InvalidAsset(address asset);
     error ZeroAddress();
 
-    // keccak256(abi.encode(uint256(keccak256("yieldnest.storage.live_rate_withdrawer")) - 1)) & ~bytes32(uint256(0xff))
+    // keccak256(abi.encode(uint256(keccak256("yieldnest.storage.base_withdrawer")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant BaseWithdrawerStorageLocation =
-        0x90cd26f58f230d7edce7681ec7052f8fcb3a4b7bd42b3fcbf2f239cce9d04d00;
+        0xe5c213bd549880d50ed10d9bd1718ecf07fadbabc9dd4b2eaa5a5d726f95e500;
 
     function _getBaseWithdrawerStorage() private pure returns (BaseWithdrawerStorage storage $) {
         assembly {
