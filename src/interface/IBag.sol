@@ -1,13 +1,18 @@
 // SPDX-License-Identifier: BSD-3-Clause
 pragma solidity ^0.8.24;
 
-interface IBag {
+import {IERC721Receiver} from "lib/openzeppelin-contracts/contracts/token/ERC721/IERC721Receiver.sol";
+
+interface IBag is IERC721Receiver {
     error ZeroAddress();
     error NotRequestOwner(address caller);
     error InvalidArrayLength();
 
     event ERC20Claimed(address indexed owner, address indexed recipient, address indexed asset, uint256 amount);
     event ERC721Claimed(address indexed owner, address indexed recipient, address indexed asset, uint256 tokenId);
+    event ERC721Received(
+        address indexed operator, address indexed from, address indexed asset, uint256 tokenId, bytes data
+    );
     event NativeClaimed(address indexed owner, address indexed recipient, uint256 amount);
 
     /// @notice Returns the Bag implementation version.

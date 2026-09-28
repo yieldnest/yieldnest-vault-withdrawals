@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {IERC721} from "lib/openzeppelin-contracts/contracts/token/ERC721/IERC721.sol";
+import {IERC721Receiver} from "lib/openzeppelin-contracts/contracts/token/ERC721/IERC721Receiver.sol";
 import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Address} from "lib/openzeppelin-contracts/contracts/utils/Address.sol";
 import {Initializable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
@@ -18,7 +19,7 @@ contract Bag is Initializable, ReentrancyGuardUpgradeable, IBag {
     using SafeERC20 for IERC20;
     using Address for address payable;
 
-    string public constant VERSION = "0.1.0";
+    string public constant VERSION = "0.1.1";
     address public constant ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     /// @custom:storage-location erc7201:yieldnest.storage.bag
@@ -116,5 +117,19 @@ contract Bag is Initializable, ReentrancyGuardUpgradeable, IBag {
         IERC721(asset).safeTransferFrom(address(this), recipient, tokenId);
 
         emit ERC721Claimed(msg.sender, recipient, asset, tokenId);
+    }
+
+    /// @notice Handles safe ERC721 transfers into this bag.
+    /// @param operator Address that initiated the transfer.
+    /// @param from Previous owner of the token.
+    /// @param tokenId Token id received.
+    /// @param data Additional transfer data.
+    /// @return selector ERC721 receiver selector.
+    function onERC721Received(address operator, address from, uint256 tokenId, bytes calldata data)
+        external
+        returns (bytes4 selector)
+    {
+        emit ERC721Received(operator, from, msg.sender, tokenId, data);
+        return IERC721Receiver.onERC721Received.selector;
     }
 }

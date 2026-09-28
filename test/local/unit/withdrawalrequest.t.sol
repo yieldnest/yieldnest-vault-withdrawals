@@ -685,6 +685,25 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         assertEq(asset.balanceOf(request.bag), 0);
     }
 
+    function testTransferringRequestNFTToOwnBagStrandsBagClaim() public {
+        vm.prank(user);
+        uint256 id = manager.requestWithdrawal(10 ether, user);
+
+        IWithdrawalRequest.Request memory request = manager.requests(id);
+        asset.mint(request.bag, 4 ether);
+
+        vm.prank(user);
+        manager.transferFrom(user, request.bag, id);
+
+        assertEq(manager.ownerOf(id), request.bag);
+
+        vm.expectRevert(abi.encodeWithSelector(IBag.NotRequestOwner.selector, user));
+        vm.prank(user);
+        _claimSingleERC20(request.bag, address(asset), user, 4 ether);
+
+        assertEq(asset.balanceOf(request.bag), 4 ether);
+    }
+
     function testBagClaimSingleNativeRequiresRequestOwner() public {
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, user);
