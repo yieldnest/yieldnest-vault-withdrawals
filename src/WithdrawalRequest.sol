@@ -18,11 +18,11 @@ import {
 import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IBag} from "src/interface/IBag.sol";
 import {IAuth} from "src/interface/IAuth.sol";
-import {IResolver} from "src/interface/IResolver.sol";
 import {IFactory} from "src/interface/IFactory.sol";
 import {IRequestPolicy} from "src/interface/IRequestPolicy.sol";
 import {IWithdrawer} from "src/interface/IWithdrawer.sol";
 import {IWithdrawerVault} from "src/interface/IWithdrawerVault.sol";
+import {IWithdrawalRequest} from "src/interface/IWithdrawalRequest.sol";
 
 /// @title WithdrawalRequest
 /// @notice Custodies one yn-token type and tracks permissioned resolution of withdrawal requests.
@@ -32,20 +32,11 @@ contract WithdrawalRequest is
     ERC721EnumerableUpgradeable,
     PausableUpgradeable,
     ReentrancyGuardUpgradeable,
-    IAuth,
-    IResolver
+    IWithdrawalRequest
 {
     using SafeERC20 for IERC20;
 
-    string public constant VERSION = "0.1.0";
-
-    struct Request {
-        address bag;
-        uint256 amountLocked;
-        address[] assetsRedeemed;
-        uint256 rateAtRequest;
-        bytes data;
-    }
+    string public constant VERSION = "0.1.1";
 
     /// @custom:storage-location erc7201:yieldnest.storage.withdrawal_request_manager
     struct RequestStorage {
@@ -57,33 +48,6 @@ contract WithdrawalRequest is
         mapping(uint256 id => Request request) requests;
         uint256 maxDataLength;
     }
-
-    error ZeroAddress();
-    error ZeroAmount();
-    error RequestNotFound(uint256 id);
-    error InsufficientLockedAmount(uint256 id, uint256 amountLocked, uint256 amountBurned);
-    error InvalidTokenBalanceChange(uint256 balanceBefore, uint256 balanceAfter);
-    error ArrayLengthMismatch(uint256 assetsLength, uint256 assetAmountsLength);
-    error DataTooLong(uint256 length, uint256 maxLength);
-    error NotRequestOwner(address caller);
-    error RequestNotBurnable(uint256 id);
-
-    event WithdrawalRequested(
-        uint256 indexed id, address indexed owner, address indexed token, address bag, uint256 amountLocked, bytes data
-    );
-    event WithdrawalRequestBurned(uint256 indexed id, address indexed owner, address bag);
-    event WithdrawalRequestResolved(
-        uint256 indexed id,
-        address indexed owner,
-        address indexed token,
-        address asset,
-        uint256 assetsWithdrawn,
-        uint256 amountBurned,
-        uint256 amountLocked
-    );
-    event RequestPolicyUpdated(address oldRequestPolicy, address newRequestPolicy);
-    event WithdrawerUpdated(address oldWithdrawer, address newWithdrawer);
-    event MaxDataLengthUpdated(uint256 oldMaxDataLength, uint256 newMaxDataLength);
 
     bytes32 public constant RESOLVER_ROLE = keccak256("RESOLVER_ROLE");
     bytes32 public constant CONFIGURATION_MANAGER_ROLE = keccak256("CONFIGURATION_MANAGER_ROLE");
@@ -105,46 +69,31 @@ contract WithdrawalRequest is
     }
 
     /// @notice Initializes the withdrawal request contract and its roles.
-    /// @param token_ yn-token shares locked and resolved by this contract.
-    /// @param defaultAdmin Account granted the default admin role.
-    /// @param resolver Account granted permission to resolve requests.
-    /// @param configurationManager Account granted permission to update configurable modules.
-    /// @param pauser Account granted permission to pause and unpause request creation.
-    /// @param bagFactory_ Factory used to deploy request bags.
-    /// @param withdrawer_ Adapter used to withdraw assets from the yn-token.
-    /// @param requestPolicy_ Policy used to validate request creation.
-    /// @param maxDataLength_ Maximum bytes allowed in request metadata.
-    function initialize(
-        address token_,
-        address defaultAdmin,
-        address resolver,
-        address configurationManager,
-        address pauser,
-        address bagFactory_,
-        address withdrawer_,
-        address requestPolicy_,
-        uint256 maxDataLength_
-    ) external initializer {
-        if (
-            token_ == address(0) || defaultAdmin == address(0) || resolver == address(0)
-                || configurationManager == address(0) || pauser == address(0) || bagFactory_ == address(0)
-                || withdrawer_ == address(0) || requestPolicy_ == address(0)
-        ) {
-            revert ZeroAddress();
-        }
+    /// @param params Initial configuration, roles, modules, and request NFT metadata.
+    function initialize(InitializeParams calldata params) external initializer {
+        if (params.token == address(0)) revert ZeroAddress();
+        if (params.defaultAdmin == address(0)) revert ZeroAddress();
+        if (params.resolver == address(0)) revert ZeroAddress();
+        if (params.configurationManager == address(0)) revert ZeroAddress();
+        if (params.pauser == address(0)) revert ZeroAddress();
+        if (params.bagFactory == address(0)) revert ZeroAddress();
+        if (params.withdrawer == address(0)) revert ZeroAddress();
+        if (params.requestPolicy == address(0)) revert ZeroAddress();
 
         __AccessControl_init();
-        __ERC721_init("MAX Vault Withdrawal Request", "ynWREQ");
+        __ERC721_init(params.name, params.symbol);
         __ERC721Enumerable_init();
         __Pausable_init();
         __ReentrancyGuard_init();
 
-        _initializeStorage(token_, bagFactory_, withdrawer_, requestPolicy_, maxDataLength_);
+        _initializeStorage(
+            params.token, params.bagFactory, params.withdrawer, params.requestPolicy, params.maxDataLength
+        );
 
-        _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
-        _grantRole(RESOLVER_ROLE, resolver);
-        _grantRole(CONFIGURATION_MANAGER_ROLE, configurationManager);
-        _grantRole(PAUSER_ROLE, pauser);
+        _grantRole(DEFAULT_ADMIN_ROLE, params.defaultAdmin);
+        _grantRole(RESOLVER_ROLE, params.resolver);
+        _grantRole(CONFIGURATION_MANAGER_ROLE, params.configurationManager);
+        _grantRole(PAUSER_ROLE, params.pauser);
     }
 
     function _initializeStorage(

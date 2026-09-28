@@ -9,6 +9,7 @@ import {Strings} from "lib/openzeppelin-contracts/contracts/utils/Strings.sol";
 import {BaseScript} from "lib/yieldnest-vault/script/BaseScript.sol";
 import {Bag} from "src/Bag.sol";
 import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
+import {IWithdrawalRequest} from "src/interface/IWithdrawalRequest.sol";
 import {MinAmountRequestPolicy} from "src/policies/MinAmountRequestPolicy.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 import {BaseWithdrawer} from "src/withdrawers/BaseWithdrawer.sol";
@@ -16,6 +17,8 @@ import {WithdrawalRequestViewer} from "views/WithdrawalRequestViewer.sol";
 
 abstract contract DeployWithdrawalRequestBase is BaseScript {
     uint256 public constant MAX_DATA_LENGTH = 1024;
+    string public constant REQUEST_NFT_NAME = "MAX Vault Withdrawal Request";
+    string public constant REQUEST_NFT_SYMBOL = "ynWREQ";
 
     string private _deploymentSymbol;
     address private _deploymentToken;
@@ -107,17 +110,19 @@ abstract contract DeployWithdrawalRequestBase is BaseScript {
             defaultAdmin,
             abi.encodeCall(
                 WithdrawalRequest.initialize,
-                (
-                    token,
-                    defaultAdmin,
-                    resolver,
-                    configurationManager,
-                    pauser,
-                    address(bagFactory),
-                    address(requestWithdrawer),
-                    address(requestPolicy),
-                    MAX_DATA_LENGTH
-                )
+                (IWithdrawalRequest.InitializeParams({
+                        token: token,
+                        name: REQUEST_NFT_NAME,
+                        symbol: REQUEST_NFT_SYMBOL,
+                        defaultAdmin: defaultAdmin,
+                        resolver: resolver,
+                        configurationManager: configurationManager,
+                        pauser: pauser,
+                        bagFactory: address(bagFactory),
+                        withdrawer: address(requestWithdrawer),
+                        requestPolicy: address(requestPolicy),
+                        maxDataLength: MAX_DATA_LENGTH
+                    }))
             )
         );
         withdrawalRequest = WithdrawalRequest(address(proxy));

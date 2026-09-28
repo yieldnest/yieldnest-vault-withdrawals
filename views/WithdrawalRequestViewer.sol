@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
+import {IWithdrawalRequest} from "src/interface/IWithdrawalRequest.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 import {VaultMath} from "src/library/VaultMath.sol";
 
@@ -37,7 +38,7 @@ contract WithdrawalRequestViewer {
         view
         returns (RequestView memory view_)
     {
-        WithdrawalRequest.Request memory request = withdrawalRequest.requests(id);
+        IWithdrawalRequest.Request memory request = withdrawalRequest.requests(id);
         IVault token = IVault(address(withdrawalRequest.token()));
 
         view_ = _getRequest(id, request, token, withdrawalRequest);
@@ -64,7 +65,7 @@ contract WithdrawalRequestViewer {
 
     function _getRequest(
         uint256 id,
-        WithdrawalRequest.Request memory request,
+        IWithdrawalRequest.Request memory request,
         IVault token,
         WithdrawalRequest withdrawalRequest
     ) internal view returns (RequestView memory view_) {
@@ -100,7 +101,7 @@ contract WithdrawalRequestViewer {
     function requestIsClaimable(WithdrawalRequest withdrawalRequest, uint256 id) external view returns (bool) {
         if (!withdrawalRequest.requestExists(id)) return false;
 
-        WithdrawalRequest.Request memory request = withdrawalRequest.requests(id);
+        IWithdrawalRequest.Request memory request = withdrawalRequest.requests(id);
         IVault token = IVault(address(withdrawalRequest.token()));
 
         return _requestIsClaimable(request, token);
@@ -113,17 +114,17 @@ contract WithdrawalRequestViewer {
     function requestIsClaimed(WithdrawalRequest withdrawalRequest, uint256 id) external view returns (bool) {
         if (!withdrawalRequest.requestExists(id)) return false;
 
-        WithdrawalRequest.Request memory request = withdrawalRequest.requests(id);
+        IWithdrawalRequest.Request memory request = withdrawalRequest.requests(id);
         IVault token = IVault(address(withdrawalRequest.token()));
 
         return _requestIsClaimed(request, token);
     }
 
-    function _requestIsClaimable(WithdrawalRequest.Request memory request, IVault token) internal view returns (bool) {
+    function _requestIsClaimable(IWithdrawalRequest.Request memory request, IVault token) internal view returns (bool) {
         return request.amountLocked < 10 ** token.decimals() / 1e4;
     }
 
-    function _requestIsClaimed(WithdrawalRequest.Request memory request, IVault token) internal view returns (bool) {
+    function _requestIsClaimed(IWithdrawalRequest.Request memory request, IVault token) internal view returns (bool) {
         if (!_requestIsClaimable(request, token)) return false;
 
         for (uint256 i = 0; i < request.assetsRedeemed.length; ++i) {
@@ -154,14 +155,16 @@ contract WithdrawalRequestViewer {
     /// For fixed-rate withdrawers, this returns the assets implied by the fixed redemption rate.
     /// It is intentionally separate from `convertToAssets`, which estimates per-asset resolution amounts.
     /// @param withdrawalRequest Withdrawal request contract whose configured withdrawer provides the redemption rate.
+    /// @param id Request id used by request-aware withdrawers.
+    /// @param asset Asset to convert shares into.
     /// @param shares Amount of yn-token shares to convert.
-    /// @return assets Amount of the vault default asset implied by the configured redemption rate.
-    function convertToAssetsAtRedemptionRate(WithdrawalRequest withdrawalRequest, uint256 shares)
+    /// @return assets Amount of `asset` implied by the configured redemption rate.
+    function convertToAssetsAtRedemptionRate(WithdrawalRequest withdrawalRequest, uint256 id, address asset, uint256 shares)
         external
         view
         returns (uint256 assets)
     {
-        assets = withdrawalRequest.withdrawer().convertToAssets(shares);
+        assets = withdrawalRequest.withdrawer().convertToAssets(id, asset, shares);
     }
 
     /// @notice Returns the minimum yn-token share amount required to create a withdrawal request.
@@ -182,7 +185,7 @@ contract WithdrawalRequestViewer {
         view
         returns (uint256 assets)
     {
-        WithdrawalRequest.Request memory request = withdrawalRequest.requests(id);
+        IWithdrawalRequest.Request memory request = withdrawalRequest.requests(id);
         IVault token = IVault(address(withdrawalRequest.token()));
 
         assets = convertToAssets(withdrawalRequest, asset, request.amountLocked);

@@ -12,6 +12,9 @@ import {IWithdrawer} from "src/interface/IWithdrawer.sol";
 contract BaseWithdrawer is Initializable, IWithdrawer {
     using SafeERC20 for IERC20;
 
+    // Not storage-compatible with BaseWithdrawer 0.1.0, which used a non-canonical slot.
+    string public constant VERSION = "1.0.0";
+
     /// @custom:storage-location erc7201:yieldnest.storage.base_withdrawer
     struct BaseWithdrawerStorage {
         IVault token;
@@ -19,11 +22,12 @@ contract BaseWithdrawer is Initializable, IWithdrawer {
     }
 
     error Unauthorized(address caller);
+    error InvalidAsset(address asset);
     error ZeroAddress();
 
     // keccak256(abi.encode(uint256(keccak256("yieldnest.storage.base_withdrawer")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant BaseWithdrawerStorageLocation =
-        0x90cd26f58f230d7edce7681ec7052f8fcb3a4b7bd42b3fcbf2f239cce9d04d00;
+        0xe5c213bd549880d50ed10d9bd1718ecf07fadbabc9dd4b2eaa5a5d726f95e500;
 
     function _getBaseWithdrawerStorage() private pure returns (BaseWithdrawerStorage storage $) {
         assembly {
@@ -75,10 +79,19 @@ contract BaseWithdrawer is Initializable, IWithdrawer {
         shares = token().withdrawAsset(asset, assets, receiver, owner);
     }
 
-    /// @notice Converts shares to assets using the configured vault rate.
+    /// @notice Converts shares to the vault default asset using the configured vault rate.
+    /// @param requestId Request id. Ignored by this withdrawer.
+    /// @param asset Asset to convert shares into. Must be the vault default asset.
     /// @param shares Amount of shares to convert.
     /// @return assets Amount of assets represented by `shares`.
-    function convertToAssets(uint256 shares) public view virtual returns (uint256 assets) {
+    function convertToAssets(uint256 requestId, address asset, uint256 shares)
+        public
+        view
+        virtual
+        returns (uint256 assets)
+    {
+        requestId;
+        if (asset != token().asset()) revert InvalidAsset(asset);
         return token().convertToAssets(shares);
     }
 

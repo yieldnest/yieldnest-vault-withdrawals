@@ -13,8 +13,10 @@ interface IWithdrawer {
         external
         returns (uint256 shares);
 
-    /// @notice Converts shares to assets at the withdrawer's redemption rate.
+    /// @notice Converts shares to assets at the withdrawer's redemption rate for a request and asset.
+    /// @param requestId Request id used by request-aware withdrawers.
+    /// @param asset Asset to convert shares into.
     /// @param shares Amount of shares to convert.
     /// @return assets Amount of assets implied by the redemption rate.
-    function convertToAssets(uint256 shares) external view returns (uint256 assets);
+    function convertToAssets(uint256 requestId, address asset, uint256 shares) external view returns (uint256 assets);
 }
