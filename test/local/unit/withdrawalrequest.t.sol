@@ -9,7 +9,6 @@ import {
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC721Enumerable} from "lib/openzeppelin-contracts/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
-import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {Initializable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 import {PausableUpgradeable} from "lib/openzeppelin-contracts-upgradeable/contracts/utils/PausableUpgradeable.sol";
 import {
@@ -23,6 +22,7 @@ import {MinAmountRequestPolicy} from "src/policies/MinAmountRequestPolicy.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 import {BaseWithdrawer} from "src/withdrawers/BaseWithdrawer.sol";
 import {FixedRateWithdrawer} from "test/local/unit/helpers/FixedRateWithdrawer.sol";
+import {RateAtRequestWithdrawer} from "test/local/unit/helpers/RateAtRequestWithdrawer.sol";
 import {SetupWithdrawalRequest} from "test/local/unit/helpers/SetupWithdrawalRequest.sol";
 import {WithdrawalRequestViewer} from "views/WithdrawalRequestViewer.sol";
 
@@ -117,49 +117,6 @@ contract ShortfallWithdrawer is IWithdrawer {
     function convertToAssets(uint256, address asset, uint256 shares) external view returns (uint256 assets) {
         if (asset != token.asset()) revert();
         return token.convertToAssets(shares);
-    }
-}
-
-/// @notice Hypothetical test-only withdrawer that charges each request at its recorded request-time rate.
-contract RequestRateWithdrawer is IWithdrawer {
-    using Math for uint256;
-    using SafeERC20 for IRequestRateWithdrawerVault;
-
-    WithdrawalRequest internal immutable manager;
-    IRequestRateWithdrawerVault internal immutable token;
-    address internal immutable collector;
-
-    error Unauthorized(address caller);
-    error InvalidAsset(address asset);
-
-    constructor(address manager_, address token_, address collector_) {
-        manager = WithdrawalRequest(manager_);
-        token = IRequestRateWithdrawerVault(token_);
-        collector = collector_;
-    }
-
-    function withdrawAsset(uint256 requestId, address asset, uint256 assets, address receiver, address owner)
-        external
-        returns (uint256 shares)
-    {
-        if (msg.sender != address(manager)) revert Unauthorized(msg.sender);
-        if (asset != token.asset()) revert InvalidAsset(asset);
-
-        IWithdrawalRequest.Request memory request = manager.requests(requestId);
-        uint256 sharesAtRequestRate = assets.mulDiv(10 ** token.decimals(), request.rateAtRequest, Math.Rounding.Ceil);
-
-        uint256 sharesBurned = token.withdrawAsset(asset, assets, receiver, owner);
-        if (sharesAtRequestRate <= sharesBurned) return sharesBurned;
-
-        token.safeTransferFrom(owner, collector, sharesAtRequestRate - sharesBurned);
-        return sharesAtRequestRate;
-    }
-
-    function convertToAssets(uint256 requestId, address asset, uint256 shares) external view returns (uint256 assets) {
-        if (asset != token.asset()) revert InvalidAsset(asset);
-
-        IWithdrawalRequest.Request memory request = manager.requests(requestId);
-        return shares.mulDiv(request.rateAtRequest, 10 ** token.decimals(), Math.Rounding.Floor);
     }
 }
 
@@ -1384,13 +1341,13 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         assertEq(ynToken.balanceOf(collector), 1 ether);
     }
 
-    function testRequestRateWithdrawerChargesRateRecordedAtRequestTime() public {
-        RequestRateWithdrawer requestRateWithdrawer =
-            new RequestRateWithdrawer(address(manager), address(ynToken), collector);
-        _authorizeAssetWithdrawer(address(requestRateWithdrawer));
+    function testRateAtRequestWithdrawerSendsSurplusSharesToFeeAddress() public {
+        RateAtRequestWithdrawer rateAtRequestWithdrawer =
+            new RateAtRequestWithdrawer(address(manager), address(ynToken), collector);
+        _authorizeAssetWithdrawer(address(rateAtRequestWithdrawer));
 
         vm.prank(configurationManager);
-        manager.setWithdrawer(address(requestRateWithdrawer));
+        manager.setWithdrawer(address(rateAtRequestWithdrawer));
 
         _setDefaultAssetPerShare(0.5 ether);
 
