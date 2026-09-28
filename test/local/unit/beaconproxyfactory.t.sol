@@ -137,7 +137,7 @@ contract BeaconProxyFactoryTest is Test {
         assertTrue(proxy != address(0));
         assertEq(IBag(proxy).auth(), address(auth));
         assertEq(IBag(proxy).id(), 9);
-        assertEq(IBag(proxy).VERSION(), "0.1.0");
+        assertEq(IBag(proxy).VERSION(), "0.1.1");
     }
 
     function testCreateCanDeployUninitializedProxyWithEmptyData() public {

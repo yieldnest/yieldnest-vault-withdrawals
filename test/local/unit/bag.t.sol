@@ -31,7 +31,7 @@ contract BagERC20SecondMock is ERC20 {
     }
 }
 
-contract BagERC721Mock is ERC721 {
+contract TestNFT is ERC721 {
     constructor() ERC721("Collectible", "NFT") {}
 
     function mint(address account, uint256 tokenId) external {
@@ -142,7 +142,7 @@ contract BagTest is Test {
     Bag bag;
     BagERC20Mock token;
     BagERC20SecondMock secondToken;
-    BagERC721Mock nft;
+    TestNFT nft;
     AuthMock auth;
 
     address admin = address(0xA11CE);
@@ -157,7 +157,7 @@ contract BagTest is Test {
         bag = _deployBag(owner, requestId);
         token = new BagERC20Mock();
         secondToken = new BagERC20SecondMock();
-        nft = new BagERC721Mock();
+        nft = new TestNFT();
     }
 
     function _deployBag(address owner_, uint256 id_) internal returns (Bag) {
@@ -196,7 +196,7 @@ contract BagTest is Test {
     }
 
     function testInitializeSetsExpectedAuthAndConstants() public view {
-        assertEq(bag.VERSION(), "0.1.0");
+        assertEq(bag.VERSION(), "0.1.1");
         assertEq(bag.ETH(), 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE);
         assertEq(bag.id(), requestId);
         assertEq(bag.auth(), address(auth));
@@ -520,6 +520,32 @@ contract BagTest is Test {
 
         vm.expectEmit(true, true, true, true, address(bag));
         emit IBag.ERC721Claimed(owner, recipient, address(nft), 7);
+
+        vm.prank(owner);
+        bag.claimERC721(address(nft), recipient, 7);
+
+        assertEq(nft.ownerOf(7), recipient);
+    }
+
+    function testSafeTransferERC721ToBagSucceedsAndEmits() public {
+        bytes memory data = abi.encodePacked("deposit-nft");
+        nft.mint(owner, 7);
+
+        vm.expectEmit(true, true, true, true, address(bag));
+        emit IBag.ERC721Received(owner, owner, address(nft), 7, data);
+
+        vm.prank(owner);
+        nft.safeTransferFrom(owner, address(bag), 7, data);
+
+        assertEq(nft.ownerOf(7), address(bag));
+    }
+
+    function testOwnerCanClaimSafeTransferredERC721() public {
+        bytes memory data = abi.encodePacked("deposit-nft");
+        nft.mint(owner, 7);
+
+        vm.prank(owner);
+        nft.safeTransferFrom(owner, address(bag), 7, data);
 
         vm.prank(owner);
         bag.claimERC721(address(nft), recipient, 7);

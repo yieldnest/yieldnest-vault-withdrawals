@@ -8,6 +8,9 @@ interface IBag {
 
     event ERC20Claimed(address indexed owner, address indexed recipient, address indexed asset, uint256 amount);
     event ERC721Claimed(address indexed owner, address indexed recipient, address indexed asset, uint256 tokenId);
+    event ERC721Received(
+        address indexed operator, address indexed from, address indexed asset, uint256 tokenId, bytes data
+    );
     event NativeClaimed(address indexed owner, address indexed recipient, uint256 amount);
 
     /// @notice Returns the Bag implementation version.
@@ -41,4 +44,10 @@ interface IBag {
     /// @param recipient Receiver of the claimed token.
     /// @param tokenId Token id to claim.
     function claimERC721(address asset, address recipient, uint256 tokenId) external;
+
+    /// @notice Handles safe ERC721 transfers into this bag.
+    /// @return selector ERC721 receiver selector.
+    function onERC721Received(address operator, address from, uint256 tokenId, bytes calldata data)
+        external
+        returns (bytes4 selector);
 }
