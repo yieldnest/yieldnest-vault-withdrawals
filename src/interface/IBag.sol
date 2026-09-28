@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 pragma solidity ^0.8.24;
 
-interface IBag {
+import {IERC721Receiver} from "lib/openzeppelin-contracts/contracts/token/ERC721/IERC721Receiver.sol";
+
+interface IBag is IERC721Receiver {
     error ZeroAddress();
     error NotRequestOwner(address caller);
     error InvalidArrayLength();
@@ -44,10 +46,4 @@ interface IBag {
     /// @param recipient Receiver of the claimed token.
     /// @param tokenId Token id to claim.
     function claimERC721(address asset, address recipient, uint256 tokenId) external;
-
-    /// @notice Handles safe ERC721 transfers into this bag.
-    /// @return selector ERC721 receiver selector.
-    function onERC721Received(address operator, address from, uint256 tokenId, bytes calldata data)
-        external
-        returns (bytes4 selector);
 }
