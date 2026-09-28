@@ -26,6 +26,8 @@ import {IWithdrawalRequest} from "src/interface/IWithdrawalRequest.sol";
 
 /// @title WithdrawalRequest
 /// @notice Custodies one yn-token type and tracks permissioned resolution of withdrawal requests.
+/// @dev Assumes the configured yn-token is a standard ERC20 share token: no fee-on-transfer behavior,
+/// rebasing-on-transfer behavior, or other mechanics where the received amount differs from the requested amount.
 contract WithdrawalRequest is
     Initializable,
     AccessControlUpgradeable,
