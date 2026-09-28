@@ -185,7 +185,7 @@ contract WithdrawalRequestAccountingHandler is Test {
     }
 
     function _sharesValue(uint256 shares) internal view returns (uint256) {
-        uint256 defaultAssetAmount = manager.withdrawer().convertToAssets(shares);
+        uint256 defaultAssetAmount = manager.withdrawer().convertToAssets(0, vault.asset(), shares);
         return _assetValue(vault.asset(), defaultAssetAmount);
     }
 

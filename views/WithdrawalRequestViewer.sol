@@ -155,14 +155,16 @@ contract WithdrawalRequestViewer {
     /// For fixed-rate withdrawers, this returns the assets implied by the fixed redemption rate.
     /// It is intentionally separate from `convertToAssets`, which estimates per-asset resolution amounts.
     /// @param withdrawalRequest Withdrawal request contract whose configured withdrawer provides the redemption rate.
+    /// @param id Request id used by request-aware withdrawers.
+    /// @param asset Asset to convert shares into.
     /// @param shares Amount of yn-token shares to convert.
-    /// @return assets Amount of the vault default asset implied by the configured redemption rate.
-    function convertToAssetsAtRedemptionRate(WithdrawalRequest withdrawalRequest, uint256 shares)
+    /// @return assets Amount of `asset` implied by the configured redemption rate.
+    function convertToAssetsAtRedemptionRate(WithdrawalRequest withdrawalRequest, uint256 id, address asset, uint256 shares)
         external
         view
         returns (uint256 assets)
     {
-        assets = withdrawalRequest.withdrawer().convertToAssets(shares);
+        assets = withdrawalRequest.withdrawer().convertToAssets(id, asset, shares);
     }
 
     /// @notice Returns the minimum yn-token share amount required to create a withdrawal request.

@@ -40,7 +40,7 @@ contract ReentrantResolveWithdrawer is IWithdrawer {
         return 0;
     }
 
-    function convertToAssets(uint256) external pure returns (uint256) {
+    function convertToAssets(uint256, address, uint256) external pure returns (uint256) {
         return 0;
     }
 }
@@ -62,7 +62,7 @@ contract DrainingWithdrawer is IWithdrawer {
         return 0;
     }
 
-    function convertToAssets(uint256) external pure returns (uint256) {
+    function convertToAssets(uint256, address, uint256) external pure returns (uint256) {
         return 0;
     }
 }
@@ -92,7 +92,8 @@ contract BadReturnWithdrawer is IWithdrawer {
         shares = token.withdrawAsset(asset, assets, receiver, owner) + returnOffset;
     }
 
-    function convertToAssets(uint256 shares) external view returns (uint256 assets) {
+    function convertToAssets(uint256, address asset, uint256 shares) external view returns (uint256 assets) {
+        if (asset != token.asset()) revert();
         return token.convertToAssets(shares);
     }
 }
@@ -113,7 +114,8 @@ contract ShortfallWithdrawer is IWithdrawer {
         shares = token.withdrawAsset(asset, assets - shortfall, receiver, owner);
     }
 
-    function convertToAssets(uint256 shares) external view returns (uint256 assets) {
+    function convertToAssets(uint256, address asset, uint256 shares) external view returns (uint256 assets) {
+        if (asset != token.asset()) revert();
         return token.convertToAssets(shares);
     }
 }
@@ -153,8 +155,11 @@ contract RequestRateWithdrawer is IWithdrawer {
         return sharesAtRequestRate;
     }
 
-    function convertToAssets(uint256 shares) external view returns (uint256 assets) {
-        return token.convertToAssets(shares);
+    function convertToAssets(uint256 requestId, address asset, uint256 shares) external view returns (uint256 assets) {
+        if (asset != token.asset()) revert InvalidAsset(asset);
+
+        IWithdrawalRequest.Request memory request = manager.requests(requestId);
+        return shares.mulDiv(request.rateAtRequest, 10 ** token.decimals(), Math.Rounding.Floor);
     }
 }
 
@@ -1026,7 +1031,12 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
     }
 
     function testBaseWithdrawerConvertToAssetsUsesVaultRate() public view {
-        assertEq(withdrawer.convertToAssets(1 ether), 1 ether);
+        assertEq(withdrawer.convertToAssets(0, address(asset), 1 ether), 1 ether);
+    }
+
+    function testBaseWithdrawerConvertToAssetsRejectsNonDefaultAsset() public {
+        vm.expectRevert(abi.encodeWithSelector(BaseWithdrawer.InvalidAsset.selector, address(secondAsset)));
+        withdrawer.convertToAssets(0, address(secondAsset), 1 ether);
     }
 
     function testBaseWithdrawerReturnsConfiguredTokenAndManager() public view {
@@ -1040,16 +1050,16 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
     }
 
     function testConvertToAssetsAtRedemptionRateUsesConfiguredWithdrawer() public {
-        assertEq(viewer.convertToAssetsAtRedemptionRate(manager, 1 ether), 1 ether);
+        assertEq(viewer.convertToAssetsAtRedemptionRate(manager, 0, address(asset), 1 ether), 1 ether);
 
         FixedRateWithdrawer fixedRateWithdrawer = _deployFixedRateWithdrawer(0.5 ether, collector);
 
         vm.prank(configurationManager);
         manager.setWithdrawer(address(fixedRateWithdrawer));
 
-        assertEq(fixedRateWithdrawer.convertToAssets(1 ether), 0.5 ether);
-        assertEq(viewer.convertToAssetsAtRedemptionRate(manager, 1 ether), 0.5 ether);
-        assertEq(viewer.convertToAssetsAtRedemptionRate(manager, 2 ether), 1 ether);
+        assertEq(fixedRateWithdrawer.convertToAssets(0, address(asset), 1 ether), 0.5 ether);
+        assertEq(viewer.convertToAssetsAtRedemptionRate(manager, 0, address(asset), 1 ether), 0.5 ether);
+        assertEq(viewer.convertToAssetsAtRedemptionRate(manager, 0, address(asset), 2 ether), 1 ether);
     }
 
     function testMinWithdrawalAmountUsesConfiguredRequestPolicy() public {
@@ -1305,7 +1315,7 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, user);
 
-        vm.expectRevert(abi.encodeWithSelector(FixedRateWithdrawer.InvalidAsset.selector, address(secondAsset)));
+        vm.expectRevert(abi.encodeWithSelector(BaseWithdrawer.InvalidAsset.selector, address(secondAsset)));
         vm.prank(resolver);
         manager.resolveWithdrawalRequest(id, address(secondAsset), 1 ether);
     }

@@ -19,6 +19,7 @@ contract BaseWithdrawer is Initializable, IWithdrawer {
     }
 
     error Unauthorized(address caller);
+    error InvalidAsset(address asset);
     error ZeroAddress();
 
     // keccak256(abi.encode(uint256(keccak256("yieldnest.storage.live_rate_withdrawer")) - 1)) & ~bytes32(uint256(0xff))
@@ -75,10 +76,19 @@ contract BaseWithdrawer is Initializable, IWithdrawer {
         shares = token().withdrawAsset(asset, assets, receiver, owner);
     }
 
-    /// @notice Converts shares to assets using the configured vault rate.
+    /// @notice Converts shares to the vault default asset using the configured vault rate.
+    /// @param requestId Request id. Ignored by this withdrawer.
+    /// @param asset Asset to convert shares into. Must be the vault default asset.
     /// @param shares Amount of shares to convert.
     /// @return assets Amount of assets represented by `shares`.
-    function convertToAssets(uint256 shares) public view virtual returns (uint256 assets) {
+    function convertToAssets(uint256 requestId, address asset, uint256 shares)
+        public
+        view
+        virtual
+        returns (uint256 assets)
+    {
+        requestId;
+        if (asset != token().asset()) revert InvalidAsset(asset);
         return token().convertToAssets(shares);
     }
 

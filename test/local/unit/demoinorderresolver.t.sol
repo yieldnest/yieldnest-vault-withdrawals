@@ -39,7 +39,8 @@ contract DemoResolverWithdrawer is IWithdrawer {
         return token.withdrawAsset(asset, assets, receiver, owner);
     }
 
-    function convertToAssets(uint256 shares) external view returns (uint256 assets) {
+    function convertToAssets(uint256, address asset, uint256 shares) external view returns (uint256 assets) {
+        if (asset != token.asset()) revert();
         return token.convertToAssets(shares);
     }
 }
