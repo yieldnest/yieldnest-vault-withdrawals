@@ -45,7 +45,7 @@ storage layout, initializer behavior, and upgrade safety.
 
 ## Deployment Model
 
-YieldNest withdrawal request deployments use upgradeable proxies and one non-upgradeable withdrawer adapter.
+YieldNest withdrawal request deployments use upgradeable proxies for the request manager, bag factory, and withdrawer.
 Distinguish these surfaces:
 
 1. Implementation contracts
@@ -69,10 +69,9 @@ Distinguish these surfaces:
    - In the withdrawal request system, `auth` is the `WithdrawalRequest` proxy and `id` is the request NFT id.
 
 4. BaseWithdrawer
-   - `BaseWithdrawer` is currently a constructor-configured production adapter, not an upgradeable proxy.
-   - It is bound to exactly one vault token and one `WithdrawalRequest` address at deployment.
-   - The deployment script predicts the `WithdrawalRequest` proxy address before deploying the withdrawer. If nonce
-     ordering changes, the predicted proxy verification must be updated and re-tested.
+   - `BaseWithdrawer` should be deployed behind `TransparentUpgradeableProxy`.
+   - The proxy must be initialized atomically with `(token, withdrawalRequest)`.
+   - It is bound to exactly one vault token and one `WithdrawalRequest` proxy.
 
 5. Initializers
    - Initialize every proxy exactly once.
@@ -264,19 +263,21 @@ Configuration requirements:
 
 ## Withdrawer Configuration
 
-`BaseWithdrawer` is deployed with:
+`BaseWithdrawer` is initialized through its proxy with:
 
 ```solidity
-new BaseWithdrawer(address token_, address withdrawalRequest_)
+BaseWithdrawer.initialize(address token_, address withdrawalRequest_)
 ```
 
 Configuration requirements:
 
 - `token_` must be the same vault token configured in `WithdrawalRequest`.
 - `withdrawalRequest_` must be the live `WithdrawalRequest` proxy.
+- The initialized proxy, not the implementation address, must be configured as `WithdrawalRequest.withdrawer()`.
 - Direct calls by anyone except `withdrawalRequest_` must revert.
 - `withdrawAsset(...)` must either forward to the vault or transfer the vault token itself into the bag.
-- `convertToAssets(...)` uses the configured vault's default conversion, not the per-asset `VaultMath` helper.
+- `convertToAssets(requestId, asset, shares)` uses the withdrawer's redemption-rate semantics. `BaseWithdrawer`
+  ignores `requestId`, only supports the vault default asset, and delegates to the vault's default conversion.
 
 For BaseStrategy-backed vaults, validate any role/fee exemptions needed by the vault before production use.
 
@@ -325,11 +326,14 @@ Before treating a deployment as production-ready, verify:
 9. `BeaconProxyFactory.IMPLEMENTATION_MANAGER_ROLE` is held by the intended admin/timelock.
 10. `BaseWithdrawer.token()` equals `WithdrawalRequest.token()`.
 11. `BaseWithdrawer.withdrawalRequest()` equals the `WithdrawalRequest` proxy.
-12. The configured resolver is the intended resolver module or authorized account.
-13. The configured request policy matches the intended minimum/request policy.
-14. `maxDataLength()` matches the resolver's expected request data envelope.
-15. For BaseStrategy-backed vaults, withdrawer fee exemption and any required vault roles are configured.
-16. Request creation, resolution, claim, cancellation-in-kind, and burn flows are tested.
+12. `WithdrawalRequest.withdrawer()` equals the intended initialized withdrawer proxy.
+13. The withdrawer proxy admin owner is the intended admin/timelock.
+14. The configured resolver is the intended resolver module or authorized account.
+15. The configured request policy matches the intended minimum/request policy.
+16. `maxDataLength()` matches the resolver's expected request data envelope.
+17. For BaseVault-backed vaults, the withdrawer has `ASSET_WITHDRAWER_ROLE` when resolving vault assets.
+18. For BaseStrategy-backed vaults, withdrawer fee exemption and any required strategy/vault roles are configured.
+19. Request creation, resolution, claim, cancellation-in-kind, and burn flows are tested.
 
 ## Working Rules
 
@@ -399,7 +403,8 @@ forge test --match-path 'test/local/unit/withdrawalrequestviewer.t.sol'
 
 - Preserve locked-share accounting.
 - Preserve the allowance pattern around withdrawer calls: approve before resolution, revoke after resolution.
-- Preserve `InvalidTokenBalanceChange` and `UnexpectedAssetsWithdrawn` checks.
+- Preserve the `InvalidTokenBalanceChange` check. Asset balance deltas are measured for events/reporting; resolution
+  intentionally does not enforce exact delivery of the requested asset amount.
 - Be explicit about share amounts vs asset amounts.
 - Remember that `request.data` is length-bounded but semantically interpreted by resolver modules.
 
@@ -430,6 +435,7 @@ forge test --match-path 'test/local/unit/withdrawalrequestviewer.t.sol'
 
 - Prefer existing scripts in `script/` over inventing new one-off approaches.
 - Use `TransparentUpgradeableProxy` for upgradeable production deployments except beacon-created bags.
+- Do not model new deployments after legacy raw ERC1967 deployment artifacts.
 - Keep predicted address logic and deployment nonce assumptions aligned with deployed contract order.
 - Keep deployment parameters and `_verifySetup()` checks aligned.
 - Do not rewrite `broadcast/` outputs by hand.
