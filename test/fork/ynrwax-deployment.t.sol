@@ -26,14 +26,14 @@ contract UpgradedBagForForkTest is Bag {
 contract YnRWAxDeploymentForkTest is Test {
     address internal constant ADMIN = 0xfcad670592a3b24869C0b51a6c6FDED4F95D6975;
     address internal constant YNRWAX = 0x01Ba69727E2860b37bc1a2bd56999c1aFb4C15D8;
-    address internal constant MANAGER = 0x914270D16071BD0fF3c6ba6d0f274006e4DC860D;
-    address internal constant FACTORY = 0xA6F395470768fe54378017196d628A594830E9eB;
-    address internal constant WITHDRAWER = 0x456DCE62cEb039F484B8957ec43bA050033875db;
-    address internal constant TIMELOCK = 0xaa87Ef0B76b01540cBC3F653d855281eB60F9449;
-    address internal constant BEACON = 0x5575a3a7BAc7511c2928E211B11F0F2162EEe946;
-    address internal constant MANAGER_ADMIN = 0x8104797A243EcdD22fCdAb97B686ad496947CC3d;
-    address internal constant FACTORY_ADMIN = 0xB26a96b37892925C5751057A4724d8a86BE12780;
-    address internal constant WITHDRAWER_ADMIN = 0x6B8fc807A1F2dAB4eb9eE3cc4b9274Fe8a6bbbAd;
+    address internal constant MANAGER = 0x6f4f5D74127E6b08b9D3cBa16aabb90D20E01AA7;
+    address internal constant FACTORY = 0x974937bf5Ec924673c37Ff0377c48f721F45C091;
+    address internal constant WITHDRAWER = 0x20eE049e5A168f162e2FD99429Bd02757678B07F;
+    address internal constant TIMELOCK = 0xadb417809C60d7E9b3C72aFEc0DB62F19131e71A;
+    address internal constant BEACON = 0xcCc60e35BB91FDBfd047c717dEb907AC547c88a1;
+    address internal constant MANAGER_ADMIN = 0x9Bc84665aaBDe314A5a3a613396E41C951DE19B9;
+    address internal constant FACTORY_ADMIN = 0x957d1D134861633231234A5753aAc6feB03770dE;
+    address internal constant WITHDRAWER_ADMIN = 0x0466910b883A073c1aD223041a0b80b70E5E4494;
 
     WithdrawalRequest internal manager = WithdrawalRequest(MANAGER);
     BeaconProxyFactory internal factory = BeaconProxyFactory(FACTORY);
