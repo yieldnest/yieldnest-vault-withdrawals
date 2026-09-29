@@ -93,7 +93,8 @@ abstract contract DeployWithdrawalRequestBase is Script {
 
         deployer = tx.origin;
         vm.startBroadcast();
-        systemDeployer = new WithdrawalRequestDeployer(
+        systemDeployer = new WithdrawalRequestDeployer();
+        systemDeployer.deploy(
             WithdrawalRequestDeployer.DeploymentParams({
                 implementations: implementations,
                 token: token,

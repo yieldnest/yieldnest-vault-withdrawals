@@ -33,9 +33,11 @@ This writes `deployments/withdrawalRequestImplementations-<chainId>.json`.
 
 Then run `script/deploy/DeployWithdrawalRequest.s.sol` for ynETHx or
 `script/deploy/DeployYnRWAxWithdrawalRequest.s.sol` for ynRWAx. These scripts read the implementation addresses
-from that JSON and broadcast one transaction creating `WithdrawalRequestDeployer`. Its constructor deploys
+from that JSON, create `WithdrawalRequestDeployer` with no constructor arguments, and call `deploy(params)`
+in a second transaction. The deploy call creates
 the one-day timelock, request/factory/withdrawer proxies, minimum-amount policy, and viewer, and initializes
-the system atomically. Implementation deployment is a separate prerequisite.
+the system atomically. Each deployer can deploy once; a failed call can be retried.
+Implementation deployment is a separate prerequisite.
 
 The resulting deployment JSON includes every ProxyAdmin address (`proxyAdmin`, `bagFactoryProxyAdmin`,
 `withdrawerProxyAdmin`) and the `systemDeployer` address. All three ProxyAdmins are owned by the new timelock.

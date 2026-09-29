@@ -13,7 +13,7 @@ import {BaseWithdrawer} from "src/withdrawers/BaseWithdrawer.sol";
 import {WithdrawalRequestViewer} from "views/WithdrawalRequestViewer.sol";
 
 /**
- * @notice Deploys and configures a withdrawal request system in one constructor transaction.
+ * @notice Deploys and configures a withdrawal request system in one deploy call.
  * @dev Implementation contracts must already exist. This contract receives no administrative roles.
  */
 contract WithdrawalRequestDeployer {
@@ -39,21 +39,25 @@ contract WithdrawalRequestDeployer {
 
     uint256 public constant MIN_DELAY = 1 days;
 
-    TimelockController public immutable timelock;
-    WithdrawalRequest public immutable withdrawalRequest;
-    BeaconProxyFactory public immutable bagFactory;
-    BaseWithdrawer public immutable withdrawer;
-    MinAmountRequestPolicy public immutable requestPolicy;
-    WithdrawalRequestViewer public immutable viewer;
+    TimelockController public timelock;
+    WithdrawalRequest public withdrawalRequest;
+    BeaconProxyFactory public bagFactory;
+    BaseWithdrawer public withdrawer;
+    MinAmountRequestPolicy public requestPolicy;
+    WithdrawalRequestViewer public viewer;
+    bool public deploymentDone;
 
     error InvalidDeploymentParams();
     error InvalidImplementation(address implementation);
+    error DeploymentDone();
 
     /**
      * @notice Creates the timelock, proxies, request policy, and viewer and initializes all bindings.
      * @param params Existing implementations and configuration for the new system.
      */
-    constructor(DeploymentParams memory params) {
+    function deploy(DeploymentParams calldata params) external {
+        if (deploymentDone) revert DeploymentDone();
+        deploymentDone = true;
         if (
             params.token.code.length == 0 || params.proposer == address(0) || params.executor == address(0)
                 || params.resolver == address(0) || params.pauser == address(0) || params.minWithdrawalAmount == 0
@@ -70,7 +74,7 @@ contract WithdrawalRequestDeployer {
         TimelockController admin = new TimelockController(MIN_DELAY, proposers, executors, address(0));
         timelock = admin;
 
-        // Initialize below, after its dependent modules exist, within this same constructor transaction.
+        // Initialize below, after its dependent modules exist, within this same transaction.
         WithdrawalRequest request = WithdrawalRequest(
             address(new TransparentUpgradeableProxy(params.implementations.withdrawalRequest, address(admin), ""))
         );

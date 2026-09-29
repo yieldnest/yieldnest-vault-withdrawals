@@ -58,7 +58,7 @@ Distinguish these surfaces:
    - A live `WithdrawalRequest` instance should be an OpenZeppelin `TransparentUpgradeableProxy` pointing at a
      `WithdrawalRequest` implementation.
    - The proxy must be initialized in the same transaction that deploys it. `WithdrawalRequestDeployer` creates it
-     first, then initializes it after deploying its factory and withdrawer, all within the deployer's constructor.
+     first, then initializes it after deploying its factory and withdrawer, all within the same `deploy(params)` call.
    - The proxy admin owner should be the intended admin/timelock owner.
    - Do not deploy or test production upgradeable instances behind ERC1967 proxies directly; this repo uses
      `TransparentUpgradeableProxy` except where beacon proxies are explicitly required for bags.
@@ -439,9 +439,9 @@ forge test --match-path 'test/local/unit/withdrawalrequestviewer.t.sol'
 - Use `TransparentUpgradeableProxy` for upgradeable production deployments except beacon-created bags.
 - Do not model new deployments after legacy raw ERC1967 deployment artifacts.
 - `DeployWithdrawalRequestBase` reads existing implementations from
-  `deployments/withdrawalRequestImplementations-<chainId>.json` and broadcasts only the creation of
-  `WithdrawalRequestDeployer`. Deploy implementations separately before running it.
-- The deployer's constructor creates the one-day timelock, three transparent proxies, policy, and viewer, and
+  `deployments/withdrawalRequestImplementations-<chainId>.json`, creates `WithdrawalRequestDeployer`, then calls
+  `deploy(params)` in a second transaction. Deploy implementations separately before running it.
+- The deployer's `deploy(params)` creates the one-day timelock, three transparent proxies, policy, and viewer, and
   initializes all bindings in that transaction. No EOA nonce prediction is needed.
 - Deployment JSON includes `systemDeployer`, `proxyAdmin`, `bagFactoryProxyAdmin`, and `withdrawerProxyAdmin`.
 - Keep deployment parameters and `_verifySetup()` checks aligned.

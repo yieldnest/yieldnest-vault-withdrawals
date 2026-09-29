@@ -175,10 +175,10 @@ contract DeployWithdrawalRequestTest is Test {
         });
     }
 
-    function testRunBroadcastsOneTransactionAndSupportsRequestLifecycle() public {
+    function testRunBroadcastsDeployerCreationAndDeploymentAndSupportsRequestLifecycle() public {
         uint256 nonce = vm.getNonce(tx.origin);
         DeployWithdrawalRequestHarness deployScript = _deployScript();
-        assertEq(vm.getNonce(tx.origin), nonce + 1);
+        assertEq(vm.getNonce(tx.origin), nonce + 2);
 
         WithdrawalRequest manager = deployScript.withdrawalRequest();
         address token = deployScript.token();
@@ -212,7 +212,12 @@ contract DeployWithdrawalRequestTest is Test {
 
     function testDeployerUsesSuppliedImplementationsAndRetainsNoRoles() public {
         WithdrawalRequestDeployer.DeploymentParams memory params = _deploymentParams();
-        WithdrawalRequestDeployer deployment = new WithdrawalRequestDeployer(params);
+        WithdrawalRequestDeployer deployment = new WithdrawalRequestDeployer();
+        assertFalse(deployment.deploymentDone());
+        deployment.deploy(params);
+        assertTrue(deployment.deploymentDone());
+        vm.expectRevert(WithdrawalRequestDeployer.DeploymentDone.selector);
+        deployment.deploy(params);
         WithdrawalRequest manager = deployment.withdrawalRequest();
         BeaconProxyFactory factory = deployment.bagFactory();
         BaseWithdrawer withdrawer = deployment.withdrawer();
@@ -258,6 +263,7 @@ contract DeployWithdrawalRequestTest is Test {
     }
 
     function testDeployerRejectsMissingImplementations() public {
+        WithdrawalRequestDeployer deployment = new WithdrawalRequestDeployer();
         WithdrawalRequestDeployer.DeploymentParams memory params = _deploymentParams();
         WithdrawalRequestDeployer.Implementations memory implementations = params.implementations;
         address[4] memory originals = [
@@ -274,23 +280,27 @@ contract DeployWithdrawalRequestTest is Test {
             vm.expectRevert(
                 abi.encodeWithSelector(WithdrawalRequestDeployer.InvalidImplementation.selector, address(0))
             );
-            new WithdrawalRequestDeployer(params);
+            deployment.deploy(params);
+            assertFalse(deployment.deploymentDone());
             if (i == 0) params.implementations.withdrawalRequest = originals[i];
             if (i == 1) params.implementations.withdrawer = originals[i];
             if (i == 2) params.implementations.bagFactory = originals[i];
             if (i == 3) params.implementations.bag = originals[i];
         }
+        deployment.deploy(params);
+        assertTrue(deployment.deploymentDone());
     }
 
     function testDeployerRejectsInvalidConfiguration() public {
+        WithdrawalRequestDeployer deployment = new WithdrawalRequestDeployer();
         WithdrawalRequestDeployer.DeploymentParams memory params = _deploymentParams();
         params.token = address(0);
         vm.expectRevert(WithdrawalRequestDeployer.InvalidDeploymentParams.selector);
-        new WithdrawalRequestDeployer(params);
+        deployment.deploy(params);
         params.token = address(new DeploymentTokenMock());
         params.minWithdrawalAmount = 0;
         vm.expectRevert(WithdrawalRequestDeployer.InvalidDeploymentParams.selector);
-        new WithdrawalRequestDeployer(params);
+        deployment.deploy(params);
     }
 
     function _assertProxyAdmins(string memory deploymentJson, address timelock) internal view {
