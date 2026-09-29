@@ -6,7 +6,10 @@ import {
     TransparentUpgradeableProxy
 } from "lib/openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {Strings} from "lib/openzeppelin-contracts/contracts/utils/Strings.sol";
-import {BaseScript} from "lib/yieldnest-vault/script/BaseScript.sol";
+import {Script} from "lib/forge-std/src/Script.sol";
+import {IActors, MainnetActors} from "lib/yieldnest-vault/script/Actors.sol";
+import {ERC1967Utils} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Utils.sol";
+import {ProxyAdmin} from "lib/openzeppelin-contracts/contracts/proxy/transparent/ProxyAdmin.sol";
 import {Bag} from "src/Bag.sol";
 import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
 import {IWithdrawalRequest} from "src/interface/IWithdrawalRequest.sol";
@@ -15,7 +18,14 @@ import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 import {BaseWithdrawer} from "src/withdrawers/BaseWithdrawer.sol";
 import {WithdrawalRequestViewer} from "views/WithdrawalRequestViewer.sol";
 
-abstract contract DeployWithdrawalRequestBase is BaseScript {
+abstract contract DeployWithdrawalRequestBase is Script {
+    uint256 public constant minDelay = 1 days;
+    IActors public actors;
+    address public deployer;
+    TimelockController public timelock;
+
+    error InvalidSetup();
+
     uint256 public constant MAX_DATA_LENGTH = 1024;
     string public constant REQUEST_NFT_NAME = "MAX Vault Withdrawal Request";
     string public constant REQUEST_NFT_SYMBOL = "ynWREQ";
@@ -54,7 +64,7 @@ abstract contract DeployWithdrawalRequestBase is BaseScript {
 
     /// @notice Returns the deployment symbol used for labels and output JSON.
     /// @return Script deployment symbol.
-    function symbol() public view override returns (string memory) {
+    function symbol() public view returns (string memory) {
         return _deploymentSymbol;
     }
 
@@ -144,6 +154,18 @@ abstract contract DeployWithdrawalRequestBase is BaseScript {
         pauser = actors.PAUSER();
     }
 
+    function _setup() internal virtual {
+        actors = new MainnetActors();
+    }
+
+    function _deploymentFilePath() internal view virtual returns (string memory) {
+        return string.concat(vm.projectRoot(), "/deployments/", label(), ".json");
+    }
+
+    function _proxyAdmin(address proxyAddress) internal view returns (address) {
+        return address(uint160(uint256(vm.load(proxyAddress, ERC1967Utils.ADMIN_SLOT))));
+    }
+
     function _verifyDeploymentParams() internal view virtual {
         if (token == address(0)) revert InvalidSetup();
         if (proposer == address(0)) revert InvalidSetup();
@@ -164,6 +186,11 @@ abstract contract DeployWithdrawalRequestBase is BaseScript {
     /// @notice Verifies deployed contracts, roles, and module wiring.
     function _verifySetup() public view virtual {
         if (address(timelock) == address(0)) revert InvalidSetup();
+        if (ProxyAdmin(_proxyAdmin(address(proxy))).owner() != address(timelock)) revert InvalidSetup();
+        if (ProxyAdmin(_proxyAdmin(address(bagFactoryProxy))).owner() != address(timelock)) revert InvalidSetup();
+        if (ProxyAdmin(_proxyAdmin(address(requestWithdrawerProxy))).owner() != address(timelock)) {
+            revert InvalidSetup();
+        }
         if (address(withdrawalRequest) != predictedProxy) revert InvalidSetup();
         if (!timelock.hasRole(timelock.DEFAULT_ADMIN_ROLE(), address(timelock))) revert InvalidSetup();
         if (timelock.hasRole(timelock.DEFAULT_ADMIN_ROLE(), proposer)) revert InvalidSetup();
@@ -208,12 +235,15 @@ abstract contract DeployWithdrawalRequestBase is BaseScript {
         vm.serializeAddress(symbol(), "bagFactoryImplementation", address(bagFactoryImplementation));
         vm.serializeAddress(symbol(), "bagFactory", address(bagFactory));
         vm.serializeAddress(symbol(), "bagFactoryProxy", address(bagFactoryProxy));
+        vm.serializeAddress(symbol(), "bagFactoryProxyAdmin", _proxyAdmin(address(bagFactoryProxy)));
         vm.serializeAddress(symbol(), "beacon", bagFactory.beacon());
         vm.serializeAddress(symbol(), "withdrawerImplementation", address(requestWithdrawerImplementation));
         vm.serializeAddress(symbol(), "withdrawer", address(requestWithdrawer));
         vm.serializeAddress(symbol(), "withdrawerProxy", address(requestWithdrawerProxy));
+        vm.serializeAddress(symbol(), "withdrawerProxyAdmin", _proxyAdmin(address(requestWithdrawerProxy)));
         vm.serializeAddress(symbol(), "requestPolicy", address(requestPolicy));
         vm.serializeAddress(symbol(), "proxy", address(proxy));
+        vm.serializeAddress(symbol(), "proxyAdmin", _proxyAdmin(address(proxy)));
         vm.serializeAddress(symbol(), "predictedProxy", predictedProxy);
         vm.serializeAddress(symbol(), "withdrawalRequest", address(withdrawalRequest));
         vm.serializeAddress(symbol(), "viewer", address(withdrawalRequestViewer));

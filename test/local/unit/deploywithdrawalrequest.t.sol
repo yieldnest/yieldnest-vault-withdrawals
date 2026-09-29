@@ -7,6 +7,8 @@ import {
     TransparentUpgradeableProxy
 } from "lib/openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {ERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
+import {ProxyAdmin} from "lib/openzeppelin-contracts/contracts/proxy/transparent/ProxyAdmin.sol";
+import {ERC1967Utils} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Utils.sol";
 import {MainnetContracts as MC} from "lib/yieldnest-vault/script/Contracts.sol";
 import {Bag} from "src/Bag.sol";
 import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
@@ -120,6 +122,25 @@ contract DeployWithdrawalRequestImplementationsHarness is DeployWithdrawalReques
 }
 
 contract DeployWithdrawalRequestTest is Test {
+    function _assertProxyAdmins(string memory deploymentJson, address timelock) internal view {
+        _assertProxyAdmin(deploymentJson, ".proxy", ".proxyAdmin", timelock);
+        _assertProxyAdmin(deploymentJson, ".bagFactoryProxy", ".bagFactoryProxyAdmin", timelock);
+        _assertProxyAdmin(deploymentJson, ".withdrawerProxy", ".withdrawerProxyAdmin", timelock);
+    }
+
+    function _assertProxyAdmin(
+        string memory deploymentJson,
+        string memory proxyKey,
+        string memory adminKey,
+        address timelock
+    ) internal view {
+        address proxyAddress = vm.parseJsonAddress(deploymentJson, proxyKey);
+        address admin = vm.parseJsonAddress(deploymentJson, adminKey);
+        assertGt(admin.code.length, 0);
+        assertEq(admin, address(uint160(uint256(vm.load(proxyAddress, ERC1967Utils.ADMIN_SLOT)))));
+        assertEq(ProxyAdmin(admin).owner(), timelock);
+    }
+
     function _etchDeploymentToken(address tokenAddress) internal {
         DeploymentTokenMock token = new DeploymentTokenMock();
         vm.etch(tokenAddress, address(token).code);
@@ -176,6 +197,8 @@ contract DeployWithdrawalRequestTest is Test {
 
         string memory deploymentFilePath = deployScript.deploymentFilePath();
         string memory deploymentJson = vm.readFile(deploymentFilePath);
+        _assertProxyAdmins(deploymentJson, address(timelock));
+        assertEq(timelock.getMinDelay(), 1 days);
 
         assertEq(vm.parseJsonAddress(deploymentJson, ".timelock"), address(timelock));
         assertEq(vm.parseJsonAddress(deploymentJson, ".viewer"), address(viewer));
@@ -300,6 +323,7 @@ contract DeployWithdrawalRequestTest is Test {
 
         string memory deploymentJson = vm.readFile(deployScript.deploymentFilePath());
         assertEq(vm.parseJsonAddress(deploymentJson, ".token"), deployScript.YNRWAX());
+        _assertProxyAdmins(deploymentJson, address(deployScript.timelock()));
         assertEq(vm.parseJsonUint(deploymentJson, ".minWithdrawalAmount"), 10_000);
     }
 
@@ -353,6 +377,28 @@ contract DeployWithdrawalRequestTest is Test {
         deployScript.setPredictedProxy(address(1));
 
         vm.expectRevert(InvalidSetup.selector);
+        deployScript._verifySetup();
+    }
+
+    function testVerifySetupRejectsIncorrectProxyAdminOwner() public {
+        DeployWithdrawalRequestHarness deployScript = _deployScript();
+        address timelock = address(deployScript.timelock());
+        address[3] memory proxies = [
+            address(deployScript.proxy()),
+            address(deployScript.bagFactoryProxy()),
+            address(deployScript.requestWithdrawerProxy())
+        ];
+        for (uint256 i; i < proxies.length; ++i) {
+            address admin = address(uint160(uint256(vm.load(proxies[i], ERC1967Utils.ADMIN_SLOT))));
+            vm.prank(timelock);
+            ProxyAdmin(admin).transferOwnership(address(1));
+
+            vm.expectRevert(InvalidSetup.selector);
+            deployScript._verifySetup();
+
+            vm.prank(address(1));
+            ProxyAdmin(admin).transferOwnership(timelock);
+        }
         deployScript._verifySetup();
     }
 
