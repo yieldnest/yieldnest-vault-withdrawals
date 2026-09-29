@@ -26,6 +26,14 @@ Mainnet-fork tests use `ETH_MAINNET_RPC_URL`:
 FOUNDRY_PROFILE=mainnet forge test --match-path test/mainnet/withdrawalrequest.spec.sol
 ```
 
+The live ynRWAx deployment upgrade and request tests use the latest mainnet block and hardcoded deployment addresses:
+
+```sh
+FOUNDRY_PROFILE=fork forge test --match-path test/fork/ynrwax-deployment.t.sol -vv
+```
+
+These tests require `ETH_MAINNET_RPC_URL` and impersonate the supplied wallets only on the local fork.
+
 ## Deployment
 
 First deploy the four implementations and a standalone viewer using `script/deploy/DeployWithdrawalRequestImplementations.s.sol`.

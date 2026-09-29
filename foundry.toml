@@ -30,5 +30,8 @@ fs_permissions = [
   { access = "read", path = "./" },
 ]
 
+[profile.fork]
+test = "test/fork"
+
 [rpc_endpoints]
 eth_mainnet = "${ETH_MAINNET_RPC_URL}"
