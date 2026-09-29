@@ -7,8 +7,10 @@ import {IWithdrawalRequest} from "src/interface/IWithdrawalRequest.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 import {VaultMath} from "src/library/VaultMath.sol";
 
-/// @title WithdrawalRequestViewer
-/// @notice Read-only helper for request, bag, and vault asset balances.
+/**
+ * @title WithdrawalRequestViewer
+ * @notice Read-only helper for request, bag, and vault asset balances.
+ */
 contract WithdrawalRequestViewer {
     struct AssetBalance {
         address asset;
@@ -29,10 +31,12 @@ contract WithdrawalRequestViewer {
         AssetBalance[] assetBalances;
     }
 
-    /// @notice Returns the full view of one withdrawal request.
-    /// @param withdrawalRequest Withdrawal request contract to inspect.
-    /// @param id Request id to inspect.
-    /// @return view_ Aggregated request, owner, bag, and asset balance data.
+    /**
+     * @notice Returns the full view of one withdrawal request.
+     * @param withdrawalRequest Withdrawal request contract to inspect.
+     * @param id Request id to inspect.
+     * @return view_ Aggregated request, owner, bag, and asset balance data.
+     */
     function getRequest(WithdrawalRequest withdrawalRequest, uint256 id)
         external
         view
@@ -44,10 +48,12 @@ contract WithdrawalRequestViewer {
         view_ = _getRequest(id, request, token, withdrawalRequest);
     }
 
-    /// @notice Returns requests currently owned by `owner`.
-    /// @param withdrawalRequest Withdrawal request contract to inspect.
-    /// @param owner Request NFT owner to query.
-    /// @return requests_ Aggregated views for all request NFTs currently owned by `owner`.
+    /**
+     * @notice Returns requests currently owned by `owner`.
+     * @param withdrawalRequest Withdrawal request contract to inspect.
+     * @param owner Request NFT owner to query.
+     * @return requests_ Aggregated views for all request NFTs currently owned by `owner`.
+     */
     function getInProgressRequestsForOwner(WithdrawalRequest withdrawalRequest, address owner)
         external
         view
@@ -91,13 +97,15 @@ contract WithdrawalRequestViewer {
         });
     }
 
-    /// @notice Returns true when the remaining locked yn-token amount is below the dust threshold.
-    /// @dev UI-only heuristic: this indicates that most of the position has been withdrawn.
-    /// It works well for ETH and USDC-style assets where resolution can leave a trace
-    /// amount of locked yn-token behind. It is not a protocol-level claimability invariant.
-    /// @param withdrawalRequest Withdrawal request contract to inspect.
-    /// @param id Request id to inspect.
-    /// @return True if the request exists and its remaining locked shares are below the dust threshold.
+    /**
+     * @notice Returns true when the remaining locked yn-token amount is below the dust threshold.
+     * @dev UI-only heuristic: this indicates that most of the position has been withdrawn.
+     * It works well for ETH and USDC-style assets where resolution can leave a trace
+     * amount of locked yn-token behind. It is not a protocol-level claimability invariant.
+     * @param withdrawalRequest Withdrawal request contract to inspect.
+     * @param id Request id to inspect.
+     * @return True if the request exists and its remaining locked shares are below the dust threshold.
+     */
     function requestIsClaimable(WithdrawalRequest withdrawalRequest, uint256 id) external view returns (bool) {
         if (!withdrawalRequest.requestExists(id)) return false;
 
@@ -107,10 +115,12 @@ contract WithdrawalRequestViewer {
         return _requestIsClaimable(request, token);
     }
 
-    /// @notice Returns true when the request is claimable and its bag has no balances for redeemed assets.
-    /// @param withdrawalRequest Withdrawal request contract to inspect.
-    /// @param id Request id to inspect.
-    /// @return True if the request is claimable and all tracked bag asset balances are zero.
+    /**
+     * @notice Returns true when the request is claimable and its bag has no balances for redeemed assets.
+     * @param withdrawalRequest Withdrawal request contract to inspect.
+     * @param id Request id to inspect.
+     * @return True if the request is claimable and all tracked bag asset balances are zero.
+     */
     function requestIsClaimed(WithdrawalRequest withdrawalRequest, uint256 id) external view returns (bool) {
         if (!withdrawalRequest.requestExists(id)) return false;
 
@@ -134,12 +144,14 @@ contract WithdrawalRequestViewer {
         return true;
     }
 
-    /// @notice Converts yn-token shares into the maximum amount of a vault asset withdrawable from the configured token.
-    /// @dev Rounds down so callers do not intentionally request assets requiring more shares than are locked.
-    /// @param withdrawalRequest Withdrawal request contract whose token is used for conversion.
-    /// @param asset Asset to estimate.
-    /// @param shares Amount of yn-token shares to convert.
-    /// @return assets Estimated amount of `asset` withdrawable for `shares`.
+    /**
+     * @notice Converts yn-token shares into the maximum amount of a vault asset withdrawable from the configured token.
+     * @dev Rounds down so callers do not intentionally request assets requiring more shares than are locked.
+     * @param withdrawalRequest Withdrawal request contract whose token is used for conversion.
+     * @param asset Asset to estimate.
+     * @param shares Amount of yn-token shares to convert.
+     * @return assets Estimated amount of `asset` withdrawable for `shares`.
+     */
     function convertToAssets(WithdrawalRequest withdrawalRequest, address asset, uint256 shares)
         public
         view
@@ -149,16 +161,18 @@ contract WithdrawalRequestViewer {
         assets = VaultMath.convertToAssets(token, asset, shares);
     }
 
-    /// @notice Converts yn-token shares to default-asset units using the configured redemption withdrawer.
-    /// @dev This reflects the rate that the current withdrawer applies for redemption UI display.
-    /// For `BaseWithdrawer`, this delegates to the vault's ERC4626-style `convertToAssets`.
-    /// For fixed-rate withdrawers, this returns the assets implied by the fixed redemption rate.
-    /// It is intentionally separate from `convertToAssets`, which estimates per-asset resolution amounts.
-    /// @param withdrawalRequest Withdrawal request contract whose configured withdrawer provides the redemption rate.
-    /// @param id Request id used by request-aware withdrawers.
-    /// @param asset Asset to convert shares into.
-    /// @param shares Amount of yn-token shares to convert.
-    /// @return assets Amount of `asset` implied by the configured redemption rate.
+    /**
+     * @notice Converts yn-token shares to default-asset units using the configured redemption withdrawer.
+     * @dev This reflects the rate that the current withdrawer applies for redemption UI display.
+     * For `BaseWithdrawer`, this delegates to the vault's ERC4626-style `convertToAssets`.
+     * For fixed-rate withdrawers, this returns the assets implied by the fixed redemption rate.
+     * It is intentionally separate from `convertToAssets`, which estimates per-asset resolution amounts.
+     * @param withdrawalRequest Withdrawal request contract whose configured withdrawer provides the redemption rate.
+     * @param id Request id used by request-aware withdrawers.
+     * @param asset Asset to convert shares into.
+     * @param shares Amount of yn-token shares to convert.
+     * @return assets Amount of `asset` implied by the configured redemption rate.
+     */
     function convertToAssetsAtRedemptionRate(WithdrawalRequest withdrawalRequest, uint256 id, address asset, uint256 shares)
         external
         view
@@ -167,19 +181,23 @@ contract WithdrawalRequestViewer {
         assets = withdrawalRequest.withdrawer().convertToAssets(id, asset, shares);
     }
 
-    /// @notice Returns the minimum yn-token share amount required to create a withdrawal request.
-    /// @dev Reads the value from the currently configured request policy, so it reflects policy updates.
-    /// @param withdrawalRequest Withdrawal request contract whose policy defines request admission rules.
-    /// @return amount Minimum amount of yn-token shares that can be locked in a new request.
+    /**
+     * @notice Returns the minimum yn-token share amount required to create a withdrawal request.
+     * @dev Reads the value from the currently configured request policy, so it reflects policy updates.
+     * @param withdrawalRequest Withdrawal request contract whose policy defines request admission rules.
+     * @return amount Minimum amount of yn-token shares that can be locked in a new request.
+     */
     function minWithdrawalAmount(WithdrawalRequest withdrawalRequest) external view returns (uint256 amount) {
         amount = withdrawalRequest.requestPolicy().minWithdrawalAmount();
     }
 
-    /// @notice Returns the asset amount a caller can pass to `resolveWithdrawalRequest` for the request's locked shares.
-    /// @param withdrawalRequest Withdrawal request contract to inspect.
-    /// @param id Request id whose locked shares are converted.
-    /// @param asset Asset to estimate.
-    /// @return assets Estimated maximum amount of `asset` resolvable for the request.
+    /**
+     * @notice Returns the asset amount a caller can pass to `resolveWithdrawalRequest` for the request's locked shares.
+     * @param withdrawalRequest Withdrawal request contract to inspect.
+     * @param id Request id whose locked shares are converted.
+     * @param asset Asset to estimate.
+     * @return assets Estimated maximum amount of `asset` resolvable for the request.
+     */
     function maxResolutionAssets(WithdrawalRequest withdrawalRequest, uint256 id, address asset)
         external
         view
