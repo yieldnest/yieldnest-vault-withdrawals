@@ -64,14 +64,19 @@ contract YnRWAxDeploymentForkTest is Test {
         uint256 requestSupplyBefore = manager.totalSupply();
         uint256 firstId = manager.nextRequestId();
         uint256 totalLocked;
+        emit log_named_decimal_uint("Module ynRWAx balance before requests", managerBalanceBefore, 18);
         for (uint256 i; i < wallets.length; ++i) {
             address wallet = wallets[i];
             assertGt(wallet.code.length, 0);
             uint256 balanceBefore = vault.balanceOf(wallet);
+            emit log_named_address("Wallet", wallet);
+            emit log_named_decimal_uint("Wallet ynRWAx before request", balanceBefore, 18);
             uint256 ownedBefore = manager.balanceOf(wallet);
             assertGe(balanceBefore, 1 ether, "wallet must hold the minimum request amount");
 
             uint256 id = _request(wallet, balanceBefore);
+            emit log_named_uint("Request ID", id);
+            emit log_named_decimal_uint("Wallet ynRWAx after request", vault.balanceOf(wallet), 18);
             assertEq(id, firstId + i);
             assertEq(UpgradedBagForForkTest(payable(manager.requests(id).bag)).upgradeMarker(), 2);
             assertEq(vault.balanceOf(wallet), 0);
@@ -85,6 +90,9 @@ contract YnRWAxDeploymentForkTest is Test {
             recordedLocked += manager.requests(id).amountLocked;
         }
         assertEq(recordedLocked, totalLocked);
+        emit log_named_decimal_uint("ynRWAx locked by these requests", recordedLocked, 18);
+        emit log_named_address("Withdrawal request module", MANAGER);
+        emit log_named_decimal_uint("Final module ynRWAx balance", vault.balanceOf(MANAGER), 18);
         assertEq(
             vault.balanceOf(MANAGER),
             managerBalanceBefore + recordedLocked,
@@ -198,7 +206,7 @@ contract YnRWAxDeploymentForkTest is Test {
         vm.prank(ADMIN);
         timelock.executeBatch(targets, values, payloads, bytes32(0), salt);
 
-        vm.warp(timelock.getTimestamp(operation));
+        vm.warp(block.timestamp + 1 days);
         vm.prank(ADMIN);
         timelock.executeBatch(targets, values, payloads, bytes32(0), salt);
         assertTrue(timelock.isOperationDone(operation));
