@@ -27,8 +27,7 @@ contract WithdrawalRequestDeployer {
     struct DeploymentParams {
         Implementations implementations;
         address token;
-        address proposer;
-        address executor;
+        address admin;
         address resolver;
         address pauser;
         string name;
@@ -59,19 +58,17 @@ contract WithdrawalRequestDeployer {
         if (deploymentDone) revert DeploymentDone();
         deploymentDone = true;
         if (
-            params.token.code.length == 0 || params.proposer == address(0) || params.executor == address(0)
-                || params.resolver == address(0) || params.pauser == address(0) || params.minWithdrawalAmount == 0
+            params.token.code.length == 0 || params.admin == address(0) || params.resolver == address(0)
+                || params.pauser == address(0) || params.minWithdrawalAmount == 0
         ) revert InvalidDeploymentParams();
         _validateImplementation(params.implementations.withdrawalRequest);
         _validateImplementation(params.implementations.withdrawer);
         _validateImplementation(params.implementations.bagFactory);
         _validateImplementation(params.implementations.bag);
 
-        address[] memory proposers = new address[](1);
-        proposers[0] = params.proposer;
-        address[] memory executors = new address[](1);
-        executors[0] = params.executor;
-        TimelockController admin = new TimelockController(MIN_DELAY, proposers, executors, address(0));
+        address[] memory actors = new address[](1);
+        actors[0] = params.admin;
+        TimelockController admin = new TimelockController(MIN_DELAY, actors, actors, params.admin);
         timelock = admin;
 
         // Initialize below, after its dependent modules exist, within this same transaction.

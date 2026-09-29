@@ -39,5 +39,8 @@ the one-day timelock, request/factory/withdrawer proxies, minimum-amount policy,
 the system atomically. Each deployer can deploy once; a failed call can be retried.
 Implementation deployment is a separate prerequisite.
 
+`DeploymentParams.admin` receives the timelock default admin, proposer, executor, and canceller roles.
+It can manage timelock roles directly without the delay. The timelock also retains its own default admin role.
+
 The resulting deployment JSON includes every ProxyAdmin address (`proxyAdmin`, `bagFactoryProxyAdmin`,
 `withdrawerProxyAdmin`) and the `systemDeployer` address. All three ProxyAdmins are owned by the new timelock.

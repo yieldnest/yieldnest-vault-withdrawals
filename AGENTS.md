@@ -444,6 +444,8 @@ forge test --match-path 'test/local/unit/withdrawalrequestviewer.t.sol'
 - The deployer's `deploy(params)` creates the one-day timelock, three transparent proxies, policy, and viewer, and
   initializes all bindings in that transaction. No EOA nonce prediction is needed.
 - Deployment JSON includes `systemDeployer`, `proxyAdmin`, `bagFactoryProxyAdmin`, and `withdrawerProxyAdmin`.
+- `DeploymentParams.admin` receives the timelock default admin, proposer, executor, and canceller roles.
+  It can manage timelock roles directly without the delay; the timelock also retains its own default admin role.
 - Keep deployment parameters and `_verifySetup()` checks aligned.
 - Do not rewrite `broadcast/` outputs by hand.
 - Do not commit environment-specific secrets or RPC values.

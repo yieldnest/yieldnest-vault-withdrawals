@@ -53,8 +53,7 @@ abstract contract DeployWithdrawalRequestBase is Script {
     address public resolver;
     address public configurationManager;
     address public pauser;
-    address public proposer;
-    address public executor;
+    address public admin;
 
     constructor(string memory deploymentSymbol_, address deploymentToken_, uint256 minWithdrawalAmount_) {
         _deploymentSymbol = deploymentSymbol_;
@@ -98,8 +97,7 @@ abstract contract DeployWithdrawalRequestBase is Script {
             WithdrawalRequestDeployer.DeploymentParams({
                 implementations: implementations,
                 token: token,
-                proposer: proposer,
-                executor: executor,
+                admin: admin,
                 resolver: resolver,
                 pauser: pauser,
                 name: REQUEST_NFT_NAME,
@@ -144,8 +142,7 @@ abstract contract DeployWithdrawalRequestBase is Script {
 
     function assignDeploymentParameters() internal virtual {
         token = deploymentToken();
-        proposer = actors.ADMIN();
-        executor = actors.ADMIN();
+        admin = actors.ADMIN();
         resolver = actors.ADMIN();
         pauser = actors.PAUSER();
     }
@@ -164,8 +161,7 @@ abstract contract DeployWithdrawalRequestBase is Script {
 
     function _verifyDeploymentParams() internal view virtual {
         if (token == address(0)) revert InvalidSetup();
-        if (proposer == address(0)) revert InvalidSetup();
-        if (executor == address(0)) revert InvalidSetup();
+        if (admin == address(0)) revert InvalidSetup();
         if (resolver == address(0)) revert InvalidSetup();
         if (pauser == address(0)) revert InvalidSetup();
         if (minWithdrawalAmount() == 0) revert InvalidSetup();
@@ -185,10 +181,10 @@ abstract contract DeployWithdrawalRequestBase is Script {
         if (requestWithdrawer.withdrawalRequest() != address(withdrawalRequest)) revert InvalidSetup();
         if (!bagFactory.hasRole(bagFactory.CREATOR_ROLE(), address(withdrawalRequest))) revert InvalidSetup();
         if (!timelock.hasRole(timelock.DEFAULT_ADMIN_ROLE(), address(timelock))) revert InvalidSetup();
-        if (timelock.hasRole(timelock.DEFAULT_ADMIN_ROLE(), proposer)) revert InvalidSetup();
-        if (!timelock.hasRole(timelock.PROPOSER_ROLE(), proposer)) revert InvalidSetup();
-        if (!timelock.hasRole(timelock.CANCELLER_ROLE(), proposer)) revert InvalidSetup();
-        if (!timelock.hasRole(timelock.EXECUTOR_ROLE(), executor)) revert InvalidSetup();
+        if (!timelock.hasRole(timelock.DEFAULT_ADMIN_ROLE(), admin)) revert InvalidSetup();
+        if (!timelock.hasRole(timelock.PROPOSER_ROLE(), admin)) revert InvalidSetup();
+        if (!timelock.hasRole(timelock.CANCELLER_ROLE(), admin)) revert InvalidSetup();
+        if (!timelock.hasRole(timelock.EXECUTOR_ROLE(), admin)) revert InvalidSetup();
         if (!withdrawalRequest.hasRole(withdrawalRequest.DEFAULT_ADMIN_ROLE(), address(timelock))) {
             revert InvalidSetup();
         }
@@ -247,8 +243,7 @@ abstract contract DeployWithdrawalRequestBase is Script {
         vm.serializeAddress(symbol(), "resolver", resolver);
         vm.serializeAddress(symbol(), "configurationManager", configurationManager);
         vm.serializeAddress(symbol(), "pauser", pauser);
-        vm.serializeAddress(symbol(), "proposer", proposer);
-        vm.serializeAddress(symbol(), "executor", executor);
+        vm.serializeAddress(symbol(), "admin", admin);
 
         string memory jsonOutput = vm.serializeAddress(symbol(), "deployer", deployer);
 

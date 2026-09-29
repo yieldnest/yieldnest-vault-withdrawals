@@ -75,16 +75,9 @@ contract DeployWithdrawalRequestHarness is DeployWithdrawalRequest {
         );
     }
 
-    function setDeploymentParams(
-        address token_,
-        address proposer_,
-        address executor_,
-        address resolver_,
-        address pauser_
-    ) external {
+    function setDeploymentParams(address token_, address admin_, address resolver_, address pauser_) external {
         token = token_;
-        proposer = proposer_;
-        executor = executor_;
+        admin = admin_;
         resolver = resolver_;
         pauser = pauser_;
     }
@@ -164,8 +157,7 @@ contract DeployWithdrawalRequestTest is Test {
         return WithdrawalRequestDeployer.DeploymentParams({
             implementations: deployTestImplementations(),
             token: address(new DeploymentTokenMock()),
-            proposer: address(1),
-            executor: address(2),
+            admin: address(1),
             resolver: address(3),
             pauser: address(4),
             name: "Test Request",
@@ -216,6 +208,11 @@ contract DeployWithdrawalRequestTest is Test {
         assertFalse(deployment.deploymentDone());
         deployment.deploy(params);
         assertTrue(deployment.deploymentDone());
+        TimelockController deployedTimelock = deployment.timelock();
+        assertTrue(deployedTimelock.hasRole(deployedTimelock.DEFAULT_ADMIN_ROLE(), params.admin));
+        assertTrue(deployedTimelock.hasRole(deployedTimelock.PROPOSER_ROLE(), params.admin));
+        assertTrue(deployedTimelock.hasRole(deployedTimelock.EXECUTOR_ROLE(), params.admin));
+        assertTrue(deployedTimelock.hasRole(deployedTimelock.CANCELLER_ROLE(), params.admin));
         vm.expectRevert(WithdrawalRequestDeployer.DeploymentDone.selector);
         deployment.deploy(params);
         WithdrawalRequest manager = deployment.withdrawalRequest();
@@ -298,6 +295,10 @@ contract DeployWithdrawalRequestTest is Test {
         vm.expectRevert(WithdrawalRequestDeployer.InvalidDeploymentParams.selector);
         deployment.deploy(params);
         params.token = address(new DeploymentTokenMock());
+        params.admin = address(0);
+        vm.expectRevert(WithdrawalRequestDeployer.InvalidDeploymentParams.selector);
+        deployment.deploy(params);
+        params.admin = address(1);
         params.minWithdrawalAmount = 0;
         vm.expectRevert(WithdrawalRequestDeployer.InvalidDeploymentParams.selector);
         deployment.deploy(params);
@@ -362,10 +363,10 @@ contract DeployWithdrawalRequestTest is Test {
         assertEq(withdrawer.withdrawalRequest(), address(manager));
         assertEq(timelock.getMinDelay(), deployScript.minDelay());
         assertTrue(timelock.hasRole(timelock.DEFAULT_ADMIN_ROLE(), address(timelock)));
-        assertFalse(timelock.hasRole(timelock.DEFAULT_ADMIN_ROLE(), deployScript.proposer()));
-        assertTrue(timelock.hasRole(timelock.PROPOSER_ROLE(), deployScript.proposer()));
-        assertTrue(timelock.hasRole(timelock.CANCELLER_ROLE(), deployScript.proposer()));
-        assertTrue(timelock.hasRole(timelock.EXECUTOR_ROLE(), deployScript.executor()));
+        assertTrue(timelock.hasRole(timelock.DEFAULT_ADMIN_ROLE(), deployScript.admin()));
+        assertTrue(timelock.hasRole(timelock.PROPOSER_ROLE(), deployScript.admin()));
+        assertTrue(timelock.hasRole(timelock.CANCELLER_ROLE(), deployScript.admin()));
+        assertTrue(timelock.hasRole(timelock.EXECUTOR_ROLE(), deployScript.admin()));
         assertTrue(manager.hasRole(manager.DEFAULT_ADMIN_ROLE(), address(timelock)));
         assertTrue(manager.hasRole(manager.CONFIGURATION_MANAGER_ROLE(), address(timelock)));
         assertTrue(manager.hasRole(manager.RESOLVER_ROLE(), deployScript.resolver()));
@@ -383,6 +384,7 @@ contract DeployWithdrawalRequestTest is Test {
         assertEq(timelock.getMinDelay(), 1 days);
 
         assertEq(vm.parseJsonAddress(deploymentJson, ".timelock"), address(timelock));
+        assertEq(vm.parseJsonAddress(deploymentJson, ".admin"), deployScript.admin());
         assertEq(vm.parseJsonAddress(deploymentJson, ".viewer"), address(viewer));
         assertEq(vm.parseJsonAddress(deploymentJson, ".bagFactory"), address(bagFactory));
         assertEq(vm.parseJsonAddress(deploymentJson, ".bagFactoryProxy"), address(deployScript.bagFactoryProxy()));
@@ -512,25 +514,16 @@ contract DeployWithdrawalRequestTest is Test {
     function testVerifyDeploymentParamsRejectsZeroToken() public {
         DeployWithdrawalRequestHarness deployScript = new DeployWithdrawalRequestHarness();
         address actor = address(1);
-        deployScript.setDeploymentParams(address(0), actor, actor, actor, actor);
+        deployScript.setDeploymentParams(address(0), actor, actor, actor);
 
         vm.expectRevert(InvalidSetup.selector);
         deployScript.verifyDeploymentParams();
     }
 
-    function testVerifyDeploymentParamsRejectsZeroProposer() public {
+    function testVerifyDeploymentParamsRejectsZeroAdmin() public {
         DeployWithdrawalRequestHarness deployScript = new DeployWithdrawalRequestHarness();
         address actor = address(1);
-        deployScript.setDeploymentParams(MC.YNETHX, address(0), actor, actor, actor);
-
-        vm.expectRevert(InvalidSetup.selector);
-        deployScript.verifyDeploymentParams();
-    }
-
-    function testVerifyDeploymentParamsRejectsZeroExecutor() public {
-        DeployWithdrawalRequestHarness deployScript = new DeployWithdrawalRequestHarness();
-        address actor = address(1);
-        deployScript.setDeploymentParams(MC.YNETHX, actor, address(0), actor, actor);
+        deployScript.setDeploymentParams(MC.YNETHX, address(0), actor, actor);
 
         vm.expectRevert(InvalidSetup.selector);
         deployScript.verifyDeploymentParams();
@@ -539,7 +532,7 @@ contract DeployWithdrawalRequestTest is Test {
     function testVerifyDeploymentParamsRejectsZeroResolver() public {
         DeployWithdrawalRequestHarness deployScript = new DeployWithdrawalRequestHarness();
         address actor = address(1);
-        deployScript.setDeploymentParams(MC.YNETHX, actor, actor, address(0), actor);
+        deployScript.setDeploymentParams(MC.YNETHX, actor, address(0), actor);
 
         vm.expectRevert(InvalidSetup.selector);
         deployScript.verifyDeploymentParams();
@@ -548,7 +541,7 @@ contract DeployWithdrawalRequestTest is Test {
     function testVerifyDeploymentParamsRejectsZeroPauser() public {
         DeployWithdrawalRequestHarness deployScript = new DeployWithdrawalRequestHarness();
         address actor = address(1);
-        deployScript.setDeploymentParams(MC.YNETHX, actor, actor, actor, address(0));
+        deployScript.setDeploymentParams(MC.YNETHX, actor, actor, address(0));
 
         vm.expectRevert(InvalidSetup.selector);
         deployScript.verifyDeploymentParams();
@@ -606,14 +599,14 @@ contract DeployWithdrawalRequestTest is Test {
         deployScript._verifySetup();
     }
 
-    function testVerifySetupRejectsProposerWithTimelockDefaultAdmin() public {
+    function testVerifySetupRejectsMissingTimelockDefaultAdmin() public {
         DeployWithdrawalRequestHarness deployScript = _deployScript();
         TimelockController timelock = deployScript.timelock();
 
         vm.mockCall(
             address(timelock),
-            abi.encodeCall(timelock.hasRole, (timelock.DEFAULT_ADMIN_ROLE(), deployScript.proposer())),
-            abi.encode(true)
+            abi.encodeCall(timelock.hasRole, (timelock.DEFAULT_ADMIN_ROLE(), deployScript.admin())),
+            abi.encode(false)
         );
 
         vm.expectRevert(InvalidSetup.selector);
@@ -626,7 +619,7 @@ contract DeployWithdrawalRequestTest is Test {
 
         vm.mockCall(
             address(timelock),
-            abi.encodeCall(timelock.hasRole, (timelock.PROPOSER_ROLE(), deployScript.proposer())),
+            abi.encodeCall(timelock.hasRole, (timelock.PROPOSER_ROLE(), deployScript.admin())),
             abi.encode(false)
         );
 
@@ -640,7 +633,7 @@ contract DeployWithdrawalRequestTest is Test {
 
         vm.mockCall(
             address(timelock),
-            abi.encodeCall(timelock.hasRole, (timelock.CANCELLER_ROLE(), deployScript.proposer())),
+            abi.encodeCall(timelock.hasRole, (timelock.CANCELLER_ROLE(), deployScript.admin())),
             abi.encode(false)
         );
 
@@ -654,7 +647,7 @@ contract DeployWithdrawalRequestTest is Test {
 
         vm.mockCall(
             address(timelock),
-            abi.encodeCall(timelock.hasRole, (timelock.EXECUTOR_ROLE(), deployScript.executor())),
+            abi.encodeCall(timelock.hasRole, (timelock.EXECUTOR_ROLE(), deployScript.admin())),
             abi.encode(false)
         );
 
@@ -694,9 +687,7 @@ contract DeployWithdrawalRequestTest is Test {
 
     function testVerifySetupRejectsUnexpectedResolverRole() public {
         DeployWithdrawalRequestHarness deployScript = _deployScript();
-        deployScript.setDeploymentParams(
-            deployScript.token(), deployScript.proposer(), deployScript.executor(), address(1), deployScript.pauser()
-        );
+        deployScript.setDeploymentParams(deployScript.token(), deployScript.admin(), address(1), deployScript.pauser());
 
         vm.expectRevert(InvalidSetup.selector);
         deployScript._verifySetup();
