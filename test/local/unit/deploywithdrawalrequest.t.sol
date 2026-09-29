@@ -488,11 +488,11 @@ contract DeployWithdrawalRequestTest is Test {
 
         assertEq(deployScript.symbol(), "withdrawalRequest-ynRWAx");
         assertEq(deployScript.deploymentToken(), deployScript.YNRWAX());
-        assertEq(deployScript.minWithdrawalAmount(), 10_000);
-        assertEq(deployScript.MIN_WITHDRAWAL_AMOUNT(), 10_000);
+        assertEq(deployScript.minWithdrawalAmount(), 1e18);
+        assertEq(deployScript.MIN_WITHDRAWAL_AMOUNT(), 1e18);
     }
 
-    function testYnRWAxRunDeploysWithOneCentMinimum() public {
+    function testYnRWAxRunDeploysWithOneShareMinimum() public {
         DeployYnRWAxWithdrawalRequestHarness deployScript = new DeployYnRWAxWithdrawalRequestHarness();
         _etchDeploymentToken(deployScript.YNRWAX());
 
@@ -505,12 +505,12 @@ contract DeployWithdrawalRequestTest is Test {
 
         assertEq(address(withdrawer.token()), deployScript.YNRWAX());
         assertEq(address(manager.requestPolicy()), address(requestPolicy));
-        assertEq(requestPolicy.minWithdrawalAmount(), 10_000);
+        assertEq(requestPolicy.minWithdrawalAmount(), 1e18);
 
         string memory deploymentJson = vm.readFile(deployScript.deploymentFilePath());
         assertEq(vm.parseJsonAddress(deploymentJson, ".token"), deployScript.YNRWAX());
         _assertProxyAdmins(deploymentJson, address(deployScript.timelock()));
-        assertEq(vm.parseJsonUint(deploymentJson, ".minWithdrawalAmount"), 10_000);
+        assertEq(vm.parseJsonUint(deploymentJson, ".minWithdrawalAmount"), 1e18);
     }
 
     function testVerifyDeploymentParamsRejectsZeroToken() public {
