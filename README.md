@@ -9,6 +9,7 @@ Standalone Foundry package for YieldNest withdrawal request management.
 - `src/WithdrawalRequest.sol`: yn-token withdrawal request queue and fulfilment contract.
 - `src/interface/`: public interfaces used by the withdrawal contracts.
 - `script/deploy/DeployWithdrawalRequest.s.sol`: ynETHx deployment script.
+- `script/WithdrawalRequestDeployer.sol`: atomic system deployer using existing implementations.
 - `test/local/unit/`: unit tests.
 - `test/mainnet/`: mainnet-fork integration tests.
 
@@ -24,3 +25,27 @@ Mainnet-fork tests use `ETH_MAINNET_RPC_URL`:
 ```sh
 FOUNDRY_PROFILE=mainnet forge test --match-path test/mainnet/withdrawalrequest.spec.sol
 ```
+
+## Deployment
+
+First deploy the four implementations and a standalone viewer using `script/deploy/DeployWithdrawalRequestImplementations.s.sol`.
+This writes `deployments/withdrawalRequestImplementations-<chainId>.json`.
+
+Then run `script/deploy/DeployWithdrawalRequest.s.sol` for ynETHx or
+`script/deploy/DeployYnRWAxWithdrawalRequest.s.sol` for ynRWAx. These scripts read the implementation addresses
+from that JSON, create `WithdrawalRequestDeployer` with no constructor arguments, and call `deploy(params)`
+in a second transaction. The deploy call creates
+the one-day timelock, request/factory/withdrawer proxies, minimum-amount policy, and viewer, and initializes
+the system atomically. Each deployer can deploy once; a failed call can be retried.
+Implementation deployment is a separate prerequisite.
+
+The scripts derive the request NFT name as `<vault symbol> Withdrawal Request` and its symbol as
+`ynWREQ-<vault symbol>` from the vault token's `symbol()`, and record both in the deployment JSON.
+
+`DeploymentParams.admin` receives the timelock default admin, proposer, executor, and canceller roles.
+It can manage timelock roles directly without the delay. The timelock also retains its own default admin role.
+The same account holds `DEFAULT_ADMIN_ROLE` on the request manager and bag factory, allowing direct role management.
+The timelock holds the configuration manager and bag implementation manager roles and owns all three ProxyAdmins.
+
+The resulting deployment JSON includes every ProxyAdmin address (`proxyAdmin`, `bagFactoryProxyAdmin`,
+`withdrawerProxyAdmin`) and the `systemDeployer` address. All three ProxyAdmins are owned by the new timelock.
