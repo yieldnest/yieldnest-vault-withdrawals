@@ -15,6 +15,7 @@ import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 import {BaseWithdrawer} from "src/withdrawers/BaseWithdrawer.sol";
 import {IWithdrawalRequest} from "src/interface/IWithdrawalRequest.sol";
 import {IBag} from "src/interface/IBag.sol";
+import {MinAmountRequestPolicy} from "src/policies/MinAmountRequestPolicy.sol";
 
 contract UpgradedBagForForkTest is Bag {
     function upgradeMarker() external pure returns (uint256) {
@@ -53,6 +54,30 @@ contract YnRWAxDeploymentForkTest is Test {
         assertEq(block.chainid, 1);
         assertEq(factory.beacon(), BEACON);
         assertEq(timelock.getMinDelay(), 1 days);
+    }
+
+    function testRequestBelowOneYnRWAxReverts() public {
+        address wallet = wallets[0];
+        uint256 amount = 0.99 ether;
+        uint256 walletBalanceBefore = vault.balanceOf(wallet);
+        uint256 managerBalanceBefore = vault.balanceOf(MANAGER);
+        uint256 requestSupplyBefore = manager.totalSupply();
+        uint256 nextIdBefore = manager.nextRequestId();
+        assertGe(walletBalanceBefore, amount);
+        assertEq(MinAmountRequestPolicy(address(manager.requestPolicy())).minWithdrawalAmount(), 1 ether);
+
+        vm.startPrank(wallet);
+        vault.approve(MANAGER, amount);
+        vm.expectRevert(abi.encodeWithSelector(MinAmountRequestPolicy.AmountBelowMinimum.selector, amount, 1 ether));
+        manager.requestWithdrawal(amount, wallet);
+        vm.stopPrank();
+
+        assertEq(vault.balanceOf(wallet), walletBalanceBefore);
+        assertEq(vault.balanceOf(MANAGER), managerBalanceBefore);
+        assertEq(vault.allowance(wallet, MANAGER), amount);
+        assertEq(manager.totalSupply(), requestSupplyBefore);
+        assertEq(manager.nextRequestId(), nextIdBefore);
+        assertFalse(manager.requestExists(nextIdBefore));
     }
 
     function testUpgradeThroughTimelockThenLockFullBalancePerWallet() public {
