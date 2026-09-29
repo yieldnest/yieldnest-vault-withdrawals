@@ -448,23 +448,29 @@ contract DeployWithdrawalRequestTest is Test {
         BaseWithdrawer withdrawerImplementation = deployScript.requestWithdrawerImplementation();
         BeaconProxyFactory bagFactoryImplementation = deployScript.bagFactoryImplementation();
         Bag bagImplementation = deployScript.bagImplementation();
+        WithdrawalRequestViewer viewer = deployScript.withdrawalRequestViewer();
 
         assertGt(address(withdrawalRequestImplementation).code.length, 0);
         assertGt(address(withdrawerImplementation).code.length, 0);
         assertGt(address(bagFactoryImplementation).code.length, 0);
         assertGt(address(bagImplementation).code.length, 0);
+        assertGt(address(viewer).code.length, 0);
 
         bytes32 withdrawalRequestId = keccak256("yieldnest.yieldnest-vault-withdrawals.contracts.src.WithdrawalRequest");
         bytes32 withdrawerId =
             keccak256("yieldnest.yieldnest-vault-withdrawals.contracts.src.withdrawers.BaseWithdrawer");
         bytes32 bagFactoryId = keccak256("yieldnest.yieldnest-vault-withdrawals.contracts.src.BeaconProxyFactory");
         bytes32 bagId = keccak256("yieldnest.yieldnest-vault-withdrawals.contracts.src.Bag");
+        bytes32 viewerId = keccak256("yieldnest.yieldnest-vault-withdrawals.contracts.views.WithdrawalRequestViewer");
 
         string memory deploymentJson = vm.readFile(deployScript.deploymentFilePath());
         assertEq(vm.parseJsonBytes32(deploymentJson, ".WITHDRAWAL_REQUEST"), withdrawalRequestId);
         assertEq(vm.parseJsonBytes32(deploymentJson, ".WITHDRAWER"), withdrawerId);
         assertEq(vm.parseJsonBytes32(deploymentJson, ".BAG_FACTORY"), bagFactoryId);
         assertEq(vm.parseJsonBytes32(deploymentJson, ".BAG"), bagId);
+        assertEq(vm.parseJsonBytes32(deploymentJson, ".VIEWER"), viewerId);
+        assertEq(vm.parseJsonAddress(deploymentJson, string.concat(".", vm.toString(viewerId))), address(viewer));
+        assertEq(vm.parseJsonAddress(deploymentJson, ".viewer"), address(viewer));
 
         assertEq(
             vm.parseJsonAddress(deploymentJson, string.concat(".", vm.toString(withdrawalRequestId))),

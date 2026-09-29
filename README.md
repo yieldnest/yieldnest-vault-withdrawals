@@ -28,7 +28,7 @@ FOUNDRY_PROFILE=mainnet forge test --match-path test/mainnet/withdrawalrequest.s
 
 ## Deployment
 
-First deploy the four implementations using `script/deploy/DeployWithdrawalRequestImplementations.s.sol`.
+First deploy the four implementations and a standalone viewer using `script/deploy/DeployWithdrawalRequestImplementations.s.sol`.
 This writes `deployments/withdrawalRequestImplementations-<chainId>.json`.
 
 Then run `script/deploy/DeployWithdrawalRequest.s.sol` for ynETHx or
