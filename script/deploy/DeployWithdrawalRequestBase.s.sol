@@ -109,7 +109,7 @@ abstract contract DeployWithdrawalRequestBase is Script {
         vm.stopBroadcast();
 
         timelock = systemDeployer.timelock();
-        defaultAdmin = address(timelock);
+        defaultAdmin = admin;
         configurationManager = address(timelock);
         bagFactory = systemDeployer.bagFactory();
         bagFactoryProxy = TransparentUpgradeableProxy(payable(address(bagFactory)));
@@ -185,7 +185,7 @@ abstract contract DeployWithdrawalRequestBase is Script {
         if (!timelock.hasRole(timelock.PROPOSER_ROLE(), admin)) revert InvalidSetup();
         if (!timelock.hasRole(timelock.CANCELLER_ROLE(), admin)) revert InvalidSetup();
         if (!timelock.hasRole(timelock.EXECUTOR_ROLE(), admin)) revert InvalidSetup();
-        if (!withdrawalRequest.hasRole(withdrawalRequest.DEFAULT_ADMIN_ROLE(), address(timelock))) {
+        if (!withdrawalRequest.hasRole(withdrawalRequest.DEFAULT_ADMIN_ROLE(), admin)) {
             revert InvalidSetup();
         }
         if (!withdrawalRequest.hasRole(withdrawalRequest.CONFIGURATION_MANAGER_ROLE(), address(timelock))) {
@@ -198,7 +198,7 @@ abstract contract DeployWithdrawalRequestBase is Script {
         if (address(withdrawalRequest.requestPolicy()) != address(requestPolicy)) revert InvalidSetup();
         if (requestPolicy.minWithdrawalAmount() != minWithdrawalAmount()) revert InvalidSetup();
         if (withdrawalRequest.maxDataLength() != MAX_DATA_LENGTH) revert InvalidSetup();
-        if (!bagFactory.hasRole(bagFactory.DEFAULT_ADMIN_ROLE(), address(timelock))) revert InvalidSetup();
+        if (!bagFactory.hasRole(bagFactory.DEFAULT_ADMIN_ROLE(), admin)) revert InvalidSetup();
         if (!bagFactory.hasRole(bagFactory.IMPLEMENTATION_MANAGER_ROLE(), address(timelock))) {
             revert InvalidSetup();
         }

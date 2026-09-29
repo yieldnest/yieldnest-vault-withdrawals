@@ -367,14 +367,16 @@ contract DeployWithdrawalRequestTest is Test {
         assertTrue(timelock.hasRole(timelock.PROPOSER_ROLE(), deployScript.admin()));
         assertTrue(timelock.hasRole(timelock.CANCELLER_ROLE(), deployScript.admin()));
         assertTrue(timelock.hasRole(timelock.EXECUTOR_ROLE(), deployScript.admin()));
-        assertTrue(manager.hasRole(manager.DEFAULT_ADMIN_ROLE(), address(timelock)));
+        assertTrue(manager.hasRole(manager.DEFAULT_ADMIN_ROLE(), deployScript.admin()));
+        assertFalse(manager.hasRole(manager.DEFAULT_ADMIN_ROLE(), address(timelock)));
         assertTrue(manager.hasRole(manager.CONFIGURATION_MANAGER_ROLE(), address(timelock)));
         assertTrue(manager.hasRole(manager.RESOLVER_ROLE(), deployScript.resolver()));
         assertEq(address(manager.withdrawer()), address(withdrawer));
         assertEq(address(manager.requestPolicy()), address(requestPolicy));
         assertEq(requestPolicy.minWithdrawalAmount(), deployScript.minWithdrawalAmount());
         assertEq(manager.maxDataLength(), deployScript.MAX_DATA_LENGTH());
-        assertTrue(bagFactory.hasRole(bagFactory.DEFAULT_ADMIN_ROLE(), address(timelock)));
+        assertTrue(bagFactory.hasRole(bagFactory.DEFAULT_ADMIN_ROLE(), deployScript.admin()));
+        assertFalse(bagFactory.hasRole(bagFactory.DEFAULT_ADMIN_ROLE(), address(timelock)));
         assertTrue(bagFactory.hasRole(bagFactory.IMPLEMENTATION_MANAGER_ROLE(), address(timelock)));
 
         string memory deploymentFilePath = deployScript.deploymentFilePath();
@@ -399,7 +401,7 @@ contract DeployWithdrawalRequestTest is Test {
         );
         assertEq(vm.parseJsonAddress(deploymentJson, ".requestPolicy"), address(requestPolicy));
         assertEq(vm.parseJsonAddress(deploymentJson, ".withdrawalRequest"), address(manager));
-        assertEq(vm.parseJsonAddress(deploymentJson, ".defaultAdmin"), address(timelock));
+        assertEq(vm.parseJsonAddress(deploymentJson, ".defaultAdmin"), deployScript.admin());
         assertEq(vm.parseJsonAddress(deploymentJson, ".resolver"), deployScript.resolver());
         assertEq(vm.parseJsonAddress(deploymentJson, ".configurationManager"), address(timelock));
         assertEq(vm.parseJsonUint(deploymentJson, ".minWithdrawalAmount"), deployScript.minWithdrawalAmount());
@@ -658,11 +660,10 @@ contract DeployWithdrawalRequestTest is Test {
     function testVerifySetupRejectsMissingWithdrawalRequestDefaultAdminRole() public {
         DeployWithdrawalRequestHarness deployScript = _deployScript();
         WithdrawalRequest manager = deployScript.withdrawalRequest();
-        TimelockController timelock = deployScript.timelock();
 
         vm.mockCall(
             address(manager),
-            abi.encodeCall(manager.hasRole, (manager.DEFAULT_ADMIN_ROLE(), address(timelock))),
+            abi.encodeCall(manager.hasRole, (manager.DEFAULT_ADMIN_ROLE(), deployScript.admin())),
             abi.encode(false)
         );
 
@@ -735,11 +736,10 @@ contract DeployWithdrawalRequestTest is Test {
     function testVerifySetupRejectsMissingBagFactoryDefaultAdminRole() public {
         DeployWithdrawalRequestHarness deployScript = _deployScript();
         BeaconProxyFactory bagFactory = deployScript.bagFactory();
-        TimelockController timelock = deployScript.timelock();
 
         vm.mockCall(
             address(bagFactory),
-            abi.encodeCall(bagFactory.hasRole, (bagFactory.DEFAULT_ADMIN_ROLE(), address(timelock))),
+            abi.encodeCall(bagFactory.hasRole, (bagFactory.DEFAULT_ADMIN_ROLE(), deployScript.admin())),
             abi.encode(false)
         );
 

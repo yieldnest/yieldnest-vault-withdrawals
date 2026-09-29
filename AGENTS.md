@@ -309,7 +309,9 @@ Production role surfaces:
 - `BeaconProxyFactory.IMPLEMENTATION_MANAGER_ROLE`
   - Can upgrade the shared bag implementation.
 
-The default deployment script places admin and configuration authority behind a `TimelockController`. Validate final
+The default deployment script grants request manager and bag factory `DEFAULT_ADMIN_ROLE` to `DeploymentParams.admin`.
+Proxy ownership, configuration manager, and bag implementation manager authority are assigned to the `TimelockController`.
+The admin can grant or revoke roles directly, including these operational roles, without the timelock delay. Validate final
 role ownership after deployment and do not leave deployer-only authorities unless the deployment plan explicitly
 requires them.
 

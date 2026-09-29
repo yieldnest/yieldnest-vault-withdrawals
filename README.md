@@ -41,6 +41,8 @@ Implementation deployment is a separate prerequisite.
 
 `DeploymentParams.admin` receives the timelock default admin, proposer, executor, and canceller roles.
 It can manage timelock roles directly without the delay. The timelock also retains its own default admin role.
+The same account holds `DEFAULT_ADMIN_ROLE` on the request manager and bag factory, allowing direct role management.
+The timelock holds the configuration manager and bag implementation manager roles and owns all three ProxyAdmins.
 
 The resulting deployment JSON includes every ProxyAdmin address (`proxyAdmin`, `bagFactoryProxyAdmin`,
 `withdrawerProxyAdmin`) and the `systemDeployer` address. All three ProxyAdmins are owned by the new timelock.

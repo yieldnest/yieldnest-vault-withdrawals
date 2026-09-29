@@ -82,7 +82,7 @@ contract WithdrawalRequestDeployer {
                     address(timelock),
                     abi.encodeCall(
                         BeaconProxyFactory.initialize,
-                        (params.implementations.bag, address(timelock), address(request), address(timelock))
+                        (params.implementations.bag, params.admin, address(request), address(timelock))
                     )
                 )
             )
@@ -105,7 +105,7 @@ contract WithdrawalRequestDeployer {
                 token: params.token,
                 name: params.name,
                 symbol: params.symbol,
-                defaultAdmin: address(timelock),
+                defaultAdmin: params.admin,
                 resolver: params.resolver,
                 configurationManager: address(timelock),
                 pauser: params.pauser,
