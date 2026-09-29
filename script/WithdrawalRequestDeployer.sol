@@ -68,22 +68,21 @@ contract WithdrawalRequestDeployer {
 
         address[] memory actors = new address[](1);
         actors[0] = params.admin;
-        TimelockController admin = new TimelockController(MIN_DELAY, actors, actors, params.admin);
-        timelock = admin;
+        timelock = new TimelockController(MIN_DELAY, actors, actors, params.admin);
 
         // Initialize below, after its dependent modules exist, within this same transaction.
         WithdrawalRequest request = WithdrawalRequest(
-            address(new TransparentUpgradeableProxy(params.implementations.withdrawalRequest, address(admin), ""))
+            address(new TransparentUpgradeableProxy(params.implementations.withdrawalRequest, address(timelock), ""))
         );
         withdrawalRequest = request;
         BeaconProxyFactory factory = BeaconProxyFactory(
             address(
                 new TransparentUpgradeableProxy(
                     params.implementations.bagFactory,
-                    address(admin),
+                    address(timelock),
                     abi.encodeCall(
                         BeaconProxyFactory.initialize,
-                        (params.implementations.bag, address(admin), address(request), address(admin))
+                        (params.implementations.bag, address(timelock), address(request), address(timelock))
                     )
                 )
             )
@@ -93,7 +92,7 @@ contract WithdrawalRequestDeployer {
             address(
                 new TransparentUpgradeableProxy(
                     params.implementations.withdrawer,
-                    address(admin),
+                    address(timelock),
                     abi.encodeCall(BaseWithdrawer.initialize, (params.token, address(request)))
                 )
             )
@@ -106,9 +105,9 @@ contract WithdrawalRequestDeployer {
                 token: params.token,
                 name: params.name,
                 symbol: params.symbol,
-                defaultAdmin: address(admin),
+                defaultAdmin: address(timelock),
                 resolver: params.resolver,
-                configurationManager: address(admin),
+                configurationManager: address(timelock),
                 pauser: params.pauser,
                 bagFactory: address(factory),
                 withdrawer: address(adapter),
