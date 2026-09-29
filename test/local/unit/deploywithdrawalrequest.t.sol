@@ -326,6 +326,11 @@ contract DeployWithdrawalRequestTest is Test {
     function _etchDeploymentToken(address tokenAddress) internal {
         DeploymentTokenMock token = new DeploymentTokenMock();
         vm.etch(tokenAddress, address(token).code);
+        vm.mockCall(
+            tokenAddress,
+            abi.encodeWithSignature("symbol()"),
+            abi.encode(tokenAddress == MC.YNETHX ? "ynETHx" : "ynRWAx")
+        );
     }
 
     function _deployScript() internal returns (DeployWithdrawalRequestHarness deployScript) {
@@ -351,6 +356,8 @@ contract DeployWithdrawalRequestTest is Test {
         TimelockController timelock = deployScript.timelock();
         WithdrawalRequest manager = deployScript.withdrawalRequest();
         BeaconProxyFactory bagFactory = deployScript.bagFactory();
+        assertEq(manager.name(), "ynETHx Withdrawal Request");
+        assertEq(manager.symbol(), "ynWREQ-ynETHx");
         BaseWithdrawer withdrawer = deployScript.requestWithdrawer();
         BaseWithdrawer withdrawerImplementation = deployScript.requestWithdrawerImplementation();
         MinAmountRequestPolicy requestPolicy = deployScript.requestPolicy();
@@ -402,6 +409,8 @@ contract DeployWithdrawalRequestTest is Test {
         assertEq(vm.parseJsonAddress(deploymentJson, ".requestPolicy"), address(requestPolicy));
         assertEq(vm.parseJsonAddress(deploymentJson, ".withdrawalRequest"), address(manager));
         assertEq(vm.parseJsonAddress(deploymentJson, ".defaultAdmin"), deployScript.admin());
+        assertEq(vm.parseJsonString(deploymentJson, ".requestNFTName"), manager.name());
+        assertEq(vm.parseJsonString(deploymentJson, ".requestNFTSymbol"), manager.symbol());
         assertEq(vm.parseJsonAddress(deploymentJson, ".resolver"), deployScript.resolver());
         assertEq(vm.parseJsonAddress(deploymentJson, ".configurationManager"), address(timelock));
         assertEq(vm.parseJsonUint(deploymentJson, ".minWithdrawalAmount"), deployScript.minWithdrawalAmount());
@@ -504,11 +513,15 @@ contract DeployWithdrawalRequestTest is Test {
         BaseWithdrawer withdrawer = deployScript.requestWithdrawer();
 
         assertEq(address(withdrawer.token()), deployScript.YNRWAX());
+        assertEq(manager.name(), "ynRWAx Withdrawal Request");
+        assertEq(manager.symbol(), "ynWREQ-ynRWAx");
         assertEq(address(manager.requestPolicy()), address(requestPolicy));
         assertEq(requestPolicy.minWithdrawalAmount(), 1e18);
 
         string memory deploymentJson = vm.readFile(deployScript.deploymentFilePath());
         assertEq(vm.parseJsonAddress(deploymentJson, ".token"), deployScript.YNRWAX());
+        assertEq(vm.parseJsonString(deploymentJson, ".requestNFTName"), manager.name());
+        assertEq(vm.parseJsonString(deploymentJson, ".requestNFTSymbol"), manager.symbol());
         _assertProxyAdmins(deploymentJson, address(deployScript.timelock()));
         assertEq(vm.parseJsonUint(deploymentJson, ".minWithdrawalAmount"), 1e18);
     }
@@ -689,6 +702,18 @@ contract DeployWithdrawalRequestTest is Test {
     function testVerifySetupRejectsUnexpectedResolverRole() public {
         DeployWithdrawalRequestHarness deployScript = _deployScript();
         deployScript.setDeploymentParams(deployScript.token(), deployScript.admin(), address(1), deployScript.pauser());
+
+        vm.expectRevert(InvalidSetup.selector);
+        deployScript._verifySetup();
+    }
+
+    function testVerifySetupRejectsMissingPauserRole() public {
+        DeployWithdrawalRequestHarness deployScript = _deployScript();
+        WithdrawalRequest manager = deployScript.withdrawalRequest();
+        bytes32 role = manager.PAUSER_ROLE();
+        address pauser = deployScript.pauser();
+        vm.prank(deployScript.admin());
+        manager.revokeRole(role, pauser);
 
         vm.expectRevert(InvalidSetup.selector);
         deployScript._verifySetup();

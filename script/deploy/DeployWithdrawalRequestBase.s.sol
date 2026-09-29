@@ -6,6 +6,7 @@ import {
     TransparentUpgradeableProxy
 } from "lib/openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {Strings} from "lib/openzeppelin-contracts/contracts/utils/Strings.sol";
+import {IERC20Metadata} from "lib/openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {Script} from "lib/forge-std/src/Script.sol";
 import {IActors, MainnetActors} from "lib/yieldnest-vault/script/Actors.sol";
 import {ERC1967Utils} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Utils.sol";
@@ -27,8 +28,8 @@ abstract contract DeployWithdrawalRequestBase is Script {
     error InvalidSetup();
 
     uint256 public constant MAX_DATA_LENGTH = 1024;
-    string public constant REQUEST_NFT_NAME = "MAX Vault Withdrawal Request";
-    string public constant REQUEST_NFT_SYMBOL = "ynWREQ";
+    string public requestNFTName;
+    string public requestNFTSymbol;
 
     string private _deploymentSymbol;
     address private _deploymentToken;
@@ -84,6 +85,9 @@ abstract contract DeployWithdrawalRequestBase is Script {
         _setup();
         assignDeploymentParameters();
         _verifyDeploymentParams();
+        string memory tokenSymbol = IERC20Metadata(token).symbol();
+        requestNFTName = string.concat(tokenSymbol, " Withdrawal Request");
+        requestNFTSymbol = string.concat("ynWREQ-", tokenSymbol);
         WithdrawalRequestDeployer.Implementations memory implementations = _loadImplementations();
         bagImplementation = Bag(payable(implementations.bag));
         bagFactoryImplementation = BeaconProxyFactory(implementations.bagFactory);
@@ -100,8 +104,8 @@ abstract contract DeployWithdrawalRequestBase is Script {
                 admin: admin,
                 resolver: resolver,
                 pauser: pauser,
-                name: REQUEST_NFT_NAME,
-                symbol: REQUEST_NFT_SYMBOL,
+                name: requestNFTName,
+                symbol: requestNFTSymbol,
                 minWithdrawalAmount: minWithdrawalAmount(),
                 maxDataLength: MAX_DATA_LENGTH
             })
@@ -194,6 +198,7 @@ abstract contract DeployWithdrawalRequestBase is Script {
         if (!withdrawalRequest.hasRole(withdrawalRequest.RESOLVER_ROLE(), resolver)) {
             revert InvalidSetup();
         }
+        if (!withdrawalRequest.hasRole(withdrawalRequest.PAUSER_ROLE(), pauser)) revert InvalidSetup();
         if (address(withdrawalRequest.withdrawer()) != address(requestWithdrawer)) revert InvalidSetup();
         if (address(withdrawalRequest.requestPolicy()) != address(requestPolicy)) revert InvalidSetup();
         if (requestPolicy.minWithdrawalAmount() != minWithdrawalAmount()) revert InvalidSetup();
@@ -236,6 +241,8 @@ abstract contract DeployWithdrawalRequestBase is Script {
         vm.serializeAddress(symbol(), "withdrawalRequest", address(withdrawalRequest));
         vm.serializeAddress(symbol(), "viewer", address(withdrawalRequestViewer));
         vm.serializeAddress(symbol(), "token", token);
+        vm.serializeString(symbol(), "requestNFTName", requestNFTName);
+        vm.serializeString(symbol(), "requestNFTSymbol", requestNFTSymbol);
         vm.serializeUint(symbol(), "minWithdrawalAmount", minWithdrawalAmount());
         vm.serializeUint(symbol(), "maxDataLength", MAX_DATA_LENGTH);
         vm.serializeUint(symbol(), "timelockMinDelay", minDelay);

@@ -52,6 +52,13 @@ contract WithdrawalRequestDeployer {
 
     /**
      * @notice Creates the timelock, proxies, request policy, and viewer and initializes all bindings.
+     * @dev Permissionless and one-shot. When deployer creation and this call are separate transactions,
+     * anyone can front-run this call with different admin/resolver parameters and consume deploymentDone.
+     * The intended call then reverts with DeploymentDone. With otherwise matching parameters, the attacker
+     * can deploy contracts at the same child addresses predicted by a simulation, but with different roles.
+     * Do not trust dry-run addresses for artifacts, frontends, or governance payloads without verifying
+     * the successful on-chain deployment and role assignments. Restricting this call to the deployer's
+     * creator would prevent this attack; private submission is only a mitigation, not access control.
      * @param params Existing implementations and configuration for the new system.
      */
     function deploy(DeploymentParams calldata params) external {

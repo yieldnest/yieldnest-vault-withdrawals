@@ -39,6 +39,9 @@ the one-day timelock, request/factory/withdrawer proxies, minimum-amount policy,
 the system atomically. Each deployer can deploy once; a failed call can be retried.
 Implementation deployment is a separate prerequisite.
 
+The scripts derive the request NFT name as `<vault symbol> Withdrawal Request` and its symbol as
+`ynWREQ-<vault symbol>` from the vault token's `symbol()`, and record both in the deployment JSON.
+
 `DeploymentParams.admin` receives the timelock default admin, proposer, executor, and canceller roles.
 It can manage timelock roles directly without the delay. The timelock also retains its own default admin role.
 The same account holds `DEFAULT_ADMIN_ROLE` on the request manager and bag factory, allowing direct role management.
