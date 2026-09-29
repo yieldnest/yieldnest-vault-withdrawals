@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
+import {IWithdrawalRequest} from "src/interface/IWithdrawalRequest.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 import {VaultMath} from "src/library/VaultMath.sol";
 
@@ -47,7 +48,7 @@ contract FillRatioResolver {
         address owner = manager.ownerOf(id);
         if (msg.sender != owner) revert NotRequestOwner(msg.sender, owner);
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
         uint256 initialAmount = initialAmountLocked[id];
         if (initialAmount == 0) {
             initialAmount = request.amountLocked;
