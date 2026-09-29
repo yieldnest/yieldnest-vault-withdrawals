@@ -20,14 +20,46 @@ import {DeployWithdrawalRequestImplementations} from "script/deploy/DeployWithdr
 import {DeployWithdrawalRequestViewer} from "script/deploy/DeployWithdrawalRequestViewer.s.sol";
 import {DeployYnRWAxWithdrawalRequest} from "script/deploy/DeployYnRWAxWithdrawalRequest.s.sol";
 import {WithdrawalRequestViewer} from "views/WithdrawalRequestViewer.sol";
+import {WithdrawalRequestDeployer} from "script/WithdrawalRequestDeployer.sol";
+import {IWithdrawalRequest} from "src/interface/IWithdrawalRequest.sol";
+import {Initializable} from "lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol";
 
 error InvalidSetup();
 
+function deployTestImplementations() returns (WithdrawalRequestDeployer.Implementations memory) {
+    return WithdrawalRequestDeployer.Implementations({
+        withdrawalRequest: address(new WithdrawalRequest()),
+        withdrawer: address(new BaseWithdrawer()),
+        bagFactory: address(new BeaconProxyFactory()),
+        bag: address(new Bag())
+    });
+}
+
 contract DeploymentTokenMock is ERC20 {
     constructor() ERC20("Token", "TKN") {}
+
+    function convertToAssets(uint256 shares) external pure returns (uint256) {
+        return shares;
+    }
 }
 
 contract DeployWithdrawalRequestHarness is DeployWithdrawalRequest {
+    uint256 private immutable _fileId = vm.randomUint();
+
+    function _loadImplementations() internal override returns (WithdrawalRequestDeployer.Implementations memory) {
+        WithdrawalRequestDeployer.Implementations memory implementations = deployTestImplementations();
+        vm.serializeAddress("testImplementations", "withdrawalRequestImplementation", implementations.withdrawalRequest);
+        vm.serializeAddress("testImplementations", "withdrawerImplementation", implementations.withdrawer);
+        vm.serializeAddress("testImplementations", "bagFactoryImplementation", implementations.bagFactory);
+        string memory json = vm.serializeAddress("testImplementations", "bagImplementation", implementations.bag);
+        vm.writeJson(json, _implementationsFilePath());
+        return super._loadImplementations();
+    }
+
+    function _implementationsFilePath() internal view override returns (string memory) {
+        return string.concat(_deploymentFilePath(), ".implementations.json");
+    }
+
     function _deploymentFilePath() internal view override returns (string memory) {
         return string.concat(
             vm.projectRoot(),
@@ -37,6 +69,8 @@ contract DeployWithdrawalRequestHarness is DeployWithdrawalRequest {
             vm.toString(block.chainid),
             "-",
             vm.toString(address(this)),
+            "-",
+            vm.toString(_fileId),
             ".json"
         );
     }
@@ -55,8 +89,8 @@ contract DeployWithdrawalRequestHarness is DeployWithdrawalRequest {
         pauser = pauser_;
     }
 
-    function setPredictedProxy(address predictedProxy_) external {
-        predictedProxy = predictedProxy_;
+    function setWithdrawalRequest(WithdrawalRequest withdrawalRequest_) external {
+        withdrawalRequest = withdrawalRequest_;
     }
 
     function setTimelock(TimelockController timelock_) external {
@@ -77,6 +111,10 @@ contract DeployWithdrawalRequestHarness is DeployWithdrawalRequest {
 }
 
 contract DeployYnRWAxWithdrawalRequestHarness is DeployYnRWAxWithdrawalRequest {
+    function _loadImplementations() internal override returns (WithdrawalRequestDeployer.Implementations memory) {
+        return deployTestImplementations();
+    }
+
     function _deploymentFilePath() internal view override returns (string memory) {
         return string.concat(
             vm.projectRoot(),
@@ -122,6 +160,139 @@ contract DeployWithdrawalRequestImplementationsHarness is DeployWithdrawalReques
 }
 
 contract DeployWithdrawalRequestTest is Test {
+    function _deploymentParams() internal returns (WithdrawalRequestDeployer.DeploymentParams memory) {
+        return WithdrawalRequestDeployer.DeploymentParams({
+            implementations: deployTestImplementations(),
+            token: address(new DeploymentTokenMock()),
+            proposer: address(1),
+            executor: address(2),
+            resolver: address(3),
+            pauser: address(4),
+            name: "Test Request",
+            symbol: "TEST",
+            minWithdrawalAmount: 1 ether,
+            maxDataLength: 1024
+        });
+    }
+
+    function testRunBroadcastsOneTransactionAndSupportsRequestLifecycle() public {
+        uint256 nonce = vm.getNonce(tx.origin);
+        DeployWithdrawalRequestHarness deployScript = _deployScript();
+        assertEq(vm.getNonce(tx.origin), nonce + 1);
+
+        WithdrawalRequest manager = deployScript.withdrawalRequest();
+        address token = deployScript.token();
+        address user = makeAddr("user");
+        uint256 amount = 1 ether;
+        deal(token, user, amount);
+        vm.startPrank(user);
+        ERC20(token).approve(address(manager), amount);
+        uint256 id = manager.requestWithdrawal(amount, user);
+        vm.stopPrank();
+        address bag = manager.requests(id).bag;
+        assertEq(Bag(payable(bag)).auth(), address(manager));
+
+        vm.prank(deployScript.resolver());
+        manager.resolveWithdrawalRequest(id, token, amount);
+        assertEq(manager.requests(id).amountLocked, 0);
+        assertEq(ERC20(token).balanceOf(bag), amount);
+        assertEq(ERC20(token).allowance(address(manager), address(deployScript.requestWithdrawer())), 0);
+
+        address[] memory assets = new address[](1);
+        assets[0] = token;
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = amount;
+        vm.startPrank(user);
+        Bag(payable(bag)).claim(assets, payable(user), amounts);
+        manager.burn(id);
+        vm.stopPrank();
+        assertEq(ERC20(token).balanceOf(user), amount);
+        assertEq(manager.totalSupply(), 0);
+    }
+
+    function testDeployerUsesSuppliedImplementationsAndRetainsNoRoles() public {
+        WithdrawalRequestDeployer.DeploymentParams memory params = _deploymentParams();
+        WithdrawalRequestDeployer deployment = new WithdrawalRequestDeployer(params);
+        WithdrawalRequest manager = deployment.withdrawalRequest();
+        BeaconProxyFactory factory = deployment.bagFactory();
+        BaseWithdrawer withdrawer = deployment.withdrawer();
+        assertEq(
+            address(uint160(uint256(vm.load(address(manager), ERC1967Utils.IMPLEMENTATION_SLOT)))),
+            params.implementations.withdrawalRequest
+        );
+        assertEq(
+            address(uint160(uint256(vm.load(address(factory), ERC1967Utils.IMPLEMENTATION_SLOT)))),
+            params.implementations.bagFactory
+        );
+        assertEq(
+            address(uint160(uint256(vm.load(address(withdrawer), ERC1967Utils.IMPLEMENTATION_SLOT)))),
+            params.implementations.withdrawer
+        );
+        assertEq(manager.name(), params.name);
+        assertEq(manager.symbol(), params.symbol);
+        assertTrue(manager.hasRole(manager.PAUSER_ROLE(), params.pauser));
+        assertTrue(factory.hasRole(factory.CREATOR_ROLE(), address(manager)));
+        address[2] memory temporaryActors = [address(deployment), address(this)];
+        for (uint256 i; i < temporaryActors.length; ++i) {
+            address actor = temporaryActors[i];
+            assertFalse(manager.hasRole(manager.DEFAULT_ADMIN_ROLE(), actor));
+            assertFalse(manager.hasRole(manager.CONFIGURATION_MANAGER_ROLE(), actor));
+            assertFalse(manager.hasRole(manager.RESOLVER_ROLE(), actor));
+            assertFalse(manager.hasRole(manager.PAUSER_ROLE(), actor));
+            assertFalse(factory.hasRole(factory.DEFAULT_ADMIN_ROLE(), actor));
+            assertFalse(factory.hasRole(factory.IMPLEMENTATION_MANAGER_ROLE(), actor));
+            assertFalse(factory.hasRole(factory.CREATOR_ROLE(), actor));
+            TimelockController timelock = deployment.timelock();
+            assertFalse(timelock.hasRole(timelock.DEFAULT_ADMIN_ROLE(), actor));
+            assertFalse(timelock.hasRole(timelock.PROPOSER_ROLE(), actor));
+            assertFalse(timelock.hasRole(timelock.EXECUTOR_ROLE(), actor));
+        }
+
+        IWithdrawalRequest.InitializeParams memory init;
+        vm.expectRevert(Initializable.InvalidInitialization.selector);
+        manager.initialize(init);
+        vm.expectRevert(Initializable.InvalidInitialization.selector);
+        factory.initialize(params.implementations.bag, address(this), address(this), address(this));
+        vm.expectRevert(Initializable.InvalidInitialization.selector);
+        withdrawer.initialize(params.token, address(this));
+    }
+
+    function testDeployerRejectsMissingImplementations() public {
+        WithdrawalRequestDeployer.DeploymentParams memory params = _deploymentParams();
+        WithdrawalRequestDeployer.Implementations memory implementations = params.implementations;
+        address[4] memory originals = [
+            implementations.withdrawalRequest,
+            implementations.withdrawer,
+            implementations.bagFactory,
+            implementations.bag
+        ];
+        for (uint256 i; i < originals.length; ++i) {
+            if (i == 0) params.implementations.withdrawalRequest = address(0);
+            if (i == 1) params.implementations.withdrawer = address(0);
+            if (i == 2) params.implementations.bagFactory = address(0);
+            if (i == 3) params.implementations.bag = address(0);
+            vm.expectRevert(
+                abi.encodeWithSelector(WithdrawalRequestDeployer.InvalidImplementation.selector, address(0))
+            );
+            new WithdrawalRequestDeployer(params);
+            if (i == 0) params.implementations.withdrawalRequest = originals[i];
+            if (i == 1) params.implementations.withdrawer = originals[i];
+            if (i == 2) params.implementations.bagFactory = originals[i];
+            if (i == 3) params.implementations.bag = originals[i];
+        }
+    }
+
+    function testDeployerRejectsInvalidConfiguration() public {
+        WithdrawalRequestDeployer.DeploymentParams memory params = _deploymentParams();
+        params.token = address(0);
+        vm.expectRevert(WithdrawalRequestDeployer.InvalidDeploymentParams.selector);
+        new WithdrawalRequestDeployer(params);
+        params.token = address(new DeploymentTokenMock());
+        params.minWithdrawalAmount = 0;
+        vm.expectRevert(WithdrawalRequestDeployer.InvalidDeploymentParams.selector);
+        new WithdrawalRequestDeployer(params);
+    }
+
     function _assertProxyAdmins(string memory deploymentJson, address timelock) internal view {
         _assertProxyAdmin(deploymentJson, ".proxy", ".proxyAdmin", timelock);
         _assertProxyAdmin(deploymentJson, ".bagFactoryProxy", ".bagFactoryProxyAdmin", timelock);
@@ -197,6 +368,7 @@ contract DeployWithdrawalRequestTest is Test {
 
         string memory deploymentFilePath = deployScript.deploymentFilePath();
         string memory deploymentJson = vm.readFile(deploymentFilePath);
+        assertEq(vm.parseJsonAddress(deploymentJson, ".systemDeployer"), address(deployScript.systemDeployer()));
         _assertProxyAdmins(deploymentJson, address(timelock));
         assertEq(timelock.getMinDelay(), 1 days);
 
@@ -374,7 +546,7 @@ contract DeployWithdrawalRequestTest is Test {
 
     function testVerifySetupRejectsUnexpectedProxy() public {
         DeployWithdrawalRequestHarness deployScript = _deployScript();
-        deployScript.setPredictedProxy(address(1));
+        deployScript.setWithdrawalRequest(WithdrawalRequest(address(1)));
 
         vm.expectRevert(InvalidSetup.selector);
         deployScript._verifySetup();

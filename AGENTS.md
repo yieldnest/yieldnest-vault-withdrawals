@@ -15,6 +15,7 @@ This repo contains the YieldNest withdrawal request system:
 - request policy and share-to-asset math helpers under [`src/policies/`](src/policies) and [`src/library/`](src/library)
 - read-only request and bag views in [`views/WithdrawalRequestViewer.sol`](views/WithdrawalRequestViewer.sol)
 - deployment scripts under [`script/`](script)
+- atomic system deployment in [`script/WithdrawalRequestDeployer.sol`](script/WithdrawalRequestDeployer.sol)
 - unit and mainnet-fork tests under [`test/`](test)
 
 The default posture is conservative. Preserve request custody, resolver authority, bag ownership, role boundaries,
@@ -56,7 +57,8 @@ Distinguish these surfaces:
 2. WithdrawalRequest proxy
    - A live `WithdrawalRequest` instance should be an OpenZeppelin `TransparentUpgradeableProxy` pointing at a
      `WithdrawalRequest` implementation.
-   - The proxy must be initialized atomically through the proxy constructor.
+   - The proxy must be initialized in the same transaction that deploys it. `WithdrawalRequestDeployer` creates it
+     first, then initializes it after deploying its factory and withdrawer, all within the deployer's constructor.
    - The proxy admin owner should be the intended admin/timelock owner.
    - Do not deploy or test production upgradeable instances behind ERC1967 proxies directly; this repo uses
      `TransparentUpgradeableProxy` except where beacon proxies are explicitly required for bags.
@@ -171,7 +173,7 @@ Parameter meanings and validation:
 - `bagFactory`
   - Factory used to deploy request bags.
   - Must grant `CREATOR_ROLE` to the `WithdrawalRequest` proxy.
-  - In the default deployment script, this is achieved by initializing the factory with the predicted proxy as creator.
+  - The deployer initializes the factory with the newly deployed request proxy as creator.
 
 - `withdrawer`
   - Adapter called by `WithdrawalRequest.resolveWithdrawalRequest(...)`.
@@ -436,7 +438,12 @@ forge test --match-path 'test/local/unit/withdrawalrequestviewer.t.sol'
 - Prefer existing scripts in `script/` over inventing new one-off approaches.
 - Use `TransparentUpgradeableProxy` for upgradeable production deployments except beacon-created bags.
 - Do not model new deployments after legacy raw ERC1967 deployment artifacts.
-- Keep predicted address logic and deployment nonce assumptions aligned with deployed contract order.
+- `DeployWithdrawalRequestBase` reads existing implementations from
+  `deployments/withdrawalRequestImplementations-<chainId>.json` and broadcasts only the creation of
+  `WithdrawalRequestDeployer`. Deploy implementations separately before running it.
+- The deployer's constructor creates the one-day timelock, three transparent proxies, policy, and viewer, and
+  initializes all bindings in that transaction. No EOA nonce prediction is needed.
+- Deployment JSON includes `systemDeployer`, `proxyAdmin`, `bagFactoryProxyAdmin`, and `withdrawerProxyAdmin`.
 - Keep deployment parameters and `_verifySetup()` checks aligned.
 - Do not rewrite `broadcast/` outputs by hand.
 - Do not commit environment-specific secrets or RPC values.

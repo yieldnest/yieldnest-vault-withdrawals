@@ -9,6 +9,7 @@ Standalone Foundry package for YieldNest withdrawal request management.
 - `src/WithdrawalRequest.sol`: yn-token withdrawal request queue and fulfilment contract.
 - `src/interface/`: public interfaces used by the withdrawal contracts.
 - `script/deploy/DeployWithdrawalRequest.s.sol`: ynETHx deployment script.
+- `script/WithdrawalRequestDeployer.sol`: atomic system deployer using existing implementations.
 - `test/local/unit/`: unit tests.
 - `test/mainnet/`: mainnet-fork integration tests.
 
@@ -24,3 +25,17 @@ Mainnet-fork tests use `ETH_MAINNET_RPC_URL`:
 ```sh
 FOUNDRY_PROFILE=mainnet forge test --match-path test/mainnet/withdrawalrequest.spec.sol
 ```
+
+## Deployment
+
+First deploy the four implementations using `script/deploy/DeployWithdrawalRequestImplementations.s.sol`.
+This writes `deployments/withdrawalRequestImplementations-<chainId>.json`.
+
+Then run `script/deploy/DeployWithdrawalRequest.s.sol` for ynETHx or
+`script/deploy/DeployYnRWAxWithdrawalRequest.s.sol` for ynRWAx. These scripts read the implementation addresses
+from that JSON and broadcast one transaction creating `WithdrawalRequestDeployer`. Its constructor deploys
+the one-day timelock, request/factory/withdrawer proxies, minimum-amount policy, and viewer, and initializes
+the system atomically. Implementation deployment is a separate prerequisite.
+
+The resulting deployment JSON includes every ProxyAdmin address (`proxyAdmin`, `bagFactoryProxyAdmin`,
+`withdrawerProxyAdmin`) and the `systemDeployer` address. All three ProxyAdmins are owned by the new timelock.

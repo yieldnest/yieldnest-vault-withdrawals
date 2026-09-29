@@ -12,7 +12,7 @@ import {ERC1967Utils} from "lib/openzeppelin-contracts/contracts/proxy/ERC1967/E
 import {ProxyAdmin} from "lib/openzeppelin-contracts/contracts/proxy/transparent/ProxyAdmin.sol";
 import {Bag} from "src/Bag.sol";
 import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
-import {IWithdrawalRequest} from "src/interface/IWithdrawalRequest.sol";
+import {WithdrawalRequestDeployer} from "script/WithdrawalRequestDeployer.sol";
 import {MinAmountRequestPolicy} from "src/policies/MinAmountRequestPolicy.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 import {BaseWithdrawer} from "src/withdrawers/BaseWithdrawer.sol";
@@ -46,6 +46,7 @@ abstract contract DeployWithdrawalRequestBase is Script {
     TransparentUpgradeableProxy public bagFactoryProxy;
     TransparentUpgradeableProxy public requestWithdrawerProxy;
     TransparentUpgradeableProxy public proxy;
+    WithdrawalRequestDeployer public systemDeployer;
 
     address public token;
     address public defaultAdmin;
@@ -54,7 +55,6 @@ abstract contract DeployWithdrawalRequestBase is Script {
     address public pauser;
     address public proposer;
     address public executor;
-    address public predictedProxy;
 
     constructor(string memory deploymentSymbol_, address deploymentToken_, uint256 minWithdrawalAmount_) {
         _deploymentSymbol = deploymentSymbol_;
@@ -82,68 +82,63 @@ abstract contract DeployWithdrawalRequestBase is Script {
 
     /// @notice Deploys the withdrawal request system and writes deployment metadata.
     function run() public {
-        vm.startBroadcast();
-
         _setup();
         assignDeploymentParameters();
         _verifyDeploymentParams();
+        WithdrawalRequestDeployer.Implementations memory implementations = _loadImplementations();
+        bagImplementation = Bag(payable(implementations.bag));
+        bagFactoryImplementation = BeaconProxyFactory(implementations.bagFactory);
+        requestWithdrawerImplementation = BaseWithdrawer(implementations.withdrawer);
+        requestImplementation = WithdrawalRequest(implementations.withdrawalRequest);
 
         deployer = tx.origin;
-        uint256 nonce = vm.getNonce(deployer);
-        predictedProxy = vm.computeCreateAddress(deployer, nonce + 8);
+        vm.startBroadcast();
+        systemDeployer = new WithdrawalRequestDeployer(
+            WithdrawalRequestDeployer.DeploymentParams({
+                implementations: implementations,
+                token: token,
+                proposer: proposer,
+                executor: executor,
+                resolver: resolver,
+                pauser: pauser,
+                name: REQUEST_NFT_NAME,
+                symbol: REQUEST_NFT_SYMBOL,
+                minWithdrawalAmount: minWithdrawalAmount(),
+                maxDataLength: MAX_DATA_LENGTH
+            })
+        );
+        vm.stopBroadcast();
 
-        _deployTimelockController();
+        timelock = systemDeployer.timelock();
         defaultAdmin = address(timelock);
         configurationManager = address(timelock);
-
-        bagImplementation = new Bag();
-        bagFactoryImplementation = new BeaconProxyFactory();
-        bagFactoryProxy = new TransparentUpgradeableProxy(
-            address(bagFactoryImplementation),
-            defaultAdmin,
-            abi.encodeCall(
-                BeaconProxyFactory.initialize, (address(bagImplementation), defaultAdmin, predictedProxy, defaultAdmin)
-            )
-        );
-        bagFactory = BeaconProxyFactory(address(bagFactoryProxy));
-        requestWithdrawerImplementation = new BaseWithdrawer();
-        requestWithdrawerProxy = new TransparentUpgradeableProxy(
-            address(requestWithdrawerImplementation),
-            defaultAdmin,
-            abi.encodeCall(BaseWithdrawer.initialize, (token, predictedProxy))
-        );
-        requestWithdrawer = BaseWithdrawer(address(requestWithdrawerProxy));
-        requestPolicy = new MinAmountRequestPolicy(minWithdrawalAmount());
-        requestImplementation = new WithdrawalRequest();
-        proxy = new TransparentUpgradeableProxy(
-            address(requestImplementation),
-            defaultAdmin,
-            abi.encodeCall(
-                WithdrawalRequest.initialize,
-                (IWithdrawalRequest.InitializeParams({
-                        token: token,
-                        name: REQUEST_NFT_NAME,
-                        symbol: REQUEST_NFT_SYMBOL,
-                        defaultAdmin: defaultAdmin,
-                        resolver: resolver,
-                        configurationManager: configurationManager,
-                        pauser: pauser,
-                        bagFactory: address(bagFactory),
-                        withdrawer: address(requestWithdrawer),
-                        requestPolicy: address(requestPolicy),
-                        maxDataLength: MAX_DATA_LENGTH
-                    }))
-            )
-        );
-        withdrawalRequest = WithdrawalRequest(address(proxy));
-        require(address(withdrawalRequest) == predictedProxy, "unexpected proxy address");
-
-        withdrawalRequestViewer = new WithdrawalRequestViewer();
+        bagFactory = systemDeployer.bagFactory();
+        bagFactoryProxy = TransparentUpgradeableProxy(payable(address(bagFactory)));
+        requestWithdrawer = systemDeployer.withdrawer();
+        requestWithdrawerProxy = TransparentUpgradeableProxy(payable(address(requestWithdrawer)));
+        requestPolicy = systemDeployer.requestPolicy();
+        withdrawalRequest = systemDeployer.withdrawalRequest();
+        proxy = TransparentUpgradeableProxy(payable(address(withdrawalRequest)));
+        withdrawalRequestViewer = systemDeployer.viewer();
 
         _verifySetup();
         _saveDeployment();
+    }
 
-        vm.stopBroadcast();
+    function _loadImplementations() internal virtual returns (WithdrawalRequestDeployer.Implementations memory) {
+        string memory json = vm.readFile(_implementationsFilePath());
+        return WithdrawalRequestDeployer.Implementations({
+            withdrawalRequest: vm.parseJsonAddress(json, ".withdrawalRequestImplementation"),
+            withdrawer: vm.parseJsonAddress(json, ".withdrawerImplementation"),
+            bagFactory: vm.parseJsonAddress(json, ".bagFactoryImplementation"),
+            bag: vm.parseJsonAddress(json, ".bagImplementation")
+        });
+    }
+
+    function _implementationsFilePath() internal view virtual returns (string memory) {
+        return string.concat(
+            vm.projectRoot(), "/deployments/withdrawalRequestImplementations-", Strings.toString(block.chainid), ".json"
+        );
     }
 
     function assignDeploymentParameters() internal virtual {
@@ -175,14 +170,6 @@ abstract contract DeployWithdrawalRequestBase is Script {
         if (minWithdrawalAmount() == 0) revert InvalidSetup();
     }
 
-    function _deployTimelockController() internal virtual {
-        address[] memory proposers = new address[](1);
-        proposers[0] = proposer;
-        address[] memory executors = new address[](1);
-        executors[0] = executor;
-        timelock = new TimelockController(minDelay, proposers, executors, address(0));
-    }
-
     /// @notice Verifies deployed contracts, roles, and module wiring.
     function _verifySetup() public view virtual {
         if (address(timelock) == address(0)) revert InvalidSetup();
@@ -191,7 +178,11 @@ abstract contract DeployWithdrawalRequestBase is Script {
         if (ProxyAdmin(_proxyAdmin(address(requestWithdrawerProxy))).owner() != address(timelock)) {
             revert InvalidSetup();
         }
-        if (address(withdrawalRequest) != predictedProxy) revert InvalidSetup();
+        if (address(withdrawalRequest) != address(systemDeployer.withdrawalRequest())) revert InvalidSetup();
+        if (timelock.getMinDelay() != minDelay) revert InvalidSetup();
+        if (address(requestWithdrawer.token()) != token) revert InvalidSetup();
+        if (requestWithdrawer.withdrawalRequest() != address(withdrawalRequest)) revert InvalidSetup();
+        if (!bagFactory.hasRole(bagFactory.CREATOR_ROLE(), address(withdrawalRequest))) revert InvalidSetup();
         if (!timelock.hasRole(timelock.DEFAULT_ADMIN_ROLE(), address(timelock))) revert InvalidSetup();
         if (timelock.hasRole(timelock.DEFAULT_ADMIN_ROLE(), proposer)) revert InvalidSetup();
         if (!timelock.hasRole(timelock.PROPOSER_ROLE(), proposer)) revert InvalidSetup();
@@ -244,7 +235,7 @@ abstract contract DeployWithdrawalRequestBase is Script {
         vm.serializeAddress(symbol(), "requestPolicy", address(requestPolicy));
         vm.serializeAddress(symbol(), "proxy", address(proxy));
         vm.serializeAddress(symbol(), "proxyAdmin", _proxyAdmin(address(proxy)));
-        vm.serializeAddress(symbol(), "predictedProxy", predictedProxy);
+        vm.serializeAddress(symbol(), "systemDeployer", address(systemDeployer));
         vm.serializeAddress(symbol(), "withdrawalRequest", address(withdrawalRequest));
         vm.serializeAddress(symbol(), "viewer", address(withdrawalRequestViewer));
         vm.serializeAddress(symbol(), "token", token);
