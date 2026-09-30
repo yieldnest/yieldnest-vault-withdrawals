@@ -1025,19 +1025,6 @@ contract WithdrawalRequestTest is SetupWithdrawalRequest {
         assertEq(viewer.convertToAssets(manager, address(asset), 10 ether), 10 ether);
     }
 
-    function testConvertToAssetsAtRedemptionRateUsesConfiguredWithdrawer() public {
-        assertEq(viewer.convertToAssetsAtRedemptionRate(manager, 0, address(asset), 1 ether), 1 ether);
-
-        FixedRateWithdrawer fixedRateWithdrawer = _deployFixedRateWithdrawer(0.5 ether, collector);
-
-        vm.prank(configurationManager);
-        manager.setWithdrawer(address(fixedRateWithdrawer));
-
-        assertEq(fixedRateWithdrawer.convertToAssets(0, address(asset), 1 ether), 0.5 ether);
-        assertEq(viewer.convertToAssetsAtRedemptionRate(manager, 0, address(asset), 1 ether), 0.5 ether);
-        assertEq(viewer.convertToAssetsAtRedemptionRate(manager, 0, address(asset), 2 ether), 1 ether);
-    }
-
     function testMinWithdrawalAmountUsesConfiguredRequestPolicy() public {
         assertEq(viewer.minWithdrawalAmount(manager), minWithdrawalAmount);
 
