@@ -29,15 +29,6 @@ WithdrawalRequestViewer.minWithdrawalAmount(withdrawalRequest)
 
 The minimum is denominated in the configured vault share token units.
 
-For display, the frontend may also read the current redemption-rate conversion:
-
-```solidity
-WithdrawalRequestViewer.convertToAssetsAtRedemptionRate(withdrawalRequest, shares)
-```
-
-This converts vault shares into default-asset units using the currently configured withdrawer. For the base withdrawer,
-this follows the vault's live `convertToAssets` behavior.
-
 ### 2. User Approves Shares
 
 The user approves the configured vault share token to the deployed `WithdrawalRequest` proxy.
@@ -101,7 +92,7 @@ WithdrawalRequestViewer.getInProgressRequestsForOwner(withdrawalRequest, user)
 ```
 
 Despite the name, this returns all request NFTs currently owned by `user`. The frontend should use `amountLocked`,
-`isClaimable`, `isClaimed`, and `assetBalances` to decide how each request should be displayed.
+`isFullyRedeemed`, `hasClaimableAssets`, `isClaimed`, and `assetBalances` to decide how each request should be displayed.
 
 Each returned `RequestView` contains:
 
@@ -115,7 +106,8 @@ struct RequestView {
     uint256 rateAtRequest;
     bytes data;
     uint256 tokenBalance;
-    bool isClaimable;
+    bool isFullyRedeemed;
+    bool hasClaimableAssets;
     bool isClaimed;
     AssetBalance[] assetBalances;
 }
@@ -192,11 +184,16 @@ WithdrawalRequestViewer.requestIsClaimed(withdrawalRequest, requestId)
 
 or the `RequestView.isClaimed` field from `getRequest` / `getInProgressRequestsForOwner`.
 
-`isClaimed == true` means the request is considered claimable/redeemed and all tracked redeemed asset balances in the
+`isClaimed == true` means the request is considered fully redeemed and all tracked redeemed asset balances in the
 Bag are zero. This is the field the frontend should use to determine that the claiming process is finished.
 
-`RequestView.isClaimable` is a UI heuristic based on remaining locked-share dust. It means most or all of the requested
+`RequestView.isFullyRedeemed` is a UI heuristic based on remaining locked-share dust. It means most or all of the requested
 shares have been resolved, but it is not the same as "all assets have been claimed."
+
+`RequestView.hasClaimableAssets` indicates that at least one tracked redeemed asset has a nonzero Bag balance.
+Use it to offer claiming even while redemption is incomplete. The same flags are available through
+`requestIsFullyRedeemed(withdrawalRequest, requestId)` and `requestHasClaimableAssets(withdrawalRequest, requestId)`;
+both return false for nonexistent requests.
 
 ### 9. Optional Cleanup: Burn Completed Request NFT
 

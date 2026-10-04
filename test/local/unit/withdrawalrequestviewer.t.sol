@@ -12,6 +12,7 @@ import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
 import {Bag} from "src/Bag.sol";
 import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
 import {IBag} from "src/interface/IBag.sol";
+import {IWithdrawalRequest} from "src/interface/IWithdrawalRequest.sol";
 import {MinAmountRequestPolicy} from "src/policies/MinAmountRequestPolicy.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 import {BaseWithdrawer} from "src/withdrawers/BaseWithdrawer.sol";
@@ -148,17 +149,19 @@ contract WithdrawalRequestViewerTest is Test {
                     admin,
                     abi.encodeCall(
                         WithdrawalRequest.initialize,
-                        (
-                            address(ynToken),
-                            admin,
-                            resolver,
-                            configurationManager,
-                            pauser,
-                            address(bagFactory),
-                            address(withdrawer),
-                            address(requestPolicy),
-                            maxDataLength
-                        )
+                        (IWithdrawalRequest.InitializeParams({
+                                token: address(ynToken),
+                                name: "MAX Vault Withdrawal Request",
+                                symbol: "ynWREQ",
+                                defaultAdmin: admin,
+                                resolver: resolver,
+                                configurationManager: configurationManager,
+                                pauser: pauser,
+                                bagFactory: address(bagFactory),
+                                withdrawer: address(withdrawer),
+                                requestPolicy: address(requestPolicy),
+                                maxDataLength: maxDataLength
+                            }))
                     )
                 )
             )
@@ -208,7 +211,7 @@ contract WithdrawalRequestViewerTest is Test {
         vm.prank(resolver);
         manager.resolveWithdrawalRequest(id, address(asset), 4 ether);
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
         WithdrawalRequestViewer.RequestView memory view_ = viewer.getRequest(manager, id);
 
         assertEq(view_.id, id);
@@ -219,7 +222,8 @@ contract WithdrawalRequestViewerTest is Test {
         assertEq(view_.rateAtRequest, 1 ether);
         assertEq(keccak256(view_.data), keccak256(data));
         assertEq(view_.tokenBalance, 6 ether);
-        assertFalse(view_.isClaimable);
+        assertFalse(view_.isFullyRedeemed);
+        assertTrue(view_.hasClaimableAssets);
         assertFalse(view_.isClaimed);
         assertEq(view_.assetBalances.length, 1);
         assertEq(view_.assetBalances[0].asset, address(asset));
@@ -266,7 +270,8 @@ contract WithdrawalRequestViewerTest is Test {
         assertEq(receiverRequests[0].id, completedId);
         assertEq(receiverRequests[0].owner, receiver);
         assertEq(receiverRequests[0].amountLocked, 0);
-        assertTrue(receiverRequests[0].isClaimable);
+        assertTrue(receiverRequests[0].isFullyRedeemed);
+        assertTrue(receiverRequests[0].hasClaimableAssets);
         assertFalse(receiverRequests[0].isClaimed);
         assertEq(receiverRequests[0].assetBalances[0].balance, 10 ether);
 
@@ -276,16 +281,18 @@ contract WithdrawalRequestViewerTest is Test {
         assertEq(otherRequests[0].id, otherId);
         assertEq(otherRequests[0].owner, other);
         assertEq(otherRequests[0].amountLocked, 11 ether);
-        assertFalse(otherRequests[0].isClaimable);
+        assertFalse(otherRequests[0].isFullyRedeemed);
+        assertFalse(otherRequests[0].hasClaimableAssets);
         assertFalse(otherRequests[0].isClaimed);
         assertEq(otherRequests[1].id, transferredId);
         assertEq(otherRequests[1].owner, other);
         assertEq(otherRequests[1].amountLocked, 12 ether);
-        assertFalse(otherRequests[1].isClaimable);
+        assertFalse(otherRequests[1].isFullyRedeemed);
+        assertFalse(otherRequests[1].hasClaimableAssets);
         assertFalse(otherRequests[1].isClaimed);
     }
 
-    function testRequestIsClaimableUsesLockedTokenDustThreshold() public {
+    function testRequestIsFullyRedeemedUsesLockedTokenDustThreshold() public {
         uint256 dustThreshold = 10 ** ynToken.decimals() / 1e4;
 
         vm.startPrank(user);
@@ -293,23 +300,23 @@ contract WithdrawalRequestViewerTest is Test {
         uint256 belowThresholdId = manager.requestWithdrawal(10 ether, receiver);
         vm.stopPrank();
 
-        assertFalse(viewer.requestIsClaimable(manager, atThresholdId));
-        assertFalse(viewer.requestIsClaimable(manager, belowThresholdId));
+        assertFalse(viewer.requestIsFullyRedeemed(manager, atThresholdId));
+        assertFalse(viewer.requestIsFullyRedeemed(manager, belowThresholdId));
 
         vm.startPrank(resolver);
         manager.resolveWithdrawalRequest(atThresholdId, address(asset), 10 ether - dustThreshold);
         manager.resolveWithdrawalRequest(belowThresholdId, address(asset), 10 ether - dustThreshold + 1);
         vm.stopPrank();
 
-        assertFalse(viewer.requestIsClaimable(manager, atThresholdId));
-        assertTrue(viewer.requestIsClaimable(manager, belowThresholdId));
+        assertFalse(viewer.requestIsFullyRedeemed(manager, atThresholdId));
+        assertTrue(viewer.requestIsFullyRedeemed(manager, belowThresholdId));
     }
 
     function testRequestIsClaimedRequiresAllBagAssetBalancesToBeZero() public {
         vm.prank(user);
         uint256 id = manager.requestWithdrawal(10 ether, receiver);
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
         assertFalse(viewer.requestIsClaimed(manager, id));
 
         vm.prank(resolver);
@@ -321,6 +328,55 @@ contract WithdrawalRequestViewerTest is Test {
         assertEq(_claimSingleERC20(request.bag, address(asset), receiver, 10 ether)[0], 10 ether);
 
         assertTrue(viewer.requestIsClaimed(manager, id));
+    }
+
+    function testClaimableAssetsAcrossPartialResolutionsAndClaims() public {
+        vm.prank(user);
+        uint256 id = manager.requestWithdrawal(10 ether, receiver);
+        address bag = manager.requests(id).bag;
+
+        assertFalse(viewer.requestHasClaimableAssets(manager, id));
+        assertFalse(viewer.getRequest(manager, id).hasClaimableAssets);
+
+        vm.prank(resolver);
+        manager.resolveWithdrawalRequest(id, address(asset), 4 ether);
+        assertTrue(viewer.requestHasClaimableAssets(manager, id));
+        assertTrue(viewer.getRequest(manager, id).hasClaimableAssets);
+        assertFalse(viewer.requestIsFullyRedeemed(manager, id));
+
+        vm.prank(receiver);
+        _claimSingleERC20(bag, address(asset), receiver, 4 ether);
+        assertFalse(viewer.requestHasClaimableAssets(manager, id));
+        assertFalse(viewer.getRequest(manager, id).hasClaimableAssets);
+        assertFalse(viewer.requestIsClaimed(manager, id));
+
+        vm.prank(resolver);
+        manager.resolveWithdrawalRequest(id, address(secondAsset), 1_000_000);
+        assertTrue(viewer.requestHasClaimableAssets(manager, id));
+        assertTrue(viewer.getRequest(manager, id).hasClaimableAssets);
+
+        vm.prank(resolver);
+        manager.resolveWithdrawalRequest(id, address(asset), 6 ether - 1_000_000);
+        assertTrue(viewer.requestIsFullyRedeemed(manager, id));
+
+        vm.prank(receiver);
+        _claimSingleERC20(bag, address(asset), receiver, 6 ether - 1_000_000);
+        assertTrue(viewer.requestHasClaimableAssets(manager, id));
+        assertFalse(viewer.requestIsClaimed(manager, id));
+
+        vm.prank(receiver);
+        _claimSingleERC20(bag, address(secondAsset), receiver, 1_000_000);
+        WithdrawalRequestViewer.RequestView memory view_ = viewer.getRequest(manager, id);
+        assertTrue(view_.isFullyRedeemed);
+        assertFalse(view_.hasClaimableAssets);
+        assertTrue(view_.isClaimed);
+        assertFalse(viewer.requestHasClaimableAssets(manager, id));
+
+        vm.prank(receiver);
+        manager.burn(id);
+        assertFalse(viewer.requestHasClaimableAssets(manager, id));
+        assertFalse(viewer.requestIsFullyRedeemed(manager, id));
+        assertFalse(viewer.requestIsClaimed(manager, id));
     }
 
     function testConvertToAssetsUsesVaultRateAndDecimals() public view {
@@ -352,13 +408,14 @@ contract WithdrawalRequestViewerTest is Test {
     }
 
     function testViewerRevertsForMissingRequest() public {
-        assertFalse(viewer.requestIsClaimable(manager, 123));
+        assertFalse(viewer.requestHasClaimableAssets(manager, 123));
+        assertFalse(viewer.requestIsFullyRedeemed(manager, 123));
         assertFalse(viewer.requestIsClaimed(manager, 123));
 
-        vm.expectRevert(abi.encodeWithSelector(WithdrawalRequest.RequestNotFound.selector, 123));
+        vm.expectRevert(abi.encodeWithSelector(IWithdrawalRequest.RequestNotFound.selector, 123));
         viewer.getRequest(manager, 123);
 
-        vm.expectRevert(abi.encodeWithSelector(WithdrawalRequest.RequestNotFound.selector, 123));
+        vm.expectRevert(abi.encodeWithSelector(IWithdrawalRequest.RequestNotFound.selector, 123));
         viewer.maxResolutionAssets(manager, 123, address(asset));
     }
 }

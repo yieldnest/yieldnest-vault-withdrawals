@@ -1,0 +1,131 @@
+// SPDX-License-Identifier: BSD-3-Clause
+pragma solidity ^0.8.24;
+
+import {TimelockController} from "lib/openzeppelin-contracts/contracts/governance/TimelockController.sol";
+import {
+    TransparentUpgradeableProxy
+} from "lib/openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
+import {BeaconProxyFactory} from "src/BeaconProxyFactory.sol";
+import {IWithdrawalRequest} from "src/interface/IWithdrawalRequest.sol";
+import {MinAmountRequestPolicy} from "src/policies/MinAmountRequestPolicy.sol";
+import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
+import {BaseWithdrawer} from "src/withdrawers/BaseWithdrawer.sol";
+import {WithdrawalRequestViewer} from "views/WithdrawalRequestViewer.sol";
+
+/**
+ * @notice Deploys and configures a withdrawal request system in one deploy call.
+ * @dev Implementation contracts must already exist. This contract receives no administrative roles.
+ */
+contract WithdrawalRequestDeployer {
+    struct Implementations {
+        address withdrawalRequest;
+        address withdrawer;
+        address bagFactory;
+        address bag;
+    }
+
+    struct DeploymentParams {
+        Implementations implementations;
+        address token;
+        address admin;
+        address resolver;
+        address pauser;
+        string name;
+        string symbol;
+        uint256 minWithdrawalAmount;
+        uint256 maxDataLength;
+    }
+
+    uint256 public constant MIN_DELAY = 1 days;
+
+    TimelockController public timelock;
+    WithdrawalRequest public withdrawalRequest;
+    BeaconProxyFactory public bagFactory;
+    BaseWithdrawer public withdrawer;
+    MinAmountRequestPolicy public requestPolicy;
+    WithdrawalRequestViewer public viewer;
+    bool public deploymentDone;
+
+    error InvalidDeploymentParams();
+    error InvalidImplementation(address implementation);
+    error DeploymentDone();
+
+    /**
+     * @notice Creates the timelock, proxies, request policy, and viewer and initializes all bindings.
+     * @dev Permissionless and one-shot. When deployer creation and this call are separate transactions,
+     * anyone can front-run this call with different admin/resolver parameters and consume deploymentDone.
+     * The intended call then reverts with DeploymentDone. With otherwise matching parameters, the attacker
+     * can deploy contracts at the same child addresses predicted by a simulation, but with different roles.
+     * Do not trust dry-run addresses for artifacts, frontends, or governance payloads without verifying
+     * the successful on-chain deployment and role assignments. Restricting this call to the deployer's
+     * creator would prevent this attack; private submission is only a mitigation, not access control.
+     * @param params Existing implementations and configuration for the new system.
+     */
+    function deploy(DeploymentParams calldata params) external {
+        if (deploymentDone) revert DeploymentDone();
+        deploymentDone = true;
+        if (
+            params.token.code.length == 0 || params.admin == address(0) || params.resolver == address(0)
+                || params.pauser == address(0) || params.minWithdrawalAmount == 0
+        ) revert InvalidDeploymentParams();
+        _validateImplementation(params.implementations.withdrawalRequest);
+        _validateImplementation(params.implementations.withdrawer);
+        _validateImplementation(params.implementations.bagFactory);
+        _validateImplementation(params.implementations.bag);
+
+        address[] memory actors = new address[](1);
+        actors[0] = params.admin;
+        timelock = new TimelockController(MIN_DELAY, actors, actors, params.admin);
+
+        // Initialize below, after its dependent modules exist, within this same transaction.
+        WithdrawalRequest request = WithdrawalRequest(
+            address(new TransparentUpgradeableProxy(params.implementations.withdrawalRequest, address(timelock), ""))
+        );
+        withdrawalRequest = request;
+        BeaconProxyFactory factory = BeaconProxyFactory(
+            address(
+                new TransparentUpgradeableProxy(
+                    params.implementations.bagFactory,
+                    address(timelock),
+                    abi.encodeCall(
+                        BeaconProxyFactory.initialize,
+                        (params.implementations.bag, params.admin, address(request), address(timelock))
+                    )
+                )
+            )
+        );
+        bagFactory = factory;
+        BaseWithdrawer adapter = BaseWithdrawer(
+            address(
+                new TransparentUpgradeableProxy(
+                    params.implementations.withdrawer,
+                    address(timelock),
+                    abi.encodeCall(BaseWithdrawer.initialize, (params.token, address(request)))
+                )
+            )
+        );
+        withdrawer = adapter;
+        MinAmountRequestPolicy policy = new MinAmountRequestPolicy(params.minWithdrawalAmount);
+        requestPolicy = policy;
+        request.initialize(
+            IWithdrawalRequest.InitializeParams({
+                token: params.token,
+                name: params.name,
+                symbol: params.symbol,
+                defaultAdmin: params.admin,
+                resolver: params.resolver,
+                configurationManager: address(timelock),
+                pauser: params.pauser,
+                bagFactory: address(factory),
+                withdrawer: address(adapter),
+                requestPolicy: address(policy),
+                maxDataLength: params.maxDataLength
+            })
+        );
+        viewer = new WithdrawalRequestViewer();
+    }
+
+    function _validateImplementation(address implementation) internal view {
+        if (implementation.code.length == 0) revert InvalidImplementation(implementation);
+    }
+}

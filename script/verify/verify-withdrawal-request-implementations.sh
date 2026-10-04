@@ -96,4 +96,9 @@ verify_bytecode \
   "bagImplementation" \
   "out/Bag.sol/Bag.json"
 
-echo "All implementation bytecode matches"
+verify_bytecode \
+  "WithdrawalRequestViewer" \
+  "viewer" \
+  "out/WithdrawalRequestViewer.sol/WithdrawalRequestViewer.json"
+
+echo "All implementation and viewer bytecode matches"
