@@ -15,7 +15,6 @@ contract FixedRateWithdrawer is BaseWithdrawer {
     uint256 public immutable fixedRate;
     address public immutable collector;
 
-    error InvalidAsset(address asset);
     error InvalidRate();
 
     /// @notice Deploys a fixed-rate withdrawer implementation for the vault default asset.
@@ -54,9 +53,18 @@ contract FixedRateWithdrawer is BaseWithdrawer {
     }
 
     /// @notice Converts shares to default-asset units at the fixed redemption rate.
+    /// @param requestId Request id. Ignored by this withdrawer.
+    /// @param asset Asset to convert shares into. Must be the vault default asset.
     /// @param shares Amount of shares to convert.
     /// @return assets Amount of default asset implied by the fixed rate.
-    function convertToAssets(uint256 shares) public view override returns (uint256 assets) {
+    function convertToAssets(uint256 requestId, address asset, uint256 shares)
+        public
+        view
+        override
+        returns (uint256 assets)
+    {
+        requestId;
+        if (asset != token().asset()) revert InvalidAsset(asset);
         return shares.mulDiv(fixedRate, _shareUnit(), Math.Rounding.Floor);
     }
 

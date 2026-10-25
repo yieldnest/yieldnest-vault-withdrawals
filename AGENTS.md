@@ -15,6 +15,7 @@ This repo contains the YieldNest withdrawal request system:
 - request policy and share-to-asset math helpers under [`src/policies/`](src/policies) and [`src/library/`](src/library)
 - read-only request and bag views in [`views/WithdrawalRequestViewer.sol`](views/WithdrawalRequestViewer.sol)
 - deployment scripts under [`script/`](script)
+- atomic system deployment in [`script/WithdrawalRequestDeployer.sol`](script/WithdrawalRequestDeployer.sol)
 - unit and mainnet-fork tests under [`test/`](test)
 
 The default posture is conservative. Preserve request custody, resolver authority, bag ownership, role boundaries,
@@ -45,7 +46,7 @@ storage layout, initializer behavior, and upgrade safety.
 
 ## Deployment Model
 
-YieldNest withdrawal request deployments use upgradeable proxies and one non-upgradeable withdrawer adapter.
+YieldNest withdrawal request deployments use upgradeable proxies for the request manager, bag factory, and withdrawer.
 Distinguish these surfaces:
 
 1. Implementation contracts
@@ -56,7 +57,8 @@ Distinguish these surfaces:
 2. WithdrawalRequest proxy
    - A live `WithdrawalRequest` instance should be an OpenZeppelin `TransparentUpgradeableProxy` pointing at a
      `WithdrawalRequest` implementation.
-   - The proxy must be initialized atomically through the proxy constructor.
+   - The proxy must be initialized in the same transaction that deploys it. `WithdrawalRequestDeployer` creates it
+     first, then initializes it after deploying its factory and withdrawer, all within the same `deploy(params)` call.
    - The proxy admin owner should be the intended admin/timelock owner.
    - Do not deploy or test production upgradeable instances behind ERC1967 proxies directly; this repo uses
      `TransparentUpgradeableProxy` except where beacon proxies are explicitly required for bags.
@@ -69,10 +71,9 @@ Distinguish these surfaces:
    - In the withdrawal request system, `auth` is the `WithdrawalRequest` proxy and `id` is the request NFT id.
 
 4. BaseWithdrawer
-   - `BaseWithdrawer` is currently a constructor-configured production adapter, not an upgradeable proxy.
-   - It is bound to exactly one vault token and one `WithdrawalRequest` address at deployment.
-   - The deployment script predicts the `WithdrawalRequest` proxy address before deploying the withdrawer. If nonce
-     ordering changes, the predicted proxy verification must be updated and re-tested.
+   - `BaseWithdrawer` should be deployed behind `TransparentUpgradeableProxy`.
+   - The proxy must be initialized atomically with `(token, withdrawalRequest)`.
+   - It is bound to exactly one vault token and one `WithdrawalRequest` proxy.
 
 5. Initializers
    - Initialize every proxy exactly once.
@@ -120,24 +121,34 @@ A normal `WithdrawalRequest` proxy is initialized with:
 
 ```solidity
 WithdrawalRequest.initialize(
-    address token_,
-    address defaultAdmin,
-    address resolver,
-    address configurationManager,
-    address pauser,
-    address bagFactory_,
-    address withdrawer_,
-    address requestPolicy_,
-    uint256 maxDataLength_
+    IWithdrawalRequest.InitializeParams({
+        token: token,
+        name: name,
+        symbol: symbol,
+        defaultAdmin: defaultAdmin,
+        resolver: resolver,
+        configurationManager: configurationManager,
+        pauser: pauser,
+        bagFactory: bagFactory,
+        withdrawer: withdrawer,
+        requestPolicy: requestPolicy,
+        maxDataLength: maxDataLength
+    })
 )
 ```
 
 Parameter meanings and validation:
 
-- `token_`
+- `token`
   - The yn-token whose shares are locked by requests and consumed during resolution.
   - Must implement `IWithdrawerVault`: ERC20 metadata, `withdrawAsset(...)`, and `convertToAssets(...)`.
   - The `WithdrawalRequest` contract receives and holds this token until requests are resolved or cancelled in kind.
+
+- `name`
+  - ERC721 name for the withdrawal request NFT.
+
+- `symbol`
+  - ERC721 symbol for the withdrawal request NFT.
 
 - `defaultAdmin`
   - Receives `DEFAULT_ADMIN_ROLE`.
@@ -159,23 +170,23 @@ Parameter meanings and validation:
   - Receives `PAUSER_ROLE`.
   - Can pause and unpause request creation. Pausing does not stop resolution.
 
-- `bagFactory_`
+- `bagFactory`
   - Factory used to deploy request bags.
   - Must grant `CREATOR_ROLE` to the `WithdrawalRequest` proxy.
-  - In the default deployment script, this is achieved by initializing the factory with the predicted proxy as creator.
+  - The deployer initializes the factory with the newly deployed request proxy as creator.
 
-- `withdrawer_`
+- `withdrawer`
   - Adapter called by `WithdrawalRequest.resolveWithdrawalRequest(...)`.
   - Must only allow calls from the configured `WithdrawalRequest`.
   - When `BaseWithdrawer` is used with BaseStrategy-backed vaults, grant the withdrawer fee exemption and, depending on
     vault configuration, potentially `ALLOCATOR_ROLE`.
 
-- `requestPolicy_`
+- `requestPolicy`
   - Policy called during request creation.
   - Current production policy is `MinAmountRequestPolicy`, but the manager supports replacement by the configuration
     manager.
 
-- `maxDataLength_`
+- `maxDataLength`
   - Maximum bytes accepted in request metadata.
   - Resolver modules may version and interpret `data`, but `WithdrawalRequest` only enforces length.
 
@@ -254,19 +265,21 @@ Configuration requirements:
 
 ## Withdrawer Configuration
 
-`BaseWithdrawer` is deployed with:
+`BaseWithdrawer` is initialized through its proxy with:
 
 ```solidity
-new BaseWithdrawer(address token_, address withdrawalRequest_)
+BaseWithdrawer.initialize(address token_, address withdrawalRequest_)
 ```
 
 Configuration requirements:
 
 - `token_` must be the same vault token configured in `WithdrawalRequest`.
 - `withdrawalRequest_` must be the live `WithdrawalRequest` proxy.
+- The initialized proxy, not the implementation address, must be configured as `WithdrawalRequest.withdrawer()`.
 - Direct calls by anyone except `withdrawalRequest_` must revert.
 - `withdrawAsset(...)` must either forward to the vault or transfer the vault token itself into the bag.
-- `convertToAssets(...)` uses the configured vault's default conversion, not the per-asset `VaultMath` helper.
+- `convertToAssets(requestId, asset, shares)` uses the withdrawer's redemption-rate semantics. `BaseWithdrawer`
+  ignores `requestId`, only supports the vault default asset, and delegates to the vault's default conversion.
 
 For BaseStrategy-backed vaults, validate any role/fee exemptions needed by the vault before production use.
 
@@ -296,7 +309,9 @@ Production role surfaces:
 - `BeaconProxyFactory.IMPLEMENTATION_MANAGER_ROLE`
   - Can upgrade the shared bag implementation.
 
-The default deployment script places admin and configuration authority behind a `TimelockController`. Validate final
+The default deployment script grants request manager and bag factory `DEFAULT_ADMIN_ROLE` to `DeploymentParams.admin`.
+Proxy ownership, configuration manager, and bag implementation manager authority are assigned to the `TimelockController`.
+The admin can grant or revoke roles directly, including these operational roles, without the timelock delay. Validate final
 role ownership after deployment and do not leave deployer-only authorities unless the deployment plan explicitly
 requires them.
 
@@ -315,11 +330,14 @@ Before treating a deployment as production-ready, verify:
 9. `BeaconProxyFactory.IMPLEMENTATION_MANAGER_ROLE` is held by the intended admin/timelock.
 10. `BaseWithdrawer.token()` equals `WithdrawalRequest.token()`.
 11. `BaseWithdrawer.withdrawalRequest()` equals the `WithdrawalRequest` proxy.
-12. The configured resolver is the intended resolver module or authorized account.
-13. The configured request policy matches the intended minimum/request policy.
-14. `maxDataLength()` matches the resolver's expected request data envelope.
-15. For BaseStrategy-backed vaults, withdrawer fee exemption and any required vault roles are configured.
-16. Request creation, resolution, claim, cancellation-in-kind, and burn flows are tested.
+12. `WithdrawalRequest.withdrawer()` equals the intended initialized withdrawer proxy.
+13. The withdrawer proxy admin owner is the intended admin/timelock.
+14. The configured resolver is the intended resolver module or authorized account.
+15. The configured request policy matches the intended minimum/request policy.
+16. `maxDataLength()` matches the resolver's expected request data envelope.
+17. For BaseVault-backed vaults, the withdrawer has `ASSET_WITHDRAWER_ROLE` when resolving vault assets.
+18. For BaseStrategy-backed vaults, withdrawer fee exemption and any required strategy/vault roles are configured.
+19. Request creation, resolution, claim, cancellation-in-kind, and burn flows are tested.
 
 ## Working Rules
 
@@ -389,7 +407,8 @@ forge test --match-path 'test/local/unit/withdrawalrequestviewer.t.sol'
 
 - Preserve locked-share accounting.
 - Preserve the allowance pattern around withdrawer calls: approve before resolution, revoke after resolution.
-- Preserve `InvalidTokenBalanceChange` and `UnexpectedAssetsWithdrawn` checks.
+- Preserve the `InvalidTokenBalanceChange` check. Asset balance deltas are measured for events/reporting; resolution
+  intentionally does not enforce exact delivery of the requested asset amount.
 - Be explicit about share amounts vs asset amounts.
 - Remember that `request.data` is length-bounded but semantically interpreted by resolver modules.
 
@@ -420,7 +439,15 @@ forge test --match-path 'test/local/unit/withdrawalrequestviewer.t.sol'
 
 - Prefer existing scripts in `script/` over inventing new one-off approaches.
 - Use `TransparentUpgradeableProxy` for upgradeable production deployments except beacon-created bags.
-- Keep predicted address logic and deployment nonce assumptions aligned with deployed contract order.
+- Do not model new deployments after legacy raw ERC1967 deployment artifacts.
+- `DeployWithdrawalRequestBase` reads existing implementations from
+  `deployments/withdrawalRequestImplementations-<chainId>.json`, creates `WithdrawalRequestDeployer`, then calls
+  `deploy(params)` in a second transaction. Deploy implementations separately before running it.
+- The deployer's `deploy(params)` creates the one-day timelock, three transparent proxies, policy, and viewer, and
+  initializes all bindings in that transaction. No EOA nonce prediction is needed.
+- Deployment JSON includes `systemDeployer`, `proxyAdmin`, `bagFactoryProxyAdmin`, and `withdrawerProxyAdmin`.
+- `DeploymentParams.admin` receives the timelock default admin, proposer, executor, and canceller roles.
+  It can manage timelock roles directly without the delay; the timelock also retains its own default admin role.
 - Keep deployment parameters and `_verifySetup()` checks aligned.
 - Do not rewrite `broadcast/` outputs by hand.
 - Do not commit environment-specific secrets or RPC values.

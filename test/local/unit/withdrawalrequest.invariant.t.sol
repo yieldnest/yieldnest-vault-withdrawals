@@ -8,6 +8,7 @@ import {Math} from "lib/openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {IProvider} from "lib/yieldnest-vault/src/interface/IProvider.sol";
 import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
 import {IBag} from "src/interface/IBag.sol";
+import {IWithdrawalRequest} from "src/interface/IWithdrawalRequest.sol";
 import {VaultMath} from "src/library/VaultMath.sol";
 import {WithdrawalRequest} from "src/WithdrawalRequest.sol";
 import {
@@ -84,7 +85,7 @@ contract WithdrawalRequestAccountingHandler is Test {
         uint256 id = seed % nextRequestId;
         if (!manager.requestExists(id)) return;
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
         address asset_ = seed % 2 == 0 ? asset : secondAsset;
         uint256 balance = IERC20(asset_).balanceOf(request.bag);
         if (balance == 0) return;
@@ -121,7 +122,7 @@ contract WithdrawalRequestAccountingHandler is Test {
         uint256 id = seed % nextRequestId;
         if (!manager.requestExists(id)) return;
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
         if (request.amountLocked != 0) return;
 
         for (uint256 i = 0; i < request.assetsRedeemed.length; ++i) {
@@ -155,7 +156,7 @@ contract WithdrawalRequestAccountingHandler is Test {
         uint256 id = seed % nextRequestId;
         if (!manager.requestExists(id)) return;
 
-        WithdrawalRequest.Request memory request = manager.requests(id);
+        IWithdrawalRequest.Request memory request = manager.requests(id);
         if (request.amountLocked == 0) return;
 
         uint256 maxAssets = _maxResolutionAssets(asset_, request.amountLocked);
@@ -165,7 +166,7 @@ contract WithdrawalRequestAccountingHandler is Test {
         uint256 valueBefore = _requestValue(request.bag, request.amountLocked);
 
         uint256 amountBurned = manager.resolveWithdrawalRequest(id, asset_, assets);
-        WithdrawalRequest.Request memory updatedRequest = manager.requests(id);
+        IWithdrawalRequest.Request memory updatedRequest = manager.requests(id);
 
         burnedEver += amountBurned;
         burnedById[id] += amountBurned;
@@ -184,7 +185,7 @@ contract WithdrawalRequestAccountingHandler is Test {
     }
 
     function _sharesValue(uint256 shares) internal view returns (uint256) {
-        uint256 defaultAssetAmount = manager.withdrawer().convertToAssets(shares);
+        uint256 defaultAssetAmount = manager.withdrawer().convertToAssets(0, vault.asset(), shares);
         return _assetValue(vault.asset(), defaultAssetAmount);
     }
 

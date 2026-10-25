@@ -7,23 +7,31 @@ import {Initializable} from "lib/openzeppelin-contracts-upgradeable/contracts/pr
 import {IVault} from "lib/yieldnest-vault/src/interface/IVault.sol";
 import {IWithdrawer} from "src/interface/IWithdrawer.sol";
 
-/// @title BaseWithdrawer
-/// @notice Authorized adapter that forwards withdrawals to the configured vault at its live redemption rate.
+/**
+ * @title BaseWithdrawer
+ * @notice Authorized adapter that forwards withdrawals to the configured vault at its live redemption rate.
+ */
 contract BaseWithdrawer is Initializable, IWithdrawer {
     using SafeERC20 for IERC20;
 
-    /// @custom:storage-location erc7201:yieldnest.storage.base_withdrawer
+    // Not storage-compatible with BaseWithdrawer 0.1.0, which used a non-canonical slot.
+    string public constant VERSION = "1.0.0";
+
+    /**
+     * @custom:storage-location erc7201:yieldnest.storage.base_withdrawer
+     */
     struct BaseWithdrawerStorage {
         IVault token;
         address withdrawalRequest;
     }
 
     error Unauthorized(address caller);
+    error InvalidAsset(address asset);
     error ZeroAddress();
 
     // keccak256(abi.encode(uint256(keccak256("yieldnest.storage.base_withdrawer")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant BaseWithdrawerStorageLocation =
-        0x90cd26f58f230d7edce7681ec7052f8fcb3a4b7bd42b3fcbf2f239cce9d04d00;
+        0xe5c213bd549880d50ed10d9bd1718ecf07fadbabc9dd4b2eaa5a5d726f95e500;
 
     function _getBaseWithdrawerStorage() private pure returns (BaseWithdrawerStorage storage $) {
         assembly {
@@ -36,14 +44,18 @@ contract BaseWithdrawer is Initializable, IWithdrawer {
         _;
     }
 
-    /// @custom:oz-upgrades-unsafe-allow constructor
+    /**
+     * @custom:oz-upgrades-unsafe-allow constructor
+     */
     constructor() {
         _disableInitializers();
     }
 
-    /// @notice Initializes a withdrawer bound to one vault and one withdrawal request contract.
-    /// @param token_ Vault token to withdraw assets from.
-    /// @param withdrawalRequest_ Withdrawal request contract authorized to call this withdrawer.
+    /**
+     * @notice Initializes a withdrawer bound to one vault and one withdrawal request contract.
+     * @param token_ Vault token to withdraw assets from.
+     * @param withdrawalRequest_ Withdrawal request contract authorized to call this withdrawer.
+     */
     function initialize(address token_, address withdrawalRequest_) external initializer {
         __BaseWithdrawer_init(token_, withdrawalRequest_);
     }
@@ -56,14 +68,16 @@ contract BaseWithdrawer is Initializable, IWithdrawer {
         $.withdrawalRequest = withdrawalRequest_;
     }
 
-    /// @notice Forwards a withdrawal request to the configured vault.
-    /// @param asset Asset to withdraw.
-    /// @param assets Amount of `asset` to withdraw.
-    /// @param receiver Receiver of the withdrawn asset.
-    /// @param owner Owner whose shares are consumed.
-    /// @return shares Amount of shares consumed by the vault.
-    /// @dev When this withdrawer is used with BaseStrategy-backed vaults, grant it fee exemption
-    /// and, depending on the vault configuration, potentially ALLOCATOR_ROLE.
+    /**
+     * @notice Forwards a withdrawal request to the configured vault.
+     * @param asset Asset to withdraw.
+     * @param assets Amount of `asset` to withdraw.
+     * @param receiver Receiver of the withdrawn asset.
+     * @param owner Owner whose shares are consumed.
+     * @return shares Amount of shares consumed by the vault.
+     * @dev When this withdrawer is used with BaseStrategy-backed vaults, grant it fee exemption
+     * and, depending on the vault configuration, potentially ALLOCATOR_ROLE.
+     */
     function withdrawAsset(uint256, address asset, uint256 assets, address receiver, address owner)
         external
         virtual
@@ -75,33 +89,50 @@ contract BaseWithdrawer is Initializable, IWithdrawer {
         shares = token().withdrawAsset(asset, assets, receiver, owner);
     }
 
-    /// @notice Converts shares to assets using the configured vault rate.
-    /// @param shares Amount of shares to convert.
-    /// @return assets Amount of assets represented by `shares`.
-    function convertToAssets(uint256 shares) public view virtual returns (uint256 assets) {
+    /**
+     * @notice Converts shares to the vault default asset using the configured vault rate.
+     * @param requestId Request id. Ignored by this withdrawer.
+     * @param asset Asset to convert shares into. Must be the vault default asset.
+     * @param shares Amount of shares to convert.
+     * @return assets Amount of assets represented by `shares`.
+     */
+    function convertToAssets(uint256 requestId, address asset, uint256 shares)
+        public
+        view
+        virtual
+        returns (uint256 assets)
+    {
+        requestId;
+        if (asset != token().asset()) revert InvalidAsset(asset);
         return token().convertToAssets(shares);
     }
 
-    /// @notice Returns the vault token this withdrawer pulls assets from.
-    /// @return The configured vault token.
+    /**
+     * @notice Returns the vault token this withdrawer pulls assets from.
+     * @return The configured vault token.
+     */
     function token() public view returns (IVault) {
         return _getBaseWithdrawerStorage().token;
     }
 
-    /// @notice Moves locked vault-token shares directly to the receiver without calling the vault.
-    /// @dev Inheritors can use this to clear residual share dust or to support cancellation flows
-    /// that return unredeemed vault-token shares to the request owner through the request bag.
-    /// @param assets Amount of vault-token shares to transfer.
-    /// @param receiver Receiver of the vault-token shares.
-    /// @param owner Owner whose vault-token shares are transferred.
-    /// @return shares Amount of vault-token shares consumed.
+    /**
+     * @notice Moves locked vault-token shares directly to the receiver without calling the vault.
+     * @dev Inheritors can use this to clear residual share dust or to support cancellation flows
+     * that return unredeemed vault-token shares to the request owner through the request bag.
+     * @param assets Amount of vault-token shares to transfer.
+     * @param receiver Receiver of the vault-token shares.
+     * @param owner Owner whose vault-token shares are transferred.
+     * @return shares Amount of vault-token shares consumed.
+     */
     function _withdrawVaultToken(uint256 assets, address receiver, address owner) internal returns (uint256 shares) {
         IERC20(address(token())).safeTransferFrom(owner, receiver, assets);
         return assets;
     }
 
-    /// @notice Returns the withdrawal request contract authorized to call this withdrawer.
-    /// @return The authorized withdrawal request contract.
+    /**
+     * @notice Returns the withdrawal request contract authorized to call this withdrawer.
+     * @return The authorized withdrawal request contract.
+     */
     function withdrawalRequest() public view returns (address) {
         return _getBaseWithdrawerStorage().withdrawalRequest;
     }

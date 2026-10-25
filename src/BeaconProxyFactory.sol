@@ -9,15 +9,19 @@ import {BeaconProxy} from "lib/openzeppelin-contracts/contracts/proxy/beacon/Bea
 import {UpgradeableBeacon} from "lib/openzeppelin-contracts/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import {IFactory} from "src/interface/IFactory.sol";
 
-/// @title BeaconProxyFactory
-/// @notice Shared beacon proxy factory and implementation upgrade manager.
+/**
+ * @title BeaconProxyFactory
+ * @notice Shared beacon proxy factory and implementation upgrade manager.
+ */
 contract BeaconProxyFactory is Initializable, AccessControlUpgradeable, IFactory {
     string public constant VERSION = "0.1.0";
 
     bytes32 public constant CREATOR_ROLE = keccak256("CREATOR_ROLE");
     bytes32 public constant IMPLEMENTATION_MANAGER_ROLE = keccak256("IMPLEMENTATION_MANAGER_ROLE");
 
-    /// @custom:storage-location erc7201:yieldnest.storage.beacon_proxy_factory
+    /**
+     * @custom:storage-location erc7201:yieldnest.storage.beacon_proxy_factory
+     */
     struct BeaconProxyFactoryStorage {
         UpgradeableBeacon beacon;
     }
@@ -37,16 +41,20 @@ contract BeaconProxyFactory is Initializable, AccessControlUpgradeable, IFactory
         }
     }
 
-    /// @custom:oz-upgrades-unsafe-allow constructor
+    /**
+     * @custom:oz-upgrades-unsafe-allow constructor
+     */
     constructor() {
         _disableInitializers();
     }
 
-    /// @notice Initializes the factory, beacon, and access-control roles.
-    /// @param implementation_ Initial implementation used by the beacon.
-    /// @param defaultAdmin Account granted the default admin role.
-    /// @param creator Account allowed to create beacon proxies.
-    /// @param implementationManager Account allowed to upgrade the beacon implementation.
+    /**
+     * @notice Initializes the factory, beacon, and access-control roles.
+     * @param implementation_ Initial implementation used by the beacon.
+     * @param defaultAdmin Account granted the default admin role.
+     * @param creator Account allowed to create beacon proxies.
+     * @param implementationManager Account allowed to upgrade the beacon implementation.
+     */
     function initialize(address implementation_, address defaultAdmin, address creator, address implementationManager)
         external
         initializer
@@ -67,9 +75,11 @@ contract BeaconProxyFactory is Initializable, AccessControlUpgradeable, IFactory
         _getBeaconProxyFactoryStorage().beacon = new UpgradeableBeacon(implementation_, address(this));
     }
 
-    /// @notice Creates a new beacon proxy initialized with arbitrary call data.
-    /// @param initData Initialization call data for the implementation.
-    /// @return proxy New proxy address.
+    /**
+     * @notice Creates a new beacon proxy initialized with arbitrary call data.
+     * @param initData Initialization call data for the implementation.
+     * @return proxy New proxy address.
+     */
     function create(bytes calldata initData) external override onlyRole(CREATOR_ROLE) returns (address proxy) {
         UpgradeableBeacon beacon_ = _getBeaconProxyFactoryStorage().beacon;
         address implementation_ = beacon_.implementation();
@@ -78,8 +88,10 @@ contract BeaconProxyFactory is Initializable, AccessControlUpgradeable, IFactory
         emit ProxyCreated(msg.sender, proxy, implementation_);
     }
 
-    /// @notice Upgrades the implementation used by all proxies created by this factory.
-    /// @param newImplementation New implementation address.
+    /**
+     * @notice Upgrades the implementation used by all proxies created by this factory.
+     * @param newImplementation New implementation address.
+     */
     function upgradeImplementation(address newImplementation) external onlyRole(IMPLEMENTATION_MANAGER_ROLE) {
         if (newImplementation == address(0)) revert ZeroAddress();
 
@@ -90,14 +102,18 @@ contract BeaconProxyFactory is Initializable, AccessControlUpgradeable, IFactory
         emit ImplementationUpgraded(previousImplementation, newImplementation);
     }
 
-    /// @notice Returns the beacon used by created proxies.
-    /// @return The beacon address.
+    /**
+     * @notice Returns the beacon used by created proxies.
+     * @return The beacon address.
+     */
     function beacon() public view returns (address) {
         return address(_getBeaconProxyFactoryStorage().beacon);
     }
 
-    /// @notice Returns the current implementation.
-    /// @return The current implementation address.
+    /**
+     * @notice Returns the current implementation.
+     * @return The current implementation address.
+     */
     function implementation() public view returns (address) {
         return _getBeaconProxyFactoryStorage().beacon.implementation();
     }
